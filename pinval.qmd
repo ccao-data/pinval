@@ -1,0 +1,45 @@
+---
+title: "Cook County Assessor’s Experimental AutoAppraiser Report"
+subtitle: "Property ID number: `r sprintf('<a target=_blank href=https://www.cookcountyassessor.com/pin/%s>%s</a>', params$pin, params$pin)`"
+date: "`r Sys.Date()`"
+author: "Cook County Assessor's Office Data Department"
+execute:
+  echo: false
+  warning: false
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc_float: true
+    fig-align: center
+    fontsize: 12pt
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor: source
+params:
+  run_id: "2024-01-07-great-ida"
+  year: "2024"
+  pin: "05174150240000"
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
