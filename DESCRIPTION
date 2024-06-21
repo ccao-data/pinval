@@ -1,0 +1,7 @@
+Type: Project
+Description: Report explaining how the CCAO automated valuation model predicted a subject home's value
+Depends:
+    arrow,
+    dplyr,
+    tidyr,
+    quarto
