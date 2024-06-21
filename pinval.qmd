@@ -23,23 +23,14 @@ params:
   pin: "05174150240000"
 ---
 
-## Quarto
+This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The 2024 model was run on $final_model_run_date, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, 2024.
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+This report attempts to explain the model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
 
-## Running Code
+### 744 Prospect Ave, Winnetka
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+_TK: Location and characteristic info_
 
-```{r}
-1 + 1
-```
+#### Top 5 comparable homes
 
-You can add options to executable code like this
-
-```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).
+_TK: Comps map + characteristic table_
