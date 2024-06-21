@@ -18,10 +18,75 @@ knitr:
     out.width: "100%"
 editor: source
 params:
-  run_id: "2024-01-07-great-ida"
+  run_id: "2024-06-18-calm-nathan"
   year: "2024"
   pin: "05174150240000"
+  num_comps: 5
 ---
+
+```{r}
+# Load dependencies and data for the selected parcel
+library(arrow)
+library(dplyr)
+library(tidyr)
+
+base_model_results_url <- "s3://ccao-model-results-us-east-1"
+
+# TODO: Load training data, which contains characteristics for comps
+
+# Load assessment data, which contains characteristics for the parcel
+assessment_df <- open_dataset(
+  glue::glue(
+    "{base_model_results_url}/assessment_card/year={params$year}/run_id={params$run_id}"
+  )
+) %>%
+  filter(
+    meta_pin == params$pin,
+    meta_year == ((params$year %>% as.integer()) - 1) %>% as.character
+  ) %>%
+  collect()
+
+# Load comp data
+raw_comp_df <- open_dataset(
+  glue::glue(
+    "{base_model_results_url}/comp/year={params$year}/run_id={params$run_id}"
+  )
+) %>%
+  filter(pin == params$pin) %>%
+  collect()
+
+# Expand out the comp data and attach characteristics
+comp_df <- raw_comp_df %>%
+  # Pivot out the numbered comps. This requires multiple pivots joined by
+  # bind_cols because the comp attribute columns have different types, so they
+  # can't be pivoted in one operation.
+  # Start by pivoting on comp_pin
+  pivot_longer(
+    starts_with("comp_pin_"),
+    values_to = "comp_pin",
+    names_to = "comp_num",
+    names_pattern = "comp_pin_(\\d+)"
+  ) %>%
+  select(-starts_with("comp_score_"), -starts_with("comp_document_num_")) %>%
+  bind_cols(
+    # Next, pivot on comp_score and bind the resulting column to the dataframe
+    raw_comp_df %>%
+      pivot_longer(starts_with("comp_score_"), values_to = "comp_score") %>%
+      select(comp_score),
+    # Finally, pivot on comp_document_num and bind the column
+    raw_comp_df %>%
+      pivot_longer(
+        starts_with("comp_document_num_"),
+        values_to = "comp_document_num"
+      ) %>%
+      select(comp_document_num)
+  ) %>%
+  # Filter for only the top N comps
+  mutate(comp_num = as.integer(comp_num)) %>%
+  filter(comp_num <= params$num_comps)
+
+# TODO: Attach training chars to comps and map them
+```
 
 This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The 2024 model was run on $final_model_run_date, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, 2024.
 
