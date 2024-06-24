@@ -1,6 +1,5 @@
 ---
 title: "Cook County Assessor’s Experimental AutoAppraiser Report"
-subtitle: "Property ID number: `r sprintf('<a target=_blank href=https://www.cookcountyassessor.com/pin/%s>%s</a>', params$pin, params$pin)`"
 date: "`r Sys.Date()`"
 author: "Cook County Assessor's Office Data Department"
 execute:
@@ -31,6 +30,9 @@ library(dplyr)
 library(noctua)
 library(tidyr)
 
+# Helper function to turn strings to titlecase, inclusive of all caps strings
+to_titlecase <- function(str) { return(str %>% tolower() %>% tools::toTitleCase()) }
+
 # Establish Athena connection
 athena_conn <- dbConnect(noctua::athena())
 
@@ -60,9 +62,25 @@ school_df <- dbGetQuery(
     WHERE pin10 = '{substr(params$pin, 1, 10)}'
     AND year = '{prior_year}'
   ")
-)
+) %>%
+  mutate(across(starts_with("school_"), to_titlecase))
 
-# Load assessment data, which contains characteristics for the parcel
+# Load PIN-level assessment data for chars that are missing from card data
+assessment_pin_df <- open_dataset(
+  glue::glue(
+    "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
+  )
+) %>%
+  filter(
+    meta_pin == params$pin,
+    meta_year == prior_year
+  ) %>%
+  # Select only chars that are missing from card-level data
+  select(meta_pin, loc_property_address) %>%
+  collect() %>%
+  mutate(property_address = to_titlecase(loc_property_address))
+
+# Load card-level assessment data to use as the base for joining all chars
 assessment_df <- open_dataset(
   glue::glue(
     "{base_model_results_url}/assessment_card/year={params$year}/run_id={params$run_id}"
@@ -84,6 +102,12 @@ assessment_df <- open_dataset(
     cols = starts_with("char_"),
     type = "short",
     as_factor = FALSE
+  ) %>%
+  mutate(
+    township = ccao::town_convert(meta_township_code),
+    municipality = to_titlecase(loc_tax_municipality_name),
+    bldg_sf = scales::comma(char_bldg_sf),
+    land_sf = scales::comma(char_land_sf)
   )
 
 # Load comp data
@@ -144,7 +168,8 @@ training_df <- open_dataset(
     meta_pin %in% pivoted_comp_df$comp_pin,
     meta_sale_document_num %in% pivoted_comp_df$comp_document_num
   ) %>%
-  collect()
+  collect() %>%
+  mutate(property_address = to_titlecase(loc_property_address))
 
 # Attach training chars to comps
 comp_df <- pivoted_comp_df %>%
@@ -157,11 +182,13 @@ comp_df <- pivoted_comp_df %>%
   )
 ```
 
-This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The 2024 model was run on $final_model_run_date, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, 2024.
+## `r assessment_pin_df$property_address`
+
+### "Property ID number: `r sprintf('<a target=_blank href=https://www.cookcountyassessor.com/pin/%s>%s</a>', params$pin, params$pin)`"
+
+This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The `r substr(params$run_id, 1, 4)` model was run on `r substr(params$run_id, 1, 10)`, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, `r substr(params$run_id, 1, 4)`.
 
 This report attempts to explain the model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
-
-### 744 Prospect Ave, Winnetka
 
 #### Location
 
@@ -171,11 +198,10 @@ library(knitr)
 library(kableExtra)
 
 assessment_df %>%
-  mutate(township = ccao::town_convert(meta_township_code)) %>%
   select(
     Card = meta_card_num,
     Township = township,
-    Municipality = loc_tax_municipality_name,
+    Municipality = municipality,
     "Assessor Neighborhood" = meta_nbhd_code,
     "Elementary School District" = school_elementary_district_name,
     "High School District" = school_secondary_district_name
@@ -194,14 +220,14 @@ assessment_df %>%
 assessment_df %>%
   select(
     "Year Built" = char_yrblt,
-    "Bldg. S.F." = char_bldg_sf,
-    "Land S.F." = char_land_sf,
+    "Bldg. S.F." = bldg_sf,
+    "Land S.F." = land_sf,
     Beds = char_beds,
     "Full Baths" = char_fbath,
     "Half Baths" = char_hbath,
     "Home Improvement Exemption" = hie
   ) %>%
-  kable() %>%
+  kable(align = c("r", "r", "r", "r", "r", "r", "l")) %>%
   kable_styling(
     "striped",
     position = "left",
@@ -211,4 +237,59 @@ assessment_df %>%
 
 #### Top 5 comparable homes
 
-_TK: Comps map + characteristic table_
+```{r}
+library(leaflet)
+
+leaflet_comp_df <- comp_df %>%
+  mutate(color = ifelse(comp_pin == params$pin, 0, comp_num))
+
+comp_palette <- colorBin(
+  # TODO: This palette could be clearer
+  c("black", "#00FF00", "#00CC00", "#009900", "#006600", "#003300"),
+  c(0, 1, 2, 3, 4, 5),
+)
+
+leaflet() %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  # TODO: Label this dot as the target
+  addCircleMarkers(
+    data = assessment_df,
+    ~loc_longitude,
+    ~loc_latitude,
+    opacity = 1,
+    fillOpacity = 1,
+    radius = 2,
+    color = "black"
+  ) %>%
+  # TODO: Add labels with sale price, month, and year
+  addCircleMarkers(
+    data = leaflet_comp_df,
+    ~loc_longitude,
+    ~loc_latitude,
+    opacity = 1,
+    fillOpacity = 1,
+    radius = 2,
+    color = ~ comp_palette(color),
+    popup = ~ paste0(
+      "<b>Comp ", comp_num, "</b>",
+      "<br><b>Address</b>: ", property_address,
+      "<br><b>PIN</b>: ",
+      "<a target='_blank' rel='noopener noreferrer' ",
+      "href='https://www.cookcountyassessor.com/pin/", comp_pin,
+      "'>", comp_pin, "</a>",
+      "<br><b>Class</b>: ", meta_class,
+      "<hr>",
+      "<b>Sale price</b>: ", scales::dollar(meta_sale_price, accuracy = 1),
+      "<br><b>Sale date</b>: ", meta_sale_date,
+      "<br><b>Sale document number</b>: ", comp_document_num
+    )
+  ) %>%
+  setView(
+    lng = mean(comp_df$loc_longitude),
+    lat = mean(comp_df$loc_latitude),
+    zoom = 12
+  )
+```
+
+
+_TK: Table comparing target PIN chars to comp chars_

@@ -6,6 +6,7 @@ Depends:
     ccao,
     dplyr,
     kableExtra,
+    leaflet,
     noctua,
     tidyr,
     quarto
