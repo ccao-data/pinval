@@ -2,6 +2,13 @@ Type: Project
 Description: Report explaining how the CCAO automated valuation model predicted a subject home's value
 Depends:
     arrow,
+    assessr,
+    ccao,
     dplyr,
+    kableExtra,
+    noctua,
     tidyr,
     quarto
+Remotes:
+    ccao-data/assessr,
+    ccao-data/ccao
