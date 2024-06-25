@@ -34,7 +34,8 @@ library(tidyr)
 to_titlecase <- function(str) { return(str %>% tolower() %>% tools::toTitleCase()) }
 
 # Establish Athena connection
-athena_conn <- dbConnect(noctua::athena())
+athena_conn <- noctua::athena() %>%
+  dbConnect(s3_staging_dir="s3://ccao-athena-results-us-east-1")
 
 # Define base paths to S3 buckets where data are stored
 base_model_results_url <- "s3://ccao-model-results-us-east-1"
@@ -240,28 +241,56 @@ assessment_df %>%
 ```{r}
 library(leaflet)
 
-leaflet_comp_df <- comp_df %>%
-  mutate(color = ifelse(comp_pin == params$pin, 0, comp_num))
-
-comp_palette <- colorBin(
-  # TODO: This palette could be clearer
-  c("black", "#00FF00", "#00CC00", "#009900", "#006600", "#003300"),
-  c(0, 1, 2, 3, 4, 5),
+comp_factors <- c(
+  # Include subject property in the factor vector so that we can use it
+  # in the map legend
+  "Subject property",
+  "Comp 1 (most similar)",
+  paste0("Comp ", 2:4),
+  "Comp 5 (least similar)"
 )
+
+leaflet_assessment_df <- assessment_df %>%
+  # Anything in the assessment df is a subject property
+  mutate(comp_num_factor = comp_factors[1])
+
+leaflet_comp_df <- comp_df %>%
+  # Skip the first index of `comp_factors`, since it's used for the target PIN
+  mutate(comp_num_factor = comp_factors[comp_num + 1])
+
+color_palette <- colorFactor(
+  c("black", "#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
+  comp_factors,
+  ordered = TRUE
+)
+
+# Function to get the label text for comps, which should show sale price and
+# sale date
+comp_label <- function(sale_price, sale_date) {
+  formatted_sale_price <- scales::dollar(sale_price)
+  formatted_sale_date <- sale_date %>% as.Date %>% format("%h %Y")
+  return(glue::glue("{formatted_sale_price} ({formatted_sale_date})"))
+}
 
 leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   # TODO: Label this dot as the target
   addCircleMarkers(
-    data = assessment_df,
+    data = leaflet_assessment_df,
     ~loc_longitude,
     ~loc_latitude,
     opacity = 1,
     fillOpacity = 1,
     radius = 2,
-    color = "black"
+    color = ~ color_palette(comp_num_factor),
+    label = comp_factors[1],
+    labelOptions = labelOptions(
+      noHide = TRUE,
+      textsize = "12px",
+      direction = "top",
+      offset = c(0, -4)
+    )
   ) %>%
-  # TODO: Add labels with sale price, month, and year
   addCircleMarkers(
     data = leaflet_comp_df,
     ~loc_longitude,
@@ -269,7 +298,14 @@ leaflet() %>%
     opacity = 1,
     fillOpacity = 1,
     radius = 2,
-    color = ~ comp_palette(color),
+    color = ~ color_palette(comp_num_factor),
+    label = ~ comp_label(meta_sale_price, meta_sale_date),
+    labelOptions = labelOptions(
+      noHide = FALSE,
+      textsize = "12px",
+      direction = "top",
+      offset = c(0, -4)
+    ),
     popup = ~ paste0(
       "<b>Comp ", comp_num, "</b>",
       "<br><b>Address</b>: ", property_address,
@@ -284,10 +320,19 @@ leaflet() %>%
       "<br><b>Sale document number</b>: ", comp_document_num
     )
   ) %>%
-  setView(
-    lng = mean(comp_df$loc_longitude),
-    lat = mean(comp_df$loc_latitude),
-    zoom = 12
+  addLegend(
+    "bottomright",
+    pal = color_palette,
+    values = comp_factors,
+    opacity = 1
+  ) %>%
+  addControl(
+    "topright",
+    html = "Hover, click, or tap a dot for more details"
+  ) %>%
+  fitBounds(
+    lng1 = min(comp_df$loc_longitude), lat1 = min(comp_df$loc_latitude),
+    lng2 = max(comp_df$loc_longitude), lat2 = max(comp_df$loc_latitude)
   )
 ```
 
