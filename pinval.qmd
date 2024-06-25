@@ -180,6 +180,18 @@ comp_df <- pivoted_comp_df %>%
       "comp_pin" = "meta_pin",
       "comp_document_num" = "meta_sale_document_num"
     )
+  ) %>%
+  # Translate coded vars to human readable values
+  ccao::vars_recode(
+    cols = starts_with("char_"),
+    type = "short",
+    as_factor = FALSE
+  ) %>%
+  mutate(
+    bldg_sf = scales::comma(char_bldg_sf),
+    land_sf = scales::comma(char_land_sf),
+    sale_price = scales::dollar(meta_sale_price),
+    sale_date = meta_sale_date %>% as.Date %>% format("%h %Y")
   )
 ```
 
@@ -264,14 +276,6 @@ color_palette <- colorFactor(
   ordered = TRUE
 )
 
-# Function to get the label text for comps, which should show sale price and
-# sale date
-comp_label <- function(sale_price, sale_date) {
-  formatted_sale_price <- scales::dollar(sale_price)
-  formatted_sale_date <- sale_date %>% as.Date %>% format("%h %Y")
-  return(glue::glue("{formatted_sale_price} ({formatted_sale_date})"))
-}
-
 leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
   # TODO: Label this dot as the target
@@ -299,7 +303,7 @@ leaflet() %>%
     fillOpacity = 1,
     radius = 2,
     color = ~ color_palette(comp_num_factor),
-    label = ~ comp_label(meta_sale_price, meta_sale_date),
+    label = ~ glue::glue("{sale_price} ({sale_date})"),
     labelOptions = labelOptions(
       noHide = FALSE,
       textsize = "12px",
@@ -315,8 +319,8 @@ leaflet() %>%
       "'>", comp_pin, "</a>",
       "<br><b>Class</b>: ", meta_class,
       "<hr>",
-      "<b>Sale price</b>: ", scales::dollar(meta_sale_price, accuracy = 1),
-      "<br><b>Sale date</b>: ", meta_sale_date,
+      "<b>Sale price</b>: ", sale_price,
+      "<br><b>Sale date</b>: ", sale_date,
       "<br><b>Sale document number</b>: ", comp_document_num
     )
   ) %>%
@@ -337,4 +341,56 @@ leaflet() %>%
 ```
 
 
-_TK: Table comparing target PIN chars to comp chars_
+```{r}
+assessment_df %>%
+  mutate(
+    comp_num = "--",
+    meta_sale_document_num = "--",
+    meta_sale_date = "--",
+    meta_sale_price = "--"
+  ) %>%
+  select(
+    "Comp Number" = comp_num,
+    "Property ID" = meta_pin,
+    "Class" = meta_class,
+    "Sale Document number" = meta_sale_document_num,
+    "Sale Date" = meta_sale_date,
+    "Sale Price" = meta_sale_price,
+    "Year Built" = char_yrblt,
+    "Bldg. S.F." = bldg_sf,
+    "Land S.F." = land_sf,
+    Beds = char_beds,
+    "Full Baths" = char_fbath,
+    "Half Baths" = char_hbath,
+  ) %>%
+  bind_rows(
+    comp_df %>%
+      # Cast comp num to character so we can join it with the missing value
+      # symbols applied to the assessment data, which are stored as characters
+      mutate(comp_num = as.character(comp_num)) %>%
+      select(
+        "Comp Number" = comp_num,
+        "Property ID" = comp_pin,
+        "Class" = meta_class,
+        "Sale Document number" = comp_document_num,
+        "Sale Date" = sale_date,
+        "Sale Price" = sale_price,
+        "Year Built" = char_yrblt,
+        "Bldg. S.F." = bldg_sf,
+        "Land S.F." = land_sf,
+        Beds = char_beds,
+        "Full Baths" = char_fbath,
+        "Half Baths" = char_hbath,
+      )
+  ) %>%
+  kable(
+    align = c(
+      "l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "r"
+    )
+  ) %>%
+  kable_styling(
+    position = "left",
+    stripe_index = c(2:3),
+    fixed_thead = TRUE
+  )
+```
