@@ -8,8 +8,6 @@ execute:
 format:
   html:
     embed-resources: true
-    toc: true
-    toc_float: true
     fig-align: center
     fontsize: 12pt
 knitr:
@@ -32,6 +30,15 @@ library(tidyr)
 
 # Helper function to turn strings to titlecase, inclusive of all caps strings
 to_titlecase <- function(str) { return(str %>% tolower() %>% tools::toTitleCase()) }
+
+# Helper function to add a link to a PIN
+link_pin <- function(pin) {
+  return(
+    glue::glue(
+      '<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{pin}</a>'
+    )
+  )
+}
 
 # Establish Athena connection
 athena_conn <- noctua::athena() %>%
@@ -195,15 +202,13 @@ comp_df <- pivoted_comp_df %>%
   )
 ```
 
-## `r assessment_pin_df$property_address`
+## `r assessment_pin_df$property_address` (Property ID `r link_pin(params$pin)`)
 
-### "Property ID number: `r sprintf('<a target=_blank href=https://www.cookcountyassessor.com/pin/%s>%s</a>', params$pin, params$pin)`"
-
-This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The `r substr(params$run_id, 1, 4)` model was run on `r substr(params$run_id, 1, 10)`, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, `r substr(params$run_id, 1, 4)`.
+This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The `r substr(params$run_id, 1, 4)` model was run on `r params$run_id %>% substr(1, 10) %>% as.Date() %>% format("%B %d %Y")`, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1 `r substr(params$run_id, 1, 4)`.
 
 This report attempts to explain the model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
 
-#### Location
+### Location
 
 ```{r}
 library(ccao)
@@ -227,11 +232,12 @@ assessment_df %>%
   )
 ```
 
-#### Property
+### Property
 
 ```{r}
 assessment_df %>%
   select(
+    Card = meta_card_num,
     "Year Built" = char_yrblt,
     "Bldg. S.F." = bldg_sf,
     "Land S.F." = land_sf,
@@ -240,7 +246,7 @@ assessment_df %>%
     "Half Baths" = char_hbath,
     "Home Improvement Exemption" = hie
   ) %>%
-  kable(align = c("r", "r", "r", "r", "r", "r", "l")) %>%
+  kable(align = c("l", "r", "r", "r", "r", "r", "r", "l")) %>%
   kable_styling(
     "striped",
     position = "left",
@@ -248,46 +254,39 @@ assessment_df %>%
   )
 ```
 
-#### Top 5 comparable homes
+### Top 5 comparable homes
 
 ```{r}
 library(leaflet)
 
-comp_factors <- c(
-  # Include subject property in the factor vector so that we can use it
-  # in the map legend
-  "Subject property",
+comp_labels <- c(
   "Comp 1 (most similar)",
   paste0("Comp ", 2:4),
   "Comp 5 (least similar)"
 )
 
-leaflet_assessment_df <- assessment_df %>%
-  # Anything in the assessment df is a subject property
-  mutate(comp_num_factor = comp_factors[1])
-
 leaflet_comp_df <- comp_df %>%
-  # Skip the first index of `comp_factors`, since it's used for the target PIN
-  mutate(comp_num_factor = comp_factors[comp_num + 1])
+  mutate(comp_num_label = comp_labels[comp_num])
 
 color_palette <- colorFactor(
-  c("black", "#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
-  comp_factors,
+  c("#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
+  comp_labels,
   ordered = TRUE
 )
 
 leaflet() %>%
   addProviderTiles(providers$CartoDB.Positron) %>%
-  # TODO: Label this dot as the target
   addCircleMarkers(
-    data = leaflet_assessment_df,
+    data = assessment_df,
     ~loc_longitude,
     ~loc_latitude,
     opacity = 1,
-    fillOpacity = 1,
-    radius = 2,
-    color = ~ color_palette(comp_num_factor),
-    label = comp_factors[1],
+    fill = FALSE,
+    fillOpacity = 0,
+    weight = 2,
+    radius = 5,
+    color = "black",
+    label = "Subject property",
     labelOptions = labelOptions(
       noHide = TRUE,
       textsize = "12px",
@@ -301,8 +300,8 @@ leaflet() %>%
     ~loc_latitude,
     opacity = 1,
     fillOpacity = 1,
-    radius = 2,
-    color = ~ color_palette(comp_num_factor),
+    radius = 4,
+    color = ~ color_palette(comp_num_label),
     label = ~ glue::glue("{sale_price} ({sale_date})"),
     labelOptions = labelOptions(
       noHide = FALSE,
@@ -313,10 +312,7 @@ leaflet() %>%
     popup = ~ paste0(
       "<b>Comp ", comp_num, "</b>",
       "<br><b>Address</b>: ", property_address,
-      "<br><b>PIN</b>: ",
-      "<a target='_blank' rel='noopener noreferrer' ",
-      "href='https://www.cookcountyassessor.com/pin/", comp_pin,
-      "'>", comp_pin, "</a>",
+      "<br><b>PIN</b>: ", link_pin(comp_pin),
       "<br><b>Class</b>: ", meta_class,
       "<hr>",
       "<b>Sale price</b>: ", sale_price,
@@ -327,7 +323,7 @@ leaflet() %>%
   addLegend(
     "bottomright",
     pal = color_palette,
-    values = comp_factors,
+    values = comp_labels,
     opacity = 1
   ) %>%
   addControl(
@@ -340,17 +336,29 @@ leaflet() %>%
   )
 ```
 
+```{r}
+avg_sale_price <- comp_df$meta_sale_price %>% mean() %>% scales::dollar()
+avg_price_per_sqft <- (comp_df$meta_sale_price / comp_df$char_bldg_sf) %>%
+  mean() %>%
+  scales::dollar(accuracy = 1)
+```
+
+<br>
+The average sale price of the top 5 comparable properties was
+**`r avg_sale_price`** at **`r avg_price_per_sqft`/sq. ft.**.
 
 ```{r}
 assessment_df %>%
   mutate(
-    comp_num = "--",
-    meta_sale_document_num = "--",
-    meta_sale_date = "--",
-    meta_sale_price = "--"
+    property_address = assessment_pin_df$property_address,
+    comp_num = "",
+    meta_sale_document_num = "",
+    meta_sale_date = "",
+    meta_sale_price = ""
   ) %>%
   select(
     "Comp Number" = comp_num,
+    "Address" = property_address,
     "Property ID" = meta_pin,
     "Class" = meta_class,
     "Sale Document number" = meta_sale_document_num,
@@ -370,6 +378,7 @@ assessment_df %>%
       mutate(comp_num = as.character(comp_num)) %>%
       select(
         "Comp Number" = comp_num,
+        "Address" = property_address,
         "Property ID" = comp_pin,
         "Class" = meta_class,
         "Sale Document number" = comp_document_num,
