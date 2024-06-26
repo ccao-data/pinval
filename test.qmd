@@ -1,0 +1,85 @@
+---
+execute:
+  echo: false
+  warning: false
+format:
+  html:
+    embed-resources: true
+    fig-align: center
+    fontsize: 12pt
+knitr:
+  opts_chunk:
+    out.width: "100%"
+editor: source
+---
+
+```{r output="asis"}
+library(glue)
+library(htmltools)
+library(leaflet)
+
+render_map <- function() {
+  leaflet() %>%
+    addProviderTiles(providers$CartoDB.Positron) %>%
+    addControl(
+      "topright",
+      html = "Hover, click, or tap a dot for more details"
+    )
+}
+
+nav_tabs <- list()
+for (i in 1:2) {
+  nav_tabs <- c(
+    nav_tabs,
+    list(
+      tags$li(
+        class = "nav-item",
+        role = "presentation",
+        tags$a(
+          class = ifelse(i == 1, "nav-link active", "nav-link"),
+          id = glue::glue("tabset-1-{i}-tab"),
+          "data-bs-toggle" = "tab",
+          "data-bs-target" = glue::glue("#tabset-1-{i}"),
+          role = "tab",
+          "aria-controls" = glue::glue("tabset-1-{i}"),
+          "aria-selected" = ifelse(i == 1, "true", "false"),
+          href = "",
+          paste0("Map ", i)
+        )
+      )
+    )
+  )
+}
+
+tab_contents <- list()
+for (i in 1:2) {
+  tab_contents <- c(
+    tab_contents,
+    list(
+      div(
+        id = glue::glue("tabset-1-{i}"),
+        class = ifelse(i == 1, "tab-pane active", "tab-pane"),
+        role = "tabpanel",
+        "aria-labelledby" = glue::glue("tabset-1-{i}-tab"),
+        div(
+          class="cell-output-display",
+          render_map()
+        )
+      )
+    )
+  )
+}
+
+div(
+  class = "panel-tabset",
+  tags$ul(
+    class = "nav nav-tabs",
+    role = "tablist",
+    nav_tabs
+  ),
+  div(
+    class = "tab-content",
+    tab_contents
+  )
+)
+```
