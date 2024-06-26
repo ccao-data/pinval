@@ -1,5 +1,5 @@
 ---
-title: "Cook County Assessor’s Experimental AutoAppraiser Report"
+title: "Cook County Assessor’s Experimental Home Value Report"
 date: "`r Sys.Date()`"
 author: "Cook County Assessor's Office Data Department"
 execute:
@@ -52,6 +52,23 @@ base_warehouse_url <- "s3://ccao-data-warehouse-us-east-1"
 # Set prior year for characteristic queries
 prior_year <- ((params$year %>% as.integer()) - 1) %>% as.character
 
+# Load final model ID for this year
+final_model_run_id <- dbGetQuery(
+  conn = athena_conn,
+  # This query should only ever return one value, but limit the results to 1
+  # just to be defensive
+  glue::glue("
+    SELECT run_id
+    FROM model.final_model
+    WHERE year = '{params$year}'
+    AND type = 'res'
+    AND is_final
+    LIMIT 1
+  ")
+) %>%
+  pull(run_id)
+final_model_run_date <- final_model_run_id %>% substr(1, 10) %>% as.Date()
+
 # Load HIE data, which is stored separately from the assessment data
 hie_df <- open_dataset(
   glue::glue("{base_warehouse_url}/ccao/other/hie/year=2020")
@@ -73,8 +90,8 @@ school_df <- dbGetQuery(
 ) %>%
   mutate(across(starts_with("school_"), to_titlecase))
 
-# Load PIN-level assessment data for chars that are missing from card data
-assessment_pin_df <- open_dataset(
+# Load property address, which is stored as part of the PIN-level assessment data
+subject_property_address <- open_dataset(
   glue::glue(
     "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
   )
@@ -84,9 +101,10 @@ assessment_pin_df <- open_dataset(
     meta_year == prior_year
   ) %>%
   # Select only chars that are missing from card-level data
-  select(meta_pin, loc_property_address) %>%
+  select(loc_property_address) %>%
   collect() %>%
-  mutate(property_address = to_titlecase(loc_property_address))
+  mutate(property_address = to_titlecase(loc_property_address)) %>%
+  pull(property_address)
 
 # Load card-level assessment data to use as the base for joining all chars
 assessment_df <- open_dataset(
@@ -202,204 +220,227 @@ comp_df <- pivoted_comp_df %>%
   )
 ```
 
-## `r assessment_pin_df$property_address` (Property ID `r link_pin(params$pin)`)
+## `r subject_property_address`
 
-This is an experimental AutoAppraiser report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The `r substr(params$run_id, 1, 4)` model was run on `r params$run_id %>% substr(1, 10) %>% as.Date() %>% format("%B %d %Y")`, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1 `r substr(params$run_id, 1, 4)`.
+**Property ID: `r link_pin(params$pin)`**
+
+This is an experimental home value report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The `r format(final_model_run_date, "%Y")` model was run on `r format(final_model_run_date, "%B %d, %Y")`, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, `r format(final_model_run_date, "%Y")`.
 
 This report attempts to explain the model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
 
-### Location
 
-```{r}
+```{r output="asis"}
 library(ccao)
 library(knitr)
 library(kableExtra)
-
-assessment_df %>%
-  select(
-    Card = meta_card_num,
-    Township = township,
-    Municipality = municipality,
-    "Assessor Neighborhood" = meta_nbhd_code,
-    "Elementary School District" = school_elementary_district_name,
-    "High School District" = school_secondary_district_name
-  ) %>%
-  kable() %>%
-  kable_styling(
-    "striped",
-    position = "left",
-    fixed_thead = TRUE
-  )
-```
-
-### Property
-
-```{r}
-assessment_df %>%
-  select(
-    Card = meta_card_num,
-    "Year Built" = char_yrblt,
-    "Bldg. S.F." = bldg_sf,
-    "Land S.F." = land_sf,
-    Beds = char_beds,
-    "Full Baths" = char_fbath,
-    "Half Baths" = char_hbath,
-    "Home Improvement Exemption" = hie
-  ) %>%
-  kable(align = c("l", "r", "r", "r", "r", "r", "r", "l")) %>%
-  kable_styling(
-    "striped",
-    position = "left",
-    fixed_thead = TRUE
-  )
-```
-
-### Top 5 comparable homes
-
-```{r}
 library(leaflet)
 
-comp_labels <- c(
-  "Comp 1 (most similar)",
-  paste0("Comp ", 2:4),
-  "Comp 5 (least similar)"
-)
+# Split assessment data so that we get one dataframe per card
+assessment_dfs <- assessment_df %>% split(assessment_df %>% nrow() %>% seq_len())
+is_multicard <- length(assessment_dfs) > 1
 
-leaflet_comp_df <- comp_df %>%
-  mutate(comp_num_label = comp_labels[comp_num])
+if (is_multicard) {
+  # In case of a multicard PIN, split the report out into tabsets, with one
+  # tabset for each card
+  cat("::: {.panel-tabset}\n\n")
+}
 
-color_palette <- colorFactor(
-  c("#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
-  comp_labels,
-  ordered = TRUE
-)
+for (i in seq_along(assessment_dfs)) {
+  assessment_card_df <- assessment_dfs[[i]]
+  card_num <- assessment_card_df %>% pull(meta_card_num)
+  comp_card_df <- comp_df %>%
+    filter(card == card_num)
+  
+  if (is_multicard) {
+    cat(glue::glue("### Card {card_num}\n\n"))
+  }
+  
+  cat("<h3>Location</h3>\n\n")
 
-leaflet() %>%
-  addProviderTiles(providers$CartoDB.Positron) %>%
-  addCircleMarkers(
-    data = assessment_df,
-    ~loc_longitude,
-    ~loc_latitude,
-    opacity = 1,
-    fill = FALSE,
-    fillOpacity = 0,
-    weight = 2,
-    radius = 5,
-    color = "black",
-    label = "Subject property",
-    labelOptions = labelOptions(
-      noHide = TRUE,
-      textsize = "12px",
-      direction = "top",
-      offset = c(0, -4)
-    )
-  ) %>%
-  addCircleMarkers(
-    data = leaflet_comp_df,
-    ~loc_longitude,
-    ~loc_latitude,
-    opacity = 1,
-    fillOpacity = 1,
-    radius = 4,
-    color = ~ color_palette(comp_num_label),
-    label = ~ glue::glue("{sale_price} ({sale_date})"),
-    labelOptions = labelOptions(
-      noHide = FALSE,
-      textsize = "12px",
-      direction = "top",
-      offset = c(0, -4)
-    ),
-    popup = ~ paste0(
-      "<b>Comp ", comp_num, "</b>",
-      "<br><b>Address</b>: ", property_address,
-      "<br><b>PIN</b>: ", link_pin(comp_pin),
-      "<br><b>Class</b>: ", meta_class,
-      "<hr>",
-      "<b>Sale price</b>: ", sale_price,
-      "<br><b>Sale date</b>: ", sale_date,
-      "<br><b>Sale document number</b>: ", comp_document_num
-    )
-  ) %>%
-  addLegend(
-    "bottomright",
-    pal = color_palette,
-    values = comp_labels,
-    opacity = 1
-  ) %>%
-  addControl(
-    "topright",
-    html = "Hover, click, or tap a dot for more details"
-  ) %>%
-  fitBounds(
-    lng1 = min(comp_df$loc_longitude), lat1 = min(comp_df$loc_latitude),
-    lng2 = max(comp_df$loc_longitude), lat2 = max(comp_df$loc_latitude)
+  assessment_card_df %>%
+    select(
+      Township = township,
+      Municipality = municipality,
+      "Assessor Neighborhood" = meta_nbhd_code,
+      "Elementary School District" = school_elementary_district_name,
+      "High School District" = school_secondary_district_name
+    ) %>%
+    kable() %>%
+    kable_styling(position = "left") %>%
+    print()
+  
+  cat("<h3>Property</h3>\n\n")
+  
+  assessment_card_df %>%
+    select(
+      "Year Built" = char_yrblt,
+      "Bldg. S.F." = bldg_sf,
+      "Land S.F." = land_sf,
+      Beds = char_beds,
+      "Full Baths" = char_fbath,
+      "Half Baths" = char_hbath,
+      "Home Improvement Exemption" = hie
+    ) %>%
+    kable(align = c("r", "r", "r", "r", "r", "r", "l")) %>%
+    kable_styling(position = "left") %>%
+    print()
+  
+  cat("<h3>Top 5 comparable homes</h3>\n\n")
+  
+  comp_labels <- c(
+    "Comp 1 (most similar)",
+    paste0("Comp ", 2:4),
+    "Comp 5 (least similar)"
   )
-```
-
-```{r}
-avg_sale_price <- comp_df$meta_sale_price %>% mean() %>% scales::dollar()
-avg_price_per_sqft <- (comp_df$meta_sale_price / comp_df$char_bldg_sf) %>%
-  mean() %>%
-  scales::dollar(accuracy = 1)
-```
-
-<br>
-The average sale price of the top 5 comparable properties was
-**`r avg_sale_price`** at **`r avg_price_per_sqft`/sq. ft.**.
-
-```{r}
-assessment_df %>%
-  mutate(
-    property_address = assessment_pin_df$property_address,
-    comp_num = "",
-    meta_sale_document_num = "",
-    meta_sale_date = "",
-    meta_sale_price = ""
-  ) %>%
-  select(
-    "Comp Number" = comp_num,
-    "Address" = property_address,
-    "Property ID" = meta_pin,
-    "Class" = meta_class,
-    "Sale Document number" = meta_sale_document_num,
-    "Sale Date" = meta_sale_date,
-    "Sale Price" = meta_sale_price,
-    "Year Built" = char_yrblt,
-    "Bldg. S.F." = bldg_sf,
-    "Land S.F." = land_sf,
-    Beds = char_beds,
-    "Full Baths" = char_fbath,
-    "Half Baths" = char_hbath,
-  ) %>%
-  bind_rows(
-    comp_df %>%
-      # Cast comp num to character so we can join it with the missing value
-      # symbols applied to the assessment data, which are stored as characters
-      mutate(comp_num = as.character(comp_num)) %>%
-      select(
-        "Comp Number" = comp_num,
-        "Address" = property_address,
-        "Property ID" = comp_pin,
-        "Class" = meta_class,
-        "Sale Document number" = comp_document_num,
-        "Sale Date" = sale_date,
-        "Sale Price" = sale_price,
-        "Year Built" = char_yrblt,
-        "Bldg. S.F." = bldg_sf,
-        "Land S.F." = land_sf,
-        Beds = char_beds,
-        "Full Baths" = char_fbath,
-        "Half Baths" = char_hbath,
+  
+  leaflet_comp_df <- comp_card_df %>%
+    mutate(comp_num_label = comp_labels[comp_num])
+  
+  color_palette <- colorFactor(
+    c("#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
+    comp_labels,
+    ordered = TRUE
+  )
+  
+  # TODO: Render this map using htmltools::tagList to get around
+  # the fact that leaflet maps can't be rendered in loops (see
+  # test.qmd for an example)
+  leaflet() %>%
+    addProviderTiles(providers$CartoDB.Positron) %>%
+    addCircleMarkers(
+      data = assessment_card_df,
+      ~loc_longitude,
+      ~loc_latitude,
+      opacity = 1,
+      fill = FALSE,
+      fillOpacity = 0,
+      weight = 2,
+      radius = 5,
+      color = "black",
+      label = "Subject property",
+      labelOptions = labelOptions(
+        noHide = TRUE,
+        textsize = "12px",
+        direction = "top",
+        offset = c(0, -4)
       )
-  ) %>%
-  kable(
-    align = c(
-      "l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "r"
+    ) %>%
+    addCircleMarkers(
+      data = leaflet_comp_df,
+      ~loc_longitude,
+      ~loc_latitude,
+      opacity = 1,
+      fillOpacity = 1,
+      radius = 4,
+      color = ~ color_palette(comp_num_label),
+      label = ~ glue::glue("{sale_price} ({sale_date})"),
+      labelOptions = labelOptions(
+        noHide = FALSE,
+        textsize = "12px",
+        direction = "top",
+        offset = c(0, -4)
+      ),
+      popup = ~ paste0(
+        "<b>Comp ", comp_num, "</b>",
+        "<br><b>Address</b>: ", property_address,
+        "<br><b>PIN</b>: ", link_pin(comp_pin),
+        "<br><b>Class</b>: ", meta_class,
+        "<hr>",
+        "<b>Sale price</b>: ", sale_price,
+        "<br><b>Sale date</b>: ", sale_date,
+        "<br><b>Sale document number</b>: ", comp_document_num
+      )
+    ) %>%
+    addLegend(
+      "bottomright",
+      pal = color_palette,
+      values = comp_labels,
+      opacity = 1
+    ) %>%
+    addControl(
+      "topright",
+      html = "Hover, click, or tap a dot for more details"
+    ) %>%
+    fitBounds(
+      lng1 = min(comp_df$loc_longitude), lat1 = min(comp_df$loc_latitude),
+      lng2 = max(comp_df$loc_longitude), lat2 = max(comp_df$loc_latitude)
     )
-  ) %>%
-  kable_styling(
-    position = "left",
-    stripe_index = c(2:3),
-    fixed_thead = TRUE
+  
+  avg_sale_price <- comp_df$meta_sale_price %>% mean() %>% scales::dollar()
+  avg_price_per_sqft <- (comp_df$meta_sale_price / comp_df$char_bldg_sf) %>%
+    mean() %>%
+    scales::dollar(accuracy = 1)
+  
+  cat("<br>\n\n")
+  cat(
+    paste0(
+      "The average sale price of the top 5 comparable properties was **",
+      avg_sale_price,
+      "** at **",
+      avg_price_per_sqft,
+      "/sq.ft.**\n\n"
+    )
   )
+  
+  # Fix to account for the fact that kable incorrectly applies `table-responsive`
+  # to the table element rather than its enclosing div when applying it as part
+  # of the `bootstrap_options` param
+  cat("::: {.table-responsive}\n\n")
+  assessment_card_df %>%
+    mutate(
+      property_address = subject_property_address,
+      comp_num = "",
+      meta_sale_document_num = "",
+      meta_sale_date = "",
+      meta_sale_price = ""
+    ) %>%
+    select(
+      "Comp Number" = comp_num,
+      "Address" = property_address,
+      "Property ID" = meta_pin,
+      "Class" = meta_class,
+      "Sale Document number" = meta_sale_document_num,
+      "Sale Date" = meta_sale_date,
+      "Sale Price" = meta_sale_price,
+      "Year Built" = char_yrblt,
+      "Bldg. S.F." = bldg_sf,
+      "Land S.F." = land_sf,
+      Beds = char_beds,
+      "Full Baths" = char_fbath,
+      "Half Baths" = char_hbath,
+    ) %>%
+    bind_rows(
+      comp_card_df %>%
+        # Cast comp num to character so we can join it with the missing value
+        # symbols applied to the assessment data, which are stored as characters
+        mutate(comp_num = as.character(comp_num)) %>%
+        select(
+          "Comp Number" = comp_num,
+          "Address" = property_address,
+          "Property ID" = comp_pin,
+          "Class" = meta_class,
+          "Sale Document number" = comp_document_num,
+          "Sale Date" = sale_date,
+          "Sale Price" = sale_price,
+          "Year Built" = char_yrblt,
+          "Bldg. S.F." = bldg_sf,
+          "Land S.F." = land_sf,
+          Beds = char_beds,
+          "Full Baths" = char_fbath,
+          "Half Baths" = char_hbath,
+        )
+    ) %>%
+    kable(
+      align = c(
+        "l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "r"
+      )
+    ) %>%
+    kable_styling(position = "left") %>%
+    print()
+    cat(":::\n\n")
+}
+
+if (is_multicard) {
+  cat(":::\n")
+}
 ```
