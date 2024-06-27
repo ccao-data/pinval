@@ -237,6 +237,12 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
       sale_price = scales::dollar(meta_sale_price),
+      sale_price_short = scales::dollar(
+        meta_sale_price,
+        accuracy = 1,
+        scale = 1 / 1000,
+        suffix = "K"
+      ),
       sale_date = meta_sale_date %>% as.Date %>% format("%h %Y")
     )
 
@@ -340,6 +346,8 @@ comps_map <- function(assessment_df, comp_df) {
     ordered = TRUE
   )
 
+  bounds_buffer <- 0.001
+
   leaflet() %>%
     addProviderTiles(providers$CartoDB.Positron) %>%
     addCircleMarkers(
@@ -369,11 +377,12 @@ comps_map <- function(assessment_df, comp_df) {
       fillOpacity = 1,
       radius = 4,
       color = ~ color_palette(comp_num_label),
-      label = ~ glue::glue("{sale_price} ({sale_date})"),
+      label = ~ glue::glue("{sale_price_short} ({sale_date})"),
       labelOptions = labelOptions(
-        noHide = FALSE,
+        noHide = TRUE,
         textsize = "12px",
         direction = "top",
+        opacity = 0.9,
         offset = c(0, -4)
       ),
       popup = ~ paste0(
@@ -395,11 +404,13 @@ comps_map <- function(assessment_df, comp_df) {
     ) %>%
     addControl(
       "topright",
-      html = "Hover, click, or tap a dot for more details"
+      html = "Tap or click on a dot for more details"
     ) %>%
     fitBounds(
-      lng1 = min(comp_df$loc_longitude), lat1 = min(comp_df$loc_latitude),
-      lng2 = max(comp_df$loc_longitude), lat2 = max(comp_df$loc_latitude)
+      lng1 = min(comp_df$loc_longitude) - bounds_buffer,
+      lat1 = min(comp_df$loc_latitude) - bounds_buffer,
+      lng2 = max(comp_df$loc_longitude) + bounds_buffer,
+      lat2 = max(comp_df$loc_latitude) + bounds_buffer
     )
 }
 
@@ -412,7 +423,7 @@ avg_price_summary <- function(df) {
   return(
     HTML(
       paste0(
-        "<p>",
+        "<p style='padding-top: 1em'>",
         "The average sale price of the top 5 comparable homes was ",
         "<b>", avg_sale_price, "</b>",
         " at ",
@@ -436,7 +447,7 @@ combined_char_table <- function(assessment_df, comp_df) {
           "Comp Number" = comp_num,
           "Address" = property_address,
           "Property ID" = meta_pin,
-          "Class" = meta_class,
+          "Class" = char_class,
           "Sale Document number" = meta_sale_document_num,
           "Sale Date" = meta_sale_date,
           "Sale Price" = meta_sale_price,
