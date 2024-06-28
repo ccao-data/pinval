@@ -17,7 +17,11 @@ editor: source
 params:
   run_id: "2024-06-18-calm-nathan"
   year: "2024"
-  pin: "05174150240000"
+  # Good PINs for testing:
+  #   * Single card: 14051280390000
+  #   * Multicard: 16251020210000
+  #   * Past sale is a comp: 14331000240000
+  pin: "14331000240000"
   num_comps: 5
 ---
 
@@ -27,7 +31,9 @@ library(arrow)
 library(ccao)
 library(dplyr)
 library(noctua)
+library(stringr)
 library(tidyr)
+library(tools)
 
 # Helper function to add a link to a PIN
 link_pin <- function(pin) {
@@ -38,14 +44,12 @@ link_pin <- function(pin) {
   )
 }
 
-# Helper function to turn strings to titlecase, inclusive of all caps strings
-to_titlecase <- function(str) { return(str %>% tolower() %>% tools::toTitleCase()) }
-
 # Check if this PIN/year combo is cached, and skip data loading if so
+base_cache_file_path <- glue::glue("cache/{params$pin}-{params$year}")
 cache_files <- list(
-  assessment = glue::glue("cache/asmt-{params$pin}-{params$year}.parquet"),
-  comp = glue::glue("cache/comp-{params$pin}-{params$year}.parquet"),
-  metadata = glue::glue("cache/meta-{params$pin}-{params$year}.parquet")
+  assessment = glue::glue("{base_cache_file_path}-asmt.parquet"),
+  comp = glue::glue("{base_cache_file_path}-comp.parquet"),
+  metadata = glue::glue("{base_cache_file_path}-meta.parquet")
 )
 
 if (cache_files %>% sapply(file.exists) %>% all()) {
@@ -83,8 +87,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     substr(1, 10) %>%
     as.Date()
 
-  # Load property address, which is stored as part of the PIN-level assessment data
-  subject_property_address <- open_dataset(
+  # Load chars that are stored with the PIN-level assessment data
+  assessment_pin_df <- open_dataset(
     glue::glue(
       "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
     )
@@ -94,10 +98,14 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_year == prior_year
     ) %>%
     # Select only chars that are missing from card-level data
-    select(loc_property_address) %>%
+    select(loc_property_address, pred_pin_final_fmv) %>%
     collect() %>%
-    mutate(property_address = to_titlecase(loc_property_address)) %>%
-    pull(property_address)
+    # str_to_title is nice for addresses because it preserves the capitalization
+    # of directionals like 'N' or 'W'
+    mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
+
+  subject_property_address <- assessment_pin_df %>% pull(property_address)
+  pred_pin_final_fmv <- assessment_pin_df %>% pull(pred_pin_final_fmv)
 
   # Save model metadata to a dedicated dataframe for ease of access
   metadata_df <- data.frame(
@@ -123,8 +131,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       WHERE pin10 = '{substr(params$pin, 1, 10)}'
       AND year = '{prior_year}'
     ")
-  ) %>%
-    mutate(across(starts_with("school_"), to_titlecase))
+  )
 
   # Load card-level assessment data to use as the base for joining all chars
   assessment_df <- open_dataset(
@@ -151,10 +158,13 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     ) %>%
     mutate(
       township = ccao::town_convert(meta_township_code),
-      municipality = to_titlecase(loc_tax_municipality_name),
+      # toTitleCase is nice here because it preserves lowercase for prepositions
+      # like 'of' which are very common in municipality names
+      municipality = loc_tax_municipality_name %>% tolower() %>% tools::toTitleCase(),
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
-      property_address = subject_property_address
+      property_address = subject_property_address,
+      pred_pin_final_fmv = pred_pin_final_fmv
     )
 
   # Load comp data
@@ -216,7 +226,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_sale_document_num %in% pivoted_comp_df$comp_document_num
     ) %>%
     collect() %>%
-    mutate(property_address = to_titlecase(loc_property_address))
+    mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
 
   # Attach training chars to comps
   comp_df <- pivoted_comp_df %>%
@@ -267,7 +277,7 @@ library(knitr)
 library(kableExtra)
 library(leaflet)
 
-html_tags_for_report <- function(assessment_df, comp_df) {
+html_tags_for_report <- function(assessment_df, comp_df, is_multicard) {
   return(
     withTags(
       list(
@@ -286,7 +296,9 @@ html_tags_for_report <- function(assessment_df, comp_df) {
           # of the viewport
           class = "table-responsive",
           combined_char_table(assessment_df, comp_df)
-        )
+        ),
+        h3("Predicted value"),
+        pred_fmv_summary(assessment_df, is_multicard)
       )
     )
   )
@@ -360,24 +372,53 @@ comps_map <- function(assessment_df, comp_df) {
       weight = 2,
       radius = 5,
       color = "black",
-      label = "Subject property",
-      labelOptions = labelOptions(
-        noHide = TRUE,
-        textsize = "12px",
-        direction = "top",
-        offset = c(0, -4)
-      )
+      # Don't display the label if the PIN is one of its own comps,
+      # since we will use the comp to display the label in order to
+      # show the most recent sale price/date.
+      # Use a bare `if` statement because `ifelse` can't produce NULLs
+      label =  if (params$pin %in% comp_df$comp_pin) {
+        NULL
+      } else {
+        "Subject property"
+      },
+      labelOptions = if (params$pin %in% comp_df$comp_pin) {
+        NULL
+      } else {
+        labelOptions(
+          noHide = TRUE,
+          textsize = "12px",
+          direction = "top",
+          offset = c(0, -4)
+        )
+      }
     ) %>%
     addCircleMarkers(
       data = comp_df %>%
         mutate(comp_num_label = comp_labels[comp_num]),
       ~loc_longitude,
       ~loc_latitude,
-      opacity = 1,
-      fillOpacity = 1,
+      opacity = ~ ifelse(
+        # Hide the marker if the comp has the same PIN as its target, since
+        # we want to retain the marker styles of the target but override
+        # the label
+        comp_pin == params$pin,
+        0,
+        1
+      ),
+      fillOpacity = ~ ifelse(
+        comp_pin == params$pin,
+        0,
+        1
+      ),
       radius = 4,
       color = ~ color_palette(comp_num_label),
-      label = ~ glue::glue("{sale_price_short} ({sale_date})"),
+      label = ~ ifelse(
+        comp_pin == params$pin,
+        # It would be nice to introduce a line break here, but can't be done
+        # with leaflet
+        glue::glue("Subject property [{sale_price_short} ({sale_date})]"),
+        glue::glue("{sale_price_short} ({sale_date})")
+      ),
       labelOptions = labelOptions(
         noHide = TRUE,
         textsize = "12px",
@@ -427,7 +468,34 @@ avg_price_summary <- function(df) {
         "The average sale price of the top 5 comparable homes was ",
         "<b>", avg_sale_price, "</b>",
         " at ",
-        "<b>", avg_price_per_sqft, "/sq.ft.</b>"
+        "<b>", avg_price_per_sqft, "/sq.ft.</b> ",
+        "</p>"
+      )
+    )
+  )
+}
+
+pred_fmv_summary <- function(df, is_multicard) {
+  pred_fmv <- ifelse(
+    is_multicard,
+    df$pred_card_final_fmv,
+    df$pred_pin_final_fmv
+  )
+  pred_fmv_per_sqft <- (pred_fmv / df$char_bldg_sf)
+
+  return(
+    HTML(
+      paste0(
+        "<p>",
+        "The model that ran on  ",
+        format(metadata_df$final_model_run_date, "%B %d, %Y"),
+        " predicted that the value of this home as of lien date January 1, ",
+        format(metadata_df$final_model_run_date, "%Y"),
+        " should be ",
+        "<b>", pred_fmv %>% scales::dollar(), "</b>",
+        " at ",
+        "<b>", pred_fmv_per_sqft %>% scales::dollar(accuracy = 1), "/sq.ft.</b>",
+        "</p>"
       )
     )
   )
@@ -538,7 +606,11 @@ if (nrow(assessment_df) > 1) {
             class = ifelse(card_num == 1, "tab-pane active", "tab-pane"),
             role = "tabpanel",
             "aria-labelledby" = glue::glue("tabset-1-{card_num}-tab"),
-            html_tags_for_report(assessment_card_df, comp_card_df)
+            html_tags_for_report(
+              assessment_card_df,
+              comp_card_df,
+              is_multicard = TRUE
+            )
           )
         )
       )
@@ -564,7 +636,7 @@ if (nrow(assessment_df) > 1) {
   )
 } else {
   # For single-card PINs, skip the tablist and just render the report
-  html_tags <- html_tags_for_report(assessment_df, comp_df)
+  html_tags <- html_tags_for_report(assessment_df, comp_df, is_multicard = FALSE)
 }
 
 # Render the list of HTML tags

@@ -5,9 +5,12 @@ Depends:
     assessr,
     ccao,
     dplyr,
+    htmltools,
+    knitr,
     kableExtra,
     leaflet,
     noctua,
+    stringr,
     tidyr,
     quarto
 Remotes:
