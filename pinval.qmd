@@ -39,7 +39,7 @@ library(tools)
 link_pin <- function(pin) {
   return(
     glue::glue(
-      '<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{pin}</a>'
+      "<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{pin}</a>"
     )
   )
 }
@@ -59,7 +59,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 } else {
   # Establish Athena connection
   athena_conn <- noctua::athena() %>%
-    dbConnect(s3_staging_dir="s3://ccao-athena-results-us-east-1")
+    dbConnect(s3_staging_dir = "s3://ccao-athena-results-us-east-1")
 
   # Define base paths to S3 buckets where data are stored
   base_model_results_url <- "s3://ccao-model-results-us-east-1"
@@ -67,7 +67,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   base_warehouse_url <- "s3://ccao-data-warehouse-us-east-1"
 
   # Set prior year for characteristic queries
-  prior_year <- ((params$year %>% as.integer()) - 1) %>% as.character
+  prior_year <- ((params$year %>% as.integer()) - 1) %>% as.character()
 
   # Load final model run date for this year
   final_model_run_date <- dbGetQuery(
@@ -253,7 +253,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
         scale = 1 / 1000,
         suffix = "K"
       ),
-      sale_date = meta_sale_date %>% as.Date %>% format("%h %Y")
+      sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y")
     )
 
   # Write the assessment and comp data to the cache
@@ -376,7 +376,7 @@ comps_map <- function(assessment_df, comp_df) {
       # since we will use the comp to display the label in order to
       # show the most recent sale price/date.
       # Use a bare `if` statement because `ifelse` can't produce NULLs
-      label =  if (params$pin %in% comp_df$comp_pin) {
+      label = if (params$pin %in% comp_df$comp_pin) {
         NULL
       } else {
         "Subject property"
@@ -456,7 +456,9 @@ comps_map <- function(assessment_df, comp_df) {
 }
 
 avg_price_summary <- function(df) {
-  avg_sale_price <- df$meta_sale_price %>% mean() %>% scales::dollar()
+  avg_sale_price <- df$meta_sale_price %>%
+    mean() %>%
+    scales::dollar()
   avg_price_per_sqft <- (df$meta_sale_price / df$char_bldg_sf) %>%
     mean() %>%
     scales::dollar(accuracy = 1)
