@@ -27,7 +27,7 @@ install.packages("renv")
 renv::restore()
 ```
 
-3. [Optional] If you woul dlike to run the report for a specific PIN, year, or
+3. [Optional] If you would like to run the report for a specific PIN, year, or
    model run, adjust run parameters under the `params` attribute in the YAML
    front matter in `pinval.qmd`.
 
