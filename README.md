@@ -2,7 +2,7 @@
 
 This repo stores the code necessary to generate experimental reports
 explaining how the CCAO Data team's residential model valued any particular
-single-family home or multifamily home with less than six units.
+single-family home or multifamily home with six or fewer units.
 
 > [!WARNING]
 > This project is an experimental work-in-progress and is not yet used in
