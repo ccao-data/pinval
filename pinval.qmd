@@ -38,9 +38,10 @@ library(tools)
 
 # Helper function to wrap a PIN in a link for display purposes
 link_pin <- function(pin) {
+  pretty_pin <- ccao::pin_format_pretty(pin)
   return(
     glue::glue(
-      "<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{pin}</a>"
+      "<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{pretty_pin}</a>"
     )
   )
 }
@@ -92,8 +93,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     substr(1, 10) %>%
     as.Date()
 
-  # Load chars that are stored with the PIN-level assessment data
-  assessment_pin_df <- open_dataset(
+  # Load property address from the PIN-level assessment data
+  subject_property_address <- open_dataset(
     glue::glue(
       "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
     )
@@ -107,10 +108,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     collect() %>%
     # str_to_title is nice for addresses because it preserves the capitalization
     # of directionals like 'N' or 'W'
-    mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
-
-  subject_property_address <- assessment_pin_df %>% pull(property_address)
-  pred_pin_final_fmv <- assessment_pin_df %>% pull(pred_pin_final_fmv)
+    mutate(property_address = loc_property_address %>% tolower() %>% str_to_title()) %>%
+    pull(property_address)
 
   # Save model metadata to a dedicated dataframe for ease of access
   metadata_df <- data.frame(
@@ -169,7 +168,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
       property_address = subject_property_address,
-      pred_pin_final_fmv = pred_pin_final_fmv
+      pretty_pin = ccao::pin_format_pretty(meta_pin)
     )
 
   # Load comp data
@@ -258,7 +257,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
         scale = 1 / 1000,
         suffix = "K"
       ),
-      sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y")
+      sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y"),
+      pretty_pin = ccao::pin_format_pretty(comp_pin)
     )
 
   # Write the assessment and comp data to the cache
@@ -294,9 +294,8 @@ library(leaflet)
 #
 # @param assessment_df Dataframe representing the chars for the subject parcel
 # @param comp_df Dataframe representing chars for the comps
-# @param is_multicard Boolean indicating whether the subject parcel is multicard
 # @return Returns a list of htmltools elements that can be rendered using `tagList()`
-html_tags_for_report <- function(assessment_df, comp_df, is_multicard) {
+html_tags_for_report <- function(assessment_df, comp_df) {
   return(
     withTags(
       list(
@@ -317,7 +316,7 @@ html_tags_for_report <- function(assessment_df, comp_df, is_multicard) {
           combined_char_table(assessment_df, comp_df)
         ),
         h3("Predicted value"),
-        pred_fmv_summary(assessment_df, is_multicard)
+        pred_fmv_summary(assessment_df)
       )
     )
   )
@@ -519,13 +518,10 @@ avg_price_summary <- function(df) {
 
 # Helper function for generating a string summary of the predicted value of
 # the subject property
-pred_fmv_summary <- function(df, is_multicard) {
-  # Use the card-specific value in the case of multicard parcels
-  pred_fmv <- ifelse(
-    is_multicard,
-    df$pred_card_final_fmv,
-    df$pred_pin_final_fmv
-  )
+pred_fmv_summary <- function(df) {
+  # Use the initial FMV since we don't care about distinguishing building
+  # from land value in this context
+  pred_fmv <- df$pred_card_initial_fmv
   pred_fmv_per_sqft <- (pred_fmv / df$char_bldg_sf)
 
   return(
@@ -561,7 +557,7 @@ combined_char_table <- function(assessment_df, comp_df) {
         select(
           "Comp Number" = comp_num,
           "Address" = property_address,
-          "Property ID" = meta_pin,
+          "Property ID" = pretty_pin,
           "Class" = char_class,
           "Sale Document number" = meta_sale_document_num,
           "Sale Date" = meta_sale_date,
@@ -575,14 +571,11 @@ combined_char_table <- function(assessment_df, comp_df) {
         ) %>%
         bind_rows(
           comp_df %>%
-            # Cast comp_num to character so it can share the same type when
-            # being joined to the subject property data, which uses an empty
-            # string to indicate a null value
             mutate(comp_num = as.character(comp_num)) %>%
             select(
               "Comp Number" = comp_num,
               "Address" = property_address,
-              "Property ID" = comp_pin,
+              "Property ID" = pretty_pin,
               "Class" = meta_class,
               "Sale Document number" = comp_document_num,
               "Sale Date" = sale_date,
@@ -657,11 +650,7 @@ if (nrow(assessment_df) > 1) {
             class = ifelse(card_num == 1, "tab-pane active", "tab-pane"),
             role = "tabpanel",
             "aria-labelledby" = glue::glue("tabset-1-{card_num}-tab"),
-            html_tags_for_report(
-              assessment_card_df,
-              comp_card_df,
-              is_multicard = TRUE
-            )
+            html_tags_for_report(assessment_card_df, comp_card_df)
           )
         )
       )
@@ -686,7 +675,7 @@ if (nrow(assessment_df) > 1) {
   )
 } else {
   # For single-card PINs, skip the tablist
-  html_tags <- html_tags_for_report(assessment_df, comp_df, is_multicard = FALSE)
+  html_tags <- html_tags_for_report(assessment_df, comp_df)
 }
 
 # Render the list of HTML tags
