@@ -69,17 +69,27 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   base_dvc_url <- "s3://ccao-data-dvc-us-east-1"
   base_warehouse_url <- "s3://ccao-data-warehouse-us-east-1"
 
-  # Set prior year for characteristic queries, since chars are
+  # Get the assessment year for characteristic queries, since chars are
   # defined for the year preceding the lien date
-  prior_year <- ((params$year %>% as.integer()) - 1) %>% as.character()
+  assessment_data_year <- dbGetQuery(
+    conn = athena_conn,
+    # This query should only ever return one value, but limit the results to 1
+    # just to be defensive
+    glue::glue(
+      "SELECT assessment_data_year
+      FROM model.metadata
+      WHERE run_id = '{params$run_id}'
+      LIMIT 1"
+    )
+  ) %>%
+    pull(assessment_data_year)
 
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
   # not the same as the final model run
   final_model_run_date <- dbGetQuery(
     conn = athena_conn,
-    # This query should only ever return one value, but limit the results to 1
-    # just to be defensive
+    # As above, the LIMIT here is defensive
     glue::glue("
       SELECT run_id
       FROM model.final_model
@@ -101,7 +111,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   ) %>%
     filter(
       meta_pin == params$pin,
-      meta_year == prior_year
+      meta_year == assessment_data_year
     ) %>%
     # Select only chars that are missing from card-level data
     select(loc_property_address, pred_pin_final_fmv) %>%
@@ -133,7 +143,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       SELECT pin10, school_elementary_district_name, school_secondary_district_name
       FROM location.school
       WHERE pin10 = '{substr(params$pin, 1, 10)}'
-      AND year = '{prior_year}'
+      AND year = '{assessment_data_year}'
     ")
   )
 
@@ -145,7 +155,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   ) %>%
     filter(
       meta_pin == params$pin,
-      meta_year == prior_year
+      meta_year == assessment_data_year
     ) %>%
     collect() %>%
     # Join to the HIE data
