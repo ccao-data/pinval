@@ -67,7 +67,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Define base paths to S3 buckets where data are stored
   base_model_results_url <- "s3://ccao-model-results-us-east-1"
   base_dvc_url <- "s3://ccao-data-dvc-us-east-1"
-  base_warehouse_url <- "s3://ccao-data-warehouse-us-east-1"
 
   # Get the assessment year for characteristic queries, since chars are
   # defined for the year preceding the lien date
@@ -103,8 +102,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     substr(1, 10) %>%
     as.Date()
 
-  # Load property address from the PIN-level assessment data
-  subject_property_address <- open_dataset(
+  # Load chars that are stored in the PIN-level assessment data
+  assessment_pin_df <- open_dataset(
     glue::glue(
       "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
     )
@@ -113,28 +112,23 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_pin == params$pin,
       meta_year == assessment_data_year
     ) %>%
-    # Select only chars that are missing from card-level data
-    select(loc_property_address, pred_pin_final_fmv) %>%
-    collect() %>%
+    collect()
+
+  subject_property_address <- assessment_pin_df %>%
     # str_to_title is nice for addresses because it preserves the capitalization
     # of directionals like 'N' or 'W'
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title()) %>%
     pull(property_address)
+
+  hie <- assessment_pin_df %>%
+    mutate(hie = flag_hie_num_expired %>% as.logical() %>% ifelse("Yes", "No")) %>%
+    pull(hie)
 
   # Save model metadata to a dedicated dataframe for ease of access
   metadata_df <- data.frame(
     final_model_run_date = final_model_run_date,
     subject_property_address = subject_property_address
   )
-
-  # Load HIE data, which is stored separately from the assessment data
-  hie_df <- open_dataset(
-    glue::glue("{base_warehouse_url}/ccao/other/hie/year=2020")
-  ) %>%
-    filter(pin == params$pin, hie_last_year_active >= params$year) %>%
-    mutate(hie = TRUE) %>%
-    select(pin, hie) %>%
-    collect()
 
   # Load school district data, for use in translating geo IDs to names
   school_df <- dbGetQuery(
@@ -158,9 +152,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_year == assessment_data_year
     ) %>%
     collect() %>%
-    # Join to the HIE data
-    left_join(hie_df, by = c("meta_pin" = "pin")) %>%
-    mutate(hie = ifelse(is.na(hie), "No", "Yes")) %>%
     # Join to school district data
     mutate(meta_pin10 = substr(meta_pin, 1, 10)) %>%
     left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
@@ -177,8 +168,10 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       municipality = loc_tax_municipality_name %>% tolower() %>% tools::toTitleCase(),
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
+      pretty_pin = ccao::pin_format_pretty(meta_pin),
+      # Attach PIN-level chars to all cards
       property_address = subject_property_address,
-      pretty_pin = ccao::pin_format_pretty(meta_pin)
+      hie = hie
     )
 
   # Load comp data
