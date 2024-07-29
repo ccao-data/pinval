@@ -260,6 +260,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
         scale = 1 / 1000,
         suffix = "K"
       ),
+      sale_price_per_sq_ft = (meta_sale_price / char_bldg_sf) %>%
+        scales::dollar(accuracy = 1),
       sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y"),
       pretty_pin = ccao::pin_format_pretty(comp_pin)
     )
@@ -308,7 +310,6 @@ html_tags_for_report <- function(assessment_df, comp_df) {
         property_char_table(assessment_df),
         h3("Top 5 comparable homes"),
         comps_map(assessment_df, comp_df),
-        avg_price_summary(comp_df),
         div(
           # kable incorrectly applies `table-responsive` to the table element
           # rather than its enclosing div when applying it as part of the
@@ -318,7 +319,7 @@ html_tags_for_report <- function(assessment_df, comp_df) {
           class = "table-responsive",
           combined_char_table(assessment_df, comp_df)
         ),
-        h3("Predicted value"),
+        avg_price_summary(comp_df),
         pred_fmv_summary(assessment_df)
       )
     )
@@ -334,9 +335,9 @@ location_char_table <- function(df) {
     HTML(
       df %>%
         select(
-          Township = township,
-          Municipality = municipality,
+          "Assessor Township" = township,
           "Assessor Neighborhood" = meta_nbhd_code,
+          Municipality = municipality,
           "Elementary School District" = school_elementary_district_name,
           "High School District" = school_secondary_district_name
         ) %>%
@@ -357,16 +358,19 @@ property_char_table <- function(df) {
     HTML(
       df %>%
         select(
+          "Class" = char_class,
           "Year Built" = char_yrblt,
           "Bldg. S.F." = bldg_sf,
           "Land S.F." = land_sf,
           Beds = char_beds,
           "Full Baths" = char_fbath,
-          "Half Baths" = char_hbath,
-          "Home Improvement Exemption" = hie
+          "Half Baths" = char_hbath
         ) %>%
         kable(
-          align = c("r", "r", "r", "r", "r", "r", "l"),
+          # Force left alignment, since otherwise numbers will be right aligned.
+          # We want consistent alignment since this table always only has
+          # one row
+          align = c("l", "l", "l", "l", "l", "l", "l"),
           table.attr = "data-quarto-disable-processing='true' class='table'",
           format = "html"
         )
@@ -427,6 +431,25 @@ comps_map <- function(assessment_df, comp_df) {
           direction = "top",
           offset = c(0, -4)
         )
+      },
+      # Don't display a popup if the PIN is one of its own comps,
+      # since we will use the comp to display the popup in that case
+      popup = ~ if (params$pin %in% comp_df$comp_pin) {
+        NULL
+      } else {
+        paste0(
+          "<h5>Subject property</h5>",
+          "<b>Address</b>: ", property_address,
+          "<br><b>Property ID</b>: ", link_pin(meta_pin),
+          "<br><b>Property class</b>: ", char_class,
+          "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
+          "<br><b>Year built</b>: ", char_yrblt,
+          "<br><b>Bldg S.F.</b>: ", bldg_sf,
+          "<br><b>Land S.F.</b>: ", land_sf,
+          "<br><b>Beds</b>: ", char_beds,
+          "<br><b>Full baths</b>: ", char_fbath,
+          "<br><b>Half baths</b>: ", char_hbath
+        )
       }
     ) %>%
     # Add circle markers for the comps
@@ -466,14 +489,27 @@ comps_map <- function(assessment_df, comp_df) {
         offset = c(0, -4)
       ),
       popup = ~ paste0(
-        "<b>Comp ", comp_num, "</b>",
-        "<br><b>Address</b>: ", property_address,
-        "<br><b>PIN</b>: ", link_pin(comp_pin),
-        "<br><b>Class</b>: ", meta_class,
-        "<hr>",
-        "<b>Sale price</b>: ", sale_price,
+        "<h5>",
+        ifelse(
+          comp_pin == params$pin,
+          "Subject property",
+          paste0("Comp ", comp_num)
+        ),
+        "</h5>",
+        "<b>Address</b>: ", property_address,
+        "<br><b>Property ID</b>: ", link_pin(comp_pin),
+        "<br><b>Property class</b>: ", char_class,
+        "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
+        "<br><b>Sale price</b>: ", sale_price,
+        "<br><b>Sale $/sqft</b>: ", sale_price_per_sq_ft,
         "<br><b>Sale date</b>: ", sale_date,
-        "<br><b>Sale document number</b>: ", comp_document_num
+        "<br><b>Sale doc. num.</b>: ", comp_document_num,
+        "<br><b>Year built</b>: ", char_yrblt,
+        "<br><b>Bldg S.F.</b>: ", bldg_sf,
+        "<br><b>Land S.F.</b>: ", land_sf,
+        "<br><b>Beds</b>: ", char_beds,
+        "<br><b>Full baths</b>: ", char_fbath,
+        "<br><b>Half baths</b>: ", char_hbath
       )
     ) %>%
     addLegend(
@@ -531,7 +567,7 @@ pred_fmv_summary <- function(df) {
     HTML(
       paste0(
         "<p>",
-        "The model that ran on  ",
+        "Based on these and other sales, the model that ran on  ",
         format(metadata_df$final_model_run_date, "%B %d, %Y"),
         " predicted that the value of this home as of lien date January 1, ",
         format(metadata_df$final_model_run_date, "%Y"),
@@ -555,22 +591,25 @@ combined_char_table <- function(assessment_df, comp_df) {
           comp_num = "",
           meta_sale_document_num = "",
           meta_sale_date = "",
-          meta_sale_price = ""
+          meta_sale_price = "",
+          meta_sale_price_per_sq_ft = "",
         ) %>%
         select(
           "Comp Number" = comp_num,
           "Address" = property_address,
           "Property ID" = pretty_pin,
-          "Class" = char_class,
-          "Sale Document number" = meta_sale_document_num,
-          "Sale Date" = meta_sale_date,
+          "Property Class" = char_class,
+          "Assessor Neighborhood" = meta_nbhd_code,
           "Sale Price" = meta_sale_price,
+          "Sale $/sqft" = meta_sale_price_per_sq_ft,
+          "Sale Date" = meta_sale_date,
+          "Sale Doc. Num." = meta_sale_document_num,
           "Year Built" = char_yrblt,
           "Bldg. S.F." = bldg_sf,
           "Land S.F." = land_sf,
           Beds = char_beds,
           "Full Baths" = char_fbath,
-          "Half Baths" = char_hbath,
+          "Half Baths" = char_hbath
         ) %>%
         bind_rows(
           comp_df %>%
@@ -579,21 +618,24 @@ combined_char_table <- function(assessment_df, comp_df) {
               "Comp Number" = comp_num,
               "Address" = property_address,
               "Property ID" = pretty_pin,
-              "Class" = meta_class,
-              "Sale Document number" = comp_document_num,
-              "Sale Date" = sale_date,
+              "Property Class" = char_class,
+              "Assessor Neighborhood" = meta_nbhd_code,
               "Sale Price" = sale_price,
+              "Sale $/sqft" = sale_price_per_sq_ft,
+              "Sale Date" = sale_date,
+              "Sale Doc. Num." = comp_document_num,
               "Year Built" = char_yrblt,
               "Bldg. S.F." = bldg_sf,
               "Land S.F." = land_sf,
               Beds = char_beds,
               "Full Baths" = char_fbath,
-              "Half Baths" = char_hbath,
+              "Half Baths" = char_hbath
             )
         ) %>%
         kable(
           align = c(
-            "l", "l", "l", "l", "r", "r", "r", "r", "r", "r", "r"
+            "l", "l", "l", "l", "l", "r", "r", "l",
+            "l", "r", "r", "r", "r", "r", "r"
           ),
           table.attr = "data-quarto-disable-processing='true' class='table'",
           format = "html"
