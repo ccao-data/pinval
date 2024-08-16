@@ -673,8 +673,13 @@
     "noctua": {
       "Package": "noctua",
       "Version": "2.6.2",
-      "Source": "Repository",
-      "Repository": "CRAN",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "DyfanJones",
+      "RemoteRepo": "noctua",
+      "RemoteRef": "master",
+      "RemoteSha": "23a4cfbf537407c7a1547fc13ba771ba2eb098e0",
       "Requirements": [
         "DBI",
         "R",
@@ -685,7 +690,7 @@
         "utils",
         "uuid"
       ],
-      "Hash": "c03d73125d695e80b35b4bb3eacf0358"
+      "Hash": "a48e1decdd027c44ea6b97b0fe0950cb"
     },
     "openssl": {
       "Package": "openssl",
