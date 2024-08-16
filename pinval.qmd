@@ -10,6 +10,9 @@ format:
     embed-resources: true
     fig-align: center
     fontsize: 12pt
+    grid:
+      # Add a little more width to the body so the char table is full width
+      body-width: 1000px
 knitr:
   opts_chunk:
     out.width: "100%"
@@ -300,6 +303,7 @@ if (parcel_is_multicard) {
 # programmatically and rendering it using "asis" output and htmltools rather
 # than writing Markdown directly. This is less typical for Quarto docs but
 # helpful for producing nice output for multicard parcels.
+library(DT)
 library(knitr)
 library(kableExtra)
 library(leaflet)
@@ -321,6 +325,7 @@ html_tags_for_report <- function(assessment_df, comp_df) {
         property_char_table(assessment_df),
         h3("Top 5 comparable homes"),
         comps_map(assessment_df, comp_df),
+        br(),
         div(
           # kable incorrectly applies `table-responsive` to the table element
           # rather than its enclosing div when applying it as part of the
@@ -596,62 +601,81 @@ pred_fmv_summary <- function(df) {
 # property and its comps
 combined_char_table <- function(assessment_df, comp_df) {
   return(
-    HTML(
-      assessment_df %>%
-        mutate(
-          comp_num = "",
-          meta_sale_document_num = "",
-          meta_sale_date = "",
-          meta_sale_price = "",
-          meta_sale_price_per_sq_ft = "",
-        ) %>%
-        select(
-          "Comp Number" = comp_num,
-          "Address" = property_address,
-          "Property ID" = pretty_pin,
-          "Property Class" = char_class,
-          "Assessor Neighborhood" = meta_nbhd_code,
-          "Sale Price" = meta_sale_price,
-          "Sale $/sqft" = meta_sale_price_per_sq_ft,
-          "Sale Date" = meta_sale_date,
-          "Sale Doc. Num." = meta_sale_document_num,
-          "Year Built" = char_yrblt,
-          "Bldg. S.F." = bldg_sf,
-          "Land S.F." = land_sf,
-          Beds = char_beds,
-          "Full Baths" = char_fbath,
-          "Half Baths" = char_hbath
-        ) %>%
-        bind_rows(
-          comp_df %>%
-            mutate(comp_num = as.character(comp_num)) %>%
-            select(
-              "Comp Number" = comp_num,
-              "Address" = property_address,
-              "Property ID" = pretty_pin,
-              "Property Class" = char_class,
-              "Assessor Neighborhood" = meta_nbhd_code,
-              "Sale Price" = sale_price,
-              "Sale $/sqft" = sale_price_per_sq_ft,
-              "Sale Date" = sale_date,
-              "Sale Doc. Num." = comp_document_num,
-              "Year Built" = char_yrblt,
-              "Bldg. S.F." = bldg_sf,
-              "Land S.F." = land_sf,
-              Beds = char_beds,
-              "Full Baths" = char_fbath,
-              "Half Baths" = char_hbath
-            )
-        ) %>%
-        kable(
-          align = c(
-            "l", "l", "l", "l", "l", "r", "r", "l",
-            "l", "r", "r", "r", "r", "r", "r"
-          ),
-          table.attr = "data-quarto-disable-processing='true' class='table'",
-          format = "html"
+    assessment_df %>%
+      mutate(
+        comp_num = 0,
+        meta_sale_document_num = "",
+        meta_sale_date = "",
+        meta_sale_price = "",
+        meta_sale_price_per_sq_ft = "",
+      ) %>%
+      select(
+        comp_num,
+        "Address" = property_address,
+        "Property ID" = pretty_pin,
+        "Property Class" = char_class,
+        "Assessor Neighborhood" = meta_nbhd_code,
+        "Sale Price" = meta_sale_price,
+        "Sale $/sqft" = meta_sale_price_per_sq_ft,
+        "Sale Date" = meta_sale_date,
+        "Sale Doc. Num." = meta_sale_document_num,
+        "Year Built" = char_yrblt,
+        "Bldg. S.F." = bldg_sf,
+        "Land S.F." = land_sf,
+        Beds = char_beds,
+        "Full Baths" = char_fbath,
+        "Half Baths" = char_hbath
+      ) %>%
+      bind_rows(
+        comp_df %>%
+          select(
+            comp_num,
+            "Address" = property_address,
+            "Property ID" = pretty_pin,
+            "Property Class" = char_class,
+            "Assessor Neighborhood" = meta_nbhd_code,
+            "Sale Price" = sale_price,
+            "Sale $/sqft" = sale_price_per_sq_ft,
+            "Sale Date" = sale_date,
+            "Sale Doc. Num." = comp_document_num,
+            "Year Built" = char_yrblt,
+            "Bldg. S.F." = bldg_sf,
+            "Land S.F." = land_sf,
+            Beds = char_beds,
+            "Full Baths" = char_fbath,
+            "Half Baths" = char_hbath
+          )
+      ) %>%
+      # Pivot the dataframe longer so that we can use pagination to navigate
+      # through multiple pages of full characteristic values.
+      # Start by casting all columns to char ahead of pivot, since otherwise we
+      # can't combine char values into one column
+      mutate(across(-comp_num, as.character)) %>%
+      pivot_longer(
+        cols = -comp_num,
+        names_to = "Characteristic",
+        values_to = "Value"
+      ) %>%
+      # Pivot back to wide so that each property has its own column representing
+      # all of its chars
+      pivot_wider(
+        names_from = comp_num,
+        values_from = Value,
+        names_prefix = "Comp "
+      ) %>%
+      rename("Subj. prop." = "Comp 0") %>%
+      datatable(
+        options = list(
+          autoWidth = TRUE,
+          className = "cell-border stripe",
+          pageLength = 10,
+          dom = "tp", # Show just table and pagination controls
+          columnDefs = list(
+            list(className = "dt-center", targets = "_all")
+          )
         )
-    )
+      ) %>%
+      formatStyle("Characteristic", fontWeight = "bold")
   )
 }
 
