@@ -63,7 +63,9 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   metadata_df <- read_parquet(cache_files$metadata)
 } else {
   # If any of the data are not cached, load them from S3 and Athena.
-  # Start by establishing an Athena connection
+  # Start by establishing an Athena connection with unload = TRUE so that
+  # noctua parses arrays correctly
+  noctua_options(unload = TRUE)
   athena_conn <- noctua::athena() %>%
     dbConnect(s3_staging_dir = "s3://ccao-athena-results-us-east-1")
 
@@ -71,20 +73,24 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   base_model_results_url <- "s3://ccao-model-results-us-east-1"
   base_dvc_url <- "s3://ccao-data-dvc-us-east-1"
 
-  # Get the assessment year for characteristic queries, since chars are
-  # defined for the year preceding the lien date
-  assessment_data_year <- dbGetQuery(
+  # Get the assessment year and predictor list for characteristic queries.
+  # Assessment year is important since chars are defined for the year preceding
+  # the lien date
+  model_metadata_df <- dbGetQuery(
     conn = athena_conn,
-    # This query should only ever return one value, but limit the results to 1
+    # This query should only ever return one row, but limit the results to 1
     # just to be defensive
     glue::glue(
-      "SELECT assessment_data_year
+      "SELECT assessment_data_year, model_predictor_all_name
       FROM model.metadata
       WHERE run_id = '{params$run_id}'
       LIMIT 1"
     )
-  ) %>%
-    pull(assessment_data_year)
+  )
+  assessment_data_year <- model_metadata_df %>% pull(assessment_data_year)
+  all_predictors <- model_metadata_df %>%
+    pull(model_predictor_all_name) %>%
+    unlist()
 
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
@@ -130,7 +136,9 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Save model metadata to a dedicated dataframe for ease of access
   metadata_df <- data.frame(
     final_model_run_date = final_model_run_date,
-    subject_property_address = subject_property_address
+    subject_property_address = subject_property_address,
+    # TODO: Oops, this pivots the df longer
+    all_predictors = all_predictors
   )
 
   # Load school district data, for use in translating geo IDs to names
@@ -600,6 +608,12 @@ pred_fmv_summary <- function(df) {
 # Helper function for generating a table for comparing chars between the subject
 # property and its comps
 combined_char_table <- function(assessment_df, comp_df) {
+  # Define a list of the most important characteristics to be displayed
+  # first in the table
+  top_chars <- c(
+    "char_class", "meta_nbhd_code", "char_yrblt", "char_bldg_sf",
+    "char_land_sf", "char_beds", "char_fbath", "char_hbath"
+  )
   return(
     assessment_df %>%
       mutate(
@@ -610,21 +624,19 @@ combined_char_table <- function(assessment_df, comp_df) {
         meta_sale_price_per_sq_ft = "",
       ) %>%
       select(
+        # If you change any chars in this list, make sure to double-check
+        # the top_chars vector and add or remove chars as necessary so that
+        # we don't accidentally add them via all_predictors
         comp_num,
         "Address" = property_address,
         "Property ID" = pretty_pin,
-        "Property Class" = char_class,
         "Assessor Neighborhood" = meta_nbhd_code,
         "Sale Price" = meta_sale_price,
         "Sale $/sqft" = meta_sale_price_per_sq_ft,
         "Sale Date" = meta_sale_date,
         "Sale Doc. Num." = meta_sale_document_num,
-        "Year Built" = char_yrblt,
-        "Bldg. S.F." = bldg_sf,
-        "Land S.F." = land_sf,
-        Beds = char_beds,
-        "Full Baths" = char_fbath,
-        "Half Baths" = char_hbath
+        all_of(top_chars),
+        all_of(metadata_df$all_predictors[!metadata_df$all_predictors %in% top_chars])
       ) %>%
       bind_rows(
         comp_df %>%
@@ -632,20 +644,17 @@ combined_char_table <- function(assessment_df, comp_df) {
             comp_num,
             "Address" = property_address,
             "Property ID" = pretty_pin,
-            "Property Class" = char_class,
             "Assessor Neighborhood" = meta_nbhd_code,
             "Sale Price" = sale_price,
             "Sale $/sqft" = sale_price_per_sq_ft,
             "Sale Date" = sale_date,
             "Sale Doc. Num." = comp_document_num,
-            "Year Built" = char_yrblt,
-            "Bldg. S.F." = bldg_sf,
-            "Land S.F." = land_sf,
-            Beds = char_beds,
-            "Full Baths" = char_fbath,
-            "Half Baths" = char_hbath
+            all_of(top_chars),
+            all_of(metadata_df$all_predictors[!metadata_df$all_predictors %in% top_chars])
           )
       ) %>%
+      # Rename characteristic columns to their pretty format
+      ccao::vars_rename(names_from = "model", names_to = "pretty") %>%
       # Pivot the dataframe longer so that we can use pagination to navigate
       # through multiple pages of full characteristic values.
       # Start by casting all columns to char ahead of pivot, since otherwise we
