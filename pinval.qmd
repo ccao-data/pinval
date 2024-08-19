@@ -49,6 +49,7 @@ link_pin <- function(pin) {
   )
 }
 
+
 # Check if this PIN/year combo is cached, and skip data loading if so
 base_cache_file_path <- glue::glue("cache/{params$pin}-{params$year}")
 cache_files <- list(
@@ -606,6 +607,41 @@ pred_fmv_summary <- function(df) {
   )
 }
 
+# Helper function to "freeze" rows in a paginated df with `rows_per_page`
+# rows per page by taking `n` rows from the first page and
+# copy/inserting them back into the df so they always appear as the first
+# rows in the table. Useful hack for table libraries that don't allow you
+# to freeze rows.
+freeze_first_n_rows <- function(df, n = 2, rows_per_page = 10) {
+  # Grab the rows that should be frozen
+  frozen_rows <- df[1:n, ]
+
+  # Initialize an empty dataframe to use for output
+  new_df <- data.frame()
+
+  # Calculate the sequence of indices that we will use to insert frozen rows
+  df_len <- nrow(df)
+  insert_indices <- seq(
+    # Skip the first page of results
+    rows_per_page + 1,
+    df_len,
+    # The step length for the sequence needs to account for the frozen rows that
+    # we will insert
+    rows_per_page - n
+  )
+
+  # Construct the output dataframe by iterating the rows in the input dataframe
+  # and inserting the frozen rows where necessary
+  for (i in 1:df_len) {
+    if (i %in% insert_indices) {
+      new_df <- bind_rows(new_df, frozen_rows)
+    }
+    new_df <- bind_rows(new_df, df[i, ])
+  }
+
+  return(new_df)
+}
+
 # Helper function for generating a table for comparing chars between the subject
 # property and its comps
 combined_char_table <- function(assessment_df, comp_df) {
@@ -629,13 +665,13 @@ combined_char_table <- function(assessment_df, comp_df) {
         # the top_chars vector and add or remove chars as necessary so that
         # we don't accidentally add them via all_predictors
         comp_num,
-        "Address" = property_address,
-        "Property ID" = pretty_pin,
-        "Assessor Neighborhood" = meta_nbhd_code,
         "Sale Price" = meta_sale_price,
         "Sale $/sqft" = meta_sale_price_per_sq_ft,
         "Sale Date" = meta_sale_date,
         "Sale Doc. Num." = meta_sale_document_num,
+        "Address" = property_address,
+        "Property ID" = pretty_pin,
+        "Assessor Neighborhood" = meta_nbhd_code,
         all_of(top_chars),
         all_of(metadata_list$all_predictors[!metadata_list$all_predictors %in% top_chars])
       ) %>%
@@ -643,13 +679,13 @@ combined_char_table <- function(assessment_df, comp_df) {
         comp_df %>%
           select(
             comp_num,
-            "Address" = property_address,
-            "Property ID" = pretty_pin,
-            "Assessor Neighborhood" = meta_nbhd_code,
             "Sale Price" = sale_price,
             "Sale $/sqft" = sale_price_per_sq_ft,
             "Sale Date" = sale_date,
             "Sale Doc. Num." = comp_document_num,
+            "Address" = property_address,
+            "Property ID" = pretty_pin,
+            "Assessor Neighborhood" = meta_nbhd_code,
             all_of(top_chars),
             all_of(metadata_list$all_predictors[!metadata_list$all_predictors %in% top_chars])
           )
@@ -674,6 +710,9 @@ combined_char_table <- function(assessment_df, comp_df) {
         names_prefix = "Comp "
       ) %>%
       rename("Subj. prop." = "Comp 0") %>%
+      # Freeze the price char rows so that they are always visible in the table
+      # even when viewing different pages
+      freeze_first_n_rows(n = 2, rows_per_page = 10) %>%
       datatable(
         options = list(
           autoWidth = TRUE,
