@@ -313,10 +313,10 @@ if (parcel_is_multicard) {
 # programmatically and rendering it using "asis" output and htmltools rather
 # than writing Markdown directly. This is less typical for Quarto docs but
 # helpful for producing nice output for multicard parcels.
-library(DT)
 library(knitr)
 library(kableExtra)
 library(leaflet)
+library(reactable)
 
 # The main entrypoint function for rendering HTML elements from the data.
 # Ties together a number of helper functions for returning specific data-driven
@@ -692,6 +692,10 @@ combined_char_table <- function(assessment_df, comp_df) {
       ) %>%
       # Rename characteristic columns to their pretty format
       ccao::vars_rename(names_from = "model", names_to = "pretty") %>%
+      # Format percent columns
+      mutate(across(starts_with("Percent"), scales::label_percent(accuracy = 1))) %>%
+      # Truncate numeric values in the data to two decimal places
+      mutate(across(where(is.numeric), ~ round(., 2))) %>%
       # Pivot the dataframe longer so that we can use pagination to navigate
       # through multiple pages of full characteristic values.
       # Start by casting all columns to char ahead of pivot, since otherwise we
@@ -713,18 +717,21 @@ combined_char_table <- function(assessment_df, comp_df) {
       # Freeze the price char rows so that they are always visible in the table
       # even when viewing different pages
       freeze_first_n_rows(n = 2, rows_per_page = 10) %>%
-      datatable(
-        options = list(
-          autoWidth = TRUE,
-          className = "cell-border stripe",
-          pageLength = 10,
-          dom = "tp", # Show just table and pagination controls
-          columnDefs = list(
-            list(className = "dt-center", targets = "_all")
-          )
-        )
-      ) %>%
-      formatStyle("Characteristic", fontWeight = "bold")
+      # Render a paginated table with results
+      reactable(
+        pagination = TRUE,
+        defaultPageSize = 10,
+        # Turn off sorting to retain the "frozen" price char rows
+        sortable = FALSE,
+        columns = list(
+          Characteristic = colDef(style = list(fontWeight = "bold"))
+        ),
+        class = "cell-border stripe",
+        highlight = TRUE,
+        bordered = TRUE,
+        striped = TRUE,
+        defaultColDef = colDef(align = "center")
+      )
   )
 }
 
