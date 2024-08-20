@@ -130,10 +130,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title()) %>%
     pull(property_address)
 
-  hie <- assessment_pin_df %>%
-    mutate(hie = flag_hie_num_expired %>% as.logical() %>% ifelse("Yes", "No")) %>%
-    pull(hie)
-
   # Save model metadata to a dedicated list for ease of access.
   # Prefer a list to a dataframe since not all of the attribute values
   # have the same length
@@ -168,12 +164,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     # Join to school district data
     mutate(meta_pin10 = substr(meta_pin, 1, 10)) %>%
     left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
-    # Translate coded vars to human readable values
-    ccao::vars_recode(
-      cols = starts_with("char_"),
-      type = "short",
-      as_factor = FALSE
-    ) %>%
     mutate(
       township = ccao::town_convert(meta_township_code),
       # toTitleCase is nice here because it preserves lowercase for prepositions
@@ -184,7 +174,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       pretty_pin = ccao::pin_format_pretty(meta_pin),
       # Attach PIN-level chars to all cards
       property_address = subject_property_address,
-      hie = hie
     )
 
   # Load comp data
@@ -260,7 +249,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     # Translate coded vars to human readable values
     ccao::vars_recode(
       cols = starts_with("char_"),
-      type = "short",
+      type = "long",
       as_factor = FALSE
     ) %>%
     mutate(
@@ -726,10 +715,19 @@ combined_char_table <- function(assessment_df, comp_df) {
         columns = list(
           Characteristic = colDef(style = list(fontWeight = "bold"))
         ),
+        rowStyle = function(index) {
+          styles <- list()
+          if (.[index, "Characteristic"] %in% c("Sale Price", "Sale $/sqft")) {
+            styles <- c(styles, background = "rgba(0, 0, 0, 0.05)")
+          }
+          if (.[index, "Characteristic"] == "Sale $/sqft") {
+            styles <- c(styles, "border-bottom" = "1px solid rgb(182, 182, 182)")
+          }
+          return(styles)
+        },
         class = "cell-border stripe",
         highlight = TRUE,
         bordered = TRUE,
-        striped = TRUE,
         defaultColDef = colDef(align = "center")
       )
   )
