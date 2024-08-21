@@ -49,7 +49,6 @@ link_pin <- function(pin) {
   )
 }
 
-
 # Check if this PIN/year combo is cached, and skip data loading if so
 base_cache_file_path <- glue::glue("cache/{params$pin}-{params$year}")
 cache_files <- list(
@@ -132,7 +131,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 
   # Save model metadata to a dedicated list for ease of access.
   # Prefer a list to a dataframe since not all of the attribute values
-  # have the same length
+  # have the same dimensions
   metadata_list <- list(
     final_model_run_date = final_model_run_date,
     subject_property_address = subject_property_address,
@@ -707,6 +706,8 @@ combined_char_table <- function(assessment_df, comp_df) {
           Characteristic = colDef(style = list(fontWeight = 600))
         ),
         rowStyle = function(index) {
+          # Style the frozen rows with a grey background and a harder bottom
+          # border to visually indicate that they are frozen
           styles <- list()
           if (.[index, "Characteristic"] %in% c("Sale Price", "Sale $/sqft")) {
             styles <- c(styles, background = "rgba(0, 0, 0, 0.05)")
