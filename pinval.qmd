@@ -238,17 +238,25 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
 
   # Attach training chars to comps
-  comp_df <- pivoted_comp_df %>%
+  comp_df_with_training_chars <- pivoted_comp_df %>%
     left_join(
       training_df,
       by = c(
         "comp_pin" = "meta_pin",
         "comp_document_num" = "meta_sale_document_num"
       )
-    ) %>%
+    )
+
+  # Recode all chars except char_apts since we do not code it in the training
+  # data in the same way we code other chars
+  chars_to_recode <- comp_df_with_training_chars %>%
+    select(starts_with("char_") & !char_apts) %>%
+    names()
+
+  comp_df <- comp_df_with_training_chars %>%
     # Translate coded vars to human readable values
     ccao::vars_recode(
-      cols = starts_with("char_"),
+      cols = chars_to_recode,
       type = "long",
       as_factor = FALSE
     ) %>%
@@ -303,7 +311,6 @@ if (parcel_is_multicard) {
 # than writing Markdown directly. This is less typical for Quarto docs but
 # helpful for producing nice output for multicard parcels.
 library(knitr)
-library(kableExtra)
 library(leaflet)
 library(reactable)
 
@@ -325,15 +332,7 @@ html_tags_for_report <- function(assessment_df, comp_df) {
         h3("Top 5 comparable homes"),
         comps_map(assessment_df, comp_df),
         br(),
-        div(
-          # kable incorrectly applies `table-responsive` to the table element
-          # rather than its enclosing div when applying it as part of the
-          # `bootstrap_options` param, so we need to set the class on an
-          # enclosing div in order to prevent the table from breaking the width
-          # of the viewport
-          class = "table-responsive",
-          combined_char_table(assessment_df, comp_df)
-        ),
+        combined_char_table(assessment_df, comp_df),
         avg_price_summary(comp_df),
         pred_fmv_summary(assessment_df)
       )
@@ -345,24 +344,17 @@ html_tags_for_report <- function(assessment_df, comp_df) {
 # the subject property
 location_char_table <- function(df) {
   return(
-    # Mark the kable output as an HTML string so that htmltools doesn't
-    # attempt to process it
-    HTML(
-      df %>%
-        select(
-          "Assessor Township" = township,
-          "Assessor Neighborhood" = meta_nbhd_code,
-          Municipality = municipality,
-          "Elementary School District" = school_elementary_district_name,
-          "High School District" = school_secondary_district_name
-        ) %>%
-        kable(
-          # Prevent Quarto from processing the table, which can produce
-          # garbled HTML in the case of multicard parcels
-          table.attr = "data-quarto-disable-processing='true' class='table'",
-          format = "html"
-        )
-    )
+    df %>%
+      select(
+        "Assessor Township" = township,
+        "Assessor Neighborhood" = meta_nbhd_code,
+        Municipality = municipality,
+        "Elementary School District" = school_elementary_district_name,
+        "High School District" = school_secondary_district_name
+      ) %>%
+      reactable(
+        sortable = FALSE
+      )
   )
 }
 
@@ -370,26 +362,23 @@ location_char_table <- function(df) {
 # the subject property
 property_char_table <- function(df) {
   return(
-    HTML(
-      df %>%
-        select(
-          "Class" = char_class,
-          "Year Built" = char_yrblt,
-          "Bldg. S.F." = bldg_sf,
-          "Land S.F." = land_sf,
-          Beds = char_beds,
-          "Full Baths" = char_fbath,
-          "Half Baths" = char_hbath
-        ) %>%
-        kable(
-          # Force left alignment, since otherwise numbers will be right aligned.
-          # We want consistent alignment since this table always only has
-          # one row
-          align = c("l", "l", "l", "l", "l", "l", "l"),
-          table.attr = "data-quarto-disable-processing='true' class='table'",
-          format = "html"
-        )
-    )
+    df %>%
+      select(
+        "Class" = char_class,
+        "Year Built" = char_yrblt,
+        "Bldg. S.F." = bldg_sf,
+        "Land S.F." = land_sf,
+        Beds = char_beds,
+        "Full Baths" = char_fbath,
+        "Half Baths" = char_hbath
+      ) %>%
+      reactable(
+        # Force left alignment, since otherwise numbers will be right aligned.
+        # We want consistent alignment since this table always only has
+        # one row
+        defaultColDef = colDef(align = "left"),
+        sortable = FALSE
+      )
   )
 }
 
@@ -713,7 +702,9 @@ combined_char_table <- function(assessment_df, comp_df) {
         # Turn off sorting to retain the "frozen" price char rows
         sortable = FALSE,
         columns = list(
-          Characteristic = colDef(style = list(fontWeight = "bold"))
+          # Chars column should match the weight of the header row, to
+          # emphasize that it's acting like a header
+          Characteristic = colDef(style = list(fontWeight = 600))
         ),
         rowStyle = function(index) {
           styles <- list()
