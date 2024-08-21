@@ -36,6 +36,7 @@ library(ccao)
 library(dplyr)
 library(noctua)
 library(stringr)
+library(tibble)
 library(tidyr)
 library(tools)
 
@@ -54,13 +55,13 @@ base_cache_file_path <- glue::glue("cache/{params$pin}-{params$year}")
 cache_files <- list(
   assessment = glue::glue("{base_cache_file_path}-asmt.parquet"),
   comp = glue::glue("{base_cache_file_path}-comp.parquet"),
-  metadata = glue::glue("{base_cache_file_path}-meta.RDS")
+  metadata = glue::glue("{base_cache_file_path}-meta.parquet")
 )
 
 if (cache_files %>% sapply(file.exists) %>% all()) {
   assessment_df <- read_parquet(cache_files$assessment)
   comp_df <- read_parquet(cache_files$comp)
-  metadata_list <- readRDS(cache_files$metadata)
+  metadata_df <- read_parquet(cache_files$metadata)
 } else {
   # If any of the data are not cached, load them from S3 and Athena.
   # Start by establishing an Athena connection with unload = TRUE so that
@@ -88,9 +89,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     )
   )
   assessment_data_year <- model_metadata_df %>% pull(assessment_data_year)
-  all_predictors <- model_metadata_df %>%
-    pull(model_predictor_all_name) %>%
-    unlist()
+  all_predictors <- model_metadata_df %>% pull(model_predictor_all_name)
 
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
@@ -132,7 +131,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Save model metadata to a dedicated list for ease of access.
   # Prefer a list to a dataframe since not all of the attribute values
   # have the same dimensions
-  metadata_list <- list(
+  metadata_df <- tibble(
     final_model_run_date = final_model_run_date,
     subject_property_address = subject_property_address,
     all_predictors = all_predictors
@@ -278,17 +277,17 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Write the assessment and comp data to the cache
   write_parquet(assessment_df, cache_files$assessment)
   write_parquet(comp_df, cache_files$comp)
-  saveRDS(metadata_list, cache_files$metadata)
+  write_parquet(metadata_df, cache_files$metadata)
 }
 ```
 
-This is an experimental home value report. The goal of this report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_list$final_model_run_date, "%Y")` model was run on **`r format(metadata_list$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_list$final_model_run_date, "%Y")`**. The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
+This is an experimental home value report. The goal of this report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**. The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
 
 This report attempts to explain the Assessor's model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
 
 For more details on how the experimental sales comp algorithm works, see [Finding comparables with LightGBM](https://ccao-data.github.io/lightsnip/articles/finding-comps.html).
 
-## `r metadata_list$subject_property_address`
+## `r metadata_df$subject_property_address`
 
 **Property ID: `r link_pin(params$pin)`**
 
@@ -571,9 +570,9 @@ pred_fmv_summary <- function(df) {
       paste0(
         "<p>",
         "Based on these and other sales, the model that ran on  ",
-        format(metadata_list$final_model_run_date, "%B %d, %Y"),
+        format(metadata_df$final_model_run_date, "%B %d, %Y"),
         " predicted that the value of this home as of lien date January 1, ",
-        format(metadata_list$final_model_run_date, "%Y"),
+        format(metadata_df$final_model_run_date, "%Y"),
         " should be ",
         "<b>", pred_fmv %>% scales::dollar(), "</b>",
         " at ",
@@ -650,7 +649,7 @@ combined_char_table <- function(assessment_df, comp_df) {
         "Property ID" = pretty_pin,
         "Assessor Neighborhood" = meta_nbhd_code,
         all_of(top_chars),
-        all_of(metadata_list$all_predictors[!metadata_list$all_predictors %in% top_chars])
+        all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
       ) %>%
       bind_rows(
         comp_df %>%
@@ -664,7 +663,7 @@ combined_char_table <- function(assessment_df, comp_df) {
             "Property ID" = pretty_pin,
             "Assessor Neighborhood" = meta_nbhd_code,
             all_of(top_chars),
-            all_of(metadata_list$all_predictors[!metadata_list$all_predictors %in% top_chars])
+            all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
           )
       ) %>%
       # Rename characteristic columns to their pretty format
