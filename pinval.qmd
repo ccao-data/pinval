@@ -35,6 +35,7 @@ library(arrow)
 library(ccao)
 library(dplyr)
 library(noctua)
+library(purrr)
 library(stringr)
 library(tibble)
 library(tidyr)
@@ -89,7 +90,12 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     )
   )
   assessment_data_year <- model_metadata_df %>% pull(assessment_data_year)
-  all_predictors <- model_metadata_df %>% pull(model_predictor_all_name)
+  all_predictors_raw <- model_metadata_df %>%
+    pull(model_predictor_all_name) %>%
+    unlist()
+  # Replace school district GEOIDs with names
+  school_geoid_pred_idxs <- which(all_predictors_raw %in% c("loc_school_elementary_district_geoid", "loc_school_secondary_district_geoid"))
+  all_predictors <- all_predictors_raw %>% replace(school_geoid_pred_idxs, c("loc_school_elementary_district_name", "loc_school_secondary_district_name"))
 
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
@@ -134,17 +140,19 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   metadata_df <- tibble(
     final_model_run_date = final_model_run_date,
     subject_property_address = subject_property_address,
-    all_predictors = all_predictors
+    all_predictors = list(all_predictors)
   )
 
   # Load school district data, for use in translating geo IDs to names
   school_df <- dbGetQuery(
     conn = athena_conn,
     glue::glue("
-      SELECT pin10, school_elementary_district_name, school_secondary_district_name
+      SELECT
+        pin10,
+        school_elementary_district_name AS loc_school_elementary_district_name,
+        school_secondary_district_name AS loc_school_secondary_district_name
       FROM location.school
-      WHERE pin10 = '{substr(params$pin, 1, 10)}'
-      AND year = '{assessment_data_year}'
+      WHERE year = '{assessment_data_year}'
     ")
   )
 
@@ -233,6 +241,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_sale_document_num %in% pivoted_comp_df$comp_document_num
     ) %>%
     collect() %>%
+    # Join to school district data
+    left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
 
   # Attach training chars to comps
@@ -347,8 +357,8 @@ location_char_table <- function(df) {
         "Assessor Township" = township,
         "Assessor Neighborhood" = meta_nbhd_code,
         Municipality = municipality,
-        "Elementary School District" = school_elementary_district_name,
-        "High School District" = school_secondary_district_name
+        "Elementary School District" = loc_school_elementary_district_name,
+        "High School District" = loc_school_secondary_district_name
       ) %>%
       reactable(
         sortable = FALSE
@@ -668,12 +678,40 @@ combined_char_table <- function(assessment_df, comp_df) {
             all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
           )
       ) %>%
-      # Rename characteristic columns to their pretty format
-      ccao::vars_rename(names_from = "model", names_to = "pretty") %>%
-      # Format percent columns
-      mutate(across(starts_with("Percent"), scales::label_percent(accuracy = 1))) %>%
       # Truncate numeric values in the data to two decimal places
       mutate(across(where(is.numeric), ~ round(., 2))) %>%
+      # Format numeric columns with commas but no decimals
+      mutate(
+        across(
+          c(
+            "char_bldg_sf", "char_land_sf", "time_sale_day",
+            # Exclude number of foreclosures, which needs a decimal
+            starts_with("prox_num") & !matches("prox_num_foreclosure_per_1000_pin_past_5_years"),
+            ends_with("dist_ft")
+          ),
+          scales::label_comma(accuracy = 1)
+        ),
+      ) %>%
+      # Format numeric columns with commas _and_ decimals
+      mutate(prox_num_foreclosure_per_1000_pin_past_5_years = scales::comma(prox_num_foreclosure_per_1000_pin_past_5_years, accuracy = 0.01)) %>%
+      # Format currency columns
+      mutate(
+        across(
+          c(
+            "acs5_median_household_renter_occupied_gross_rent",
+            starts_with("acs5_median_income")
+          ),
+          scales::label_dollar()
+        )
+      ) %>%
+      # Format percent columns
+      mutate(across(starts_with("acs5_percent"), scales::label_percent())) %>%
+      # This percent column is already multiplied by 100, it just needs a
+      # percent sign
+      mutate(other_tax_bill_rate = paste0(other_tax_bill_rate, "%")) %>%
+      # Rename characteristic columns to their pretty format
+      ccao::vars_rename(names_from = "model", names_to = "pretty") %>%
+      rename("Number of Days Since First Recorded Sale" = "Sale Day") %>%
       # Pivot the dataframe longer so that we can use pagination to navigate
       # through multiple pages of full characteristic values.
       # Start by casting all columns to char ahead of pivot, since otherwise we
