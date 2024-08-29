@@ -10,6 +10,9 @@ format:
     embed-resources: true
     fig-align: center
     fontsize: 12pt
+    grid:
+      # Add a little more width to the body so the char table is full width
+      body-width: 1000px
 knitr:
   opts_chunk:
     out.width: "100%"
@@ -33,6 +36,7 @@ library(ccao)
 library(dplyr)
 library(noctua)
 library(stringr)
+library(tibble)
 library(tidyr)
 library(tools)
 
@@ -60,7 +64,9 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   metadata_df <- read_parquet(cache_files$metadata)
 } else {
   # If any of the data are not cached, load them from S3 and Athena.
-  # Start by establishing an Athena connection
+  # Start by establishing an Athena connection with unload = TRUE so that
+  # noctua parses arrays correctly
+  noctua_options(unload = TRUE)
   athena_conn <- noctua::athena() %>%
     dbConnect(s3_staging_dir = "s3://ccao-athena-results-us-east-1")
 
@@ -68,20 +74,38 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   base_model_results_url <- "s3://ccao-model-results-us-east-1"
   base_dvc_url <- "s3://ccao-data-dvc-us-east-1"
 
-  # Get the assessment year for characteristic queries, since chars are
-  # defined for the year preceding the lien date
-  assessment_data_year <- dbGetQuery(
+  # Get the assessment year and predictor list for characteristic queries.
+  # Assessment year is important since chars are defined for the year preceding
+  # the lien date
+  model_metadata_df <- dbGetQuery(
     conn = athena_conn,
-    # This query should only ever return one value, but limit the results to 1
+    # This query should only ever return one row, but limit the results to 1
     # just to be defensive
     glue::glue(
-      "SELECT assessment_data_year
+      "SELECT assessment_data_year, model_predictor_all_name
       FROM model.metadata
       WHERE run_id = '{params$run_id}'
       LIMIT 1"
     )
-  ) %>%
-    pull(assessment_data_year)
+  )
+  assessment_data_year <- model_metadata_df %>% pull(assessment_data_year)
+  all_predictors_raw <- model_metadata_df %>%
+    pull(model_predictor_all_name) %>%
+    unlist()
+  # Replace school district GEOIDs with names
+  all_predictors <- all_predictors_raw %>%
+    replace(
+      which(
+        all_predictors_raw %in% c(
+          "loc_school_elementary_district_geoid",
+          "loc_school_secondary_district_geoid"
+        )
+      ),
+      c(
+        "loc_school_elementary_district_name",
+        "loc_school_secondary_district_name"
+      )
+    )
 
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
@@ -120,24 +144,25 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title()) %>%
     pull(property_address)
 
-  hie <- assessment_pin_df %>%
-    mutate(hie = flag_hie_num_expired %>% as.logical() %>% ifelse("Yes", "No")) %>%
-    pull(hie)
-
-  # Save model metadata to a dedicated dataframe for ease of access
-  metadata_df <- data.frame(
+  # Save model metadata to a dedicated list for ease of access.
+  # Prefer a list to a dataframe since not all of the attribute values
+  # have the same dimensions
+  metadata_df <- tibble(
     final_model_run_date = final_model_run_date,
-    subject_property_address = subject_property_address
+    subject_property_address = subject_property_address,
+    all_predictors = list(all_predictors)
   )
 
   # Load school district data, for use in translating geo IDs to names
   school_df <- dbGetQuery(
     conn = athena_conn,
     glue::glue("
-      SELECT pin10, school_elementary_district_name, school_secondary_district_name
+      SELECT
+        pin10,
+        school_elementary_district_name AS loc_school_elementary_district_name,
+        school_secondary_district_name AS loc_school_secondary_district_name
       FROM location.school
-      WHERE pin10 = '{substr(params$pin, 1, 10)}'
-      AND year = '{assessment_data_year}'
+      WHERE year = '{assessment_data_year}'
     ")
   )
 
@@ -155,12 +180,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     # Join to school district data
     mutate(meta_pin10 = substr(meta_pin, 1, 10)) %>%
     left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
-    # Translate coded vars to human readable values
-    ccao::vars_recode(
-      cols = starts_with("char_"),
-      type = "short",
-      as_factor = FALSE
-    ) %>%
     mutate(
       township = ccao::town_convert(meta_township_code),
       # toTitleCase is nice here because it preserves lowercase for prepositions
@@ -171,7 +190,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       pretty_pin = ccao::pin_format_pretty(meta_pin),
       # Attach PIN-level chars to all cards
       property_address = subject_property_address,
-      hie = hie
     )
 
   # Load comp data
@@ -233,21 +251,31 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_sale_document_num %in% pivoted_comp_df$comp_document_num
     ) %>%
     collect() %>%
+    # Join to school district data
+    left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
 
   # Attach training chars to comps
-  comp_df <- pivoted_comp_df %>%
+  comp_df_with_training_chars <- pivoted_comp_df %>%
     left_join(
       training_df,
       by = c(
         "comp_pin" = "meta_pin",
         "comp_document_num" = "meta_sale_document_num"
       )
-    ) %>%
+    )
+
+  # Recode all chars except char_apts since we do not code it in the training
+  # data in the same way we code other chars
+  chars_to_recode <- comp_df_with_training_chars %>%
+    select(starts_with("char_") & !char_apts) %>%
+    names()
+
+  comp_df <- comp_df_with_training_chars %>%
     # Translate coded vars to human readable values
     ccao::vars_recode(
-      cols = starts_with("char_"),
-      type = "short",
+      cols = chars_to_recode,
+      type = "long",
       as_factor = FALSE
     ) %>%
     mutate(
@@ -273,13 +301,25 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 }
 ```
 
-This is an experimental home value report. The goal of this report is to explain how the statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on `r format(metadata_df$final_model_run_date, "%B %d, %Y")`, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on January 1, `r format(metadata_df$final_model_run_date, "%Y")`.
+This is an experimental home value report. The goal of this report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**. The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
 
-This report attempts to explain the model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
+This report attempts to explain the Assessor's model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
+
+For more details on how the experimental sales comp algorithm works, see [Finding comparables with LightGBM](https://ccao-data.github.io/lightsnip/articles/finding-comps.html).
 
 ## `r metadata_df$subject_property_address`
 
 **Property ID: `r link_pin(params$pin)`**
+
+```{r}
+library(htmltools)
+
+parcel_is_multicard <- nrow(assessment_df) > 1
+if (parcel_is_multicard) {
+  multicard_msg <- "This property has multiple \"cards\", which is an assessment term for a building or an improvement on a property. Each card on a property can have different characteristics, so the Assessor's model predicts different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
+  tags$p(multicard_msg)
+}
+```
 
 ```{r output="asis"}
 # This block takes the data generated by the previous block and displays them
@@ -288,10 +328,9 @@ This report attempts to explain the model by explaining important inputs to the 
 # programmatically and rendering it using "asis" output and htmltools rather
 # than writing Markdown directly. This is less typical for Quarto docs but
 # helpful for producing nice output for multicard parcels.
-library(htmltools)
 library(knitr)
-library(kableExtra)
 library(leaflet)
+library(reactable)
 
 # The main entrypoint function for rendering HTML elements from the data.
 # Ties together a number of helper functions for returning specific data-driven
@@ -310,15 +349,8 @@ html_tags_for_report <- function(assessment_df, comp_df) {
         property_char_table(assessment_df),
         h3("Top 5 comparable homes"),
         comps_map(assessment_df, comp_df),
-        div(
-          # kable incorrectly applies `table-responsive` to the table element
-          # rather than its enclosing div when applying it as part of the
-          # `bootstrap_options` param, so we need to set the class on an
-          # enclosing div in order to prevent the table from breaking the width
-          # of the viewport
-          class = "table-responsive",
-          combined_char_table(assessment_df, comp_df)
-        ),
+        br(),
+        combined_char_table(assessment_df, comp_df),
         avg_price_summary(comp_df),
         pred_fmv_summary(assessment_df)
       )
@@ -330,24 +362,17 @@ html_tags_for_report <- function(assessment_df, comp_df) {
 # the subject property
 location_char_table <- function(df) {
   return(
-    # Mark the kable output as an HTML string so that htmltools doesn't
-    # attempt to process it
-    HTML(
-      df %>%
-        select(
-          "Assessor Township" = township,
-          "Assessor Neighborhood" = meta_nbhd_code,
-          Municipality = municipality,
-          "Elementary School District" = school_elementary_district_name,
-          "High School District" = school_secondary_district_name
-        ) %>%
-        kable(
-          # Prevent Quarto from processing the table, which can produce
-          # garbled HTML in the case of multicard parcels
-          table.attr = "data-quarto-disable-processing='true' class='table'",
-          format = "html"
-        )
-    )
+    df %>%
+      select(
+        "Assessor Township" = township,
+        "Assessor Neighborhood" = meta_nbhd_code,
+        Municipality = municipality,
+        "Elementary School District" = loc_school_elementary_district_name,
+        "High School District" = loc_school_secondary_district_name
+      ) %>%
+      reactable(
+        sortable = FALSE
+      )
   )
 }
 
@@ -355,26 +380,23 @@ location_char_table <- function(df) {
 # the subject property
 property_char_table <- function(df) {
   return(
-    HTML(
-      df %>%
-        select(
-          "Class" = char_class,
-          "Year Built" = char_yrblt,
-          "Bldg. S.F." = bldg_sf,
-          "Land S.F." = land_sf,
-          Beds = char_beds,
-          "Full Baths" = char_fbath,
-          "Half Baths" = char_hbath
-        ) %>%
-        kable(
-          # Force left alignment, since otherwise numbers will be right aligned.
-          # We want consistent alignment since this table always only has
-          # one row
-          align = c("l", "l", "l", "l", "l", "l", "l"),
-          table.attr = "data-quarto-disable-processing='true' class='table'",
-          format = "html"
-        )
-    )
+    df %>%
+      select(
+        "Class" = char_class,
+        "Year Built" = char_yrblt,
+        "Bldg. S.F." = bldg_sf,
+        "Land S.F." = land_sf,
+        Beds = char_beds,
+        "Full Baths" = char_fbath,
+        "Half Baths" = char_hbath
+      ) %>%
+      reactable(
+        # Force left alignment, since otherwise numbers will be right aligned.
+        # We want consistent alignment since this table always only has
+        # one row
+        defaultColDef = colDef(align = "left"),
+        sortable = FALSE
+      )
   )
 }
 
@@ -569,7 +591,9 @@ pred_fmv_summary <- function(df) {
         "<p>",
         "Based on these and other sales, the model that ran on  ",
         format(metadata_df$final_model_run_date, "%B %d, %Y"),
-        " predicted that the value of this home as of lien date January 1, ",
+        " predicted that the value of this ",
+        ifelse(parcel_is_multicard, "card", "home"),
+        " as of lien date January 1, ",
         format(metadata_df$final_model_run_date, "%Y"),
         " should be ",
         "<b>", pred_fmv %>% scales::dollar(), "</b>",
@@ -581,70 +605,176 @@ pred_fmv_summary <- function(df) {
   )
 }
 
+# Helper function to "freeze" rows in a paginated df with `rows_per_page`
+# rows per page by taking `n` rows from the first page and
+# copy/inserting them back into the df so they always appear as the first
+# rows in the table. Useful hack for table libraries that don't allow you
+# to freeze rows.
+freeze_first_n_rows <- function(df, n = 2, rows_per_page = 10) {
+  # Grab the rows that should be frozen
+  frozen_rows <- df[1:n, ]
+
+  # Initialize an empty dataframe to use for output
+  new_df <- data.frame()
+
+  # Calculate the sequence of indices that we will use to insert frozen rows
+  df_len <- nrow(df)
+  insert_indices <- seq(
+    # Skip the first page of results
+    rows_per_page + 1,
+    df_len,
+    # The step length for the sequence needs to account for the frozen rows that
+    # we will insert
+    rows_per_page - n
+  )
+
+  # Construct the output dataframe by iterating the rows in the input dataframe
+  # and inserting the frozen rows where necessary
+  for (i in 1:df_len) {
+    if (i %in% insert_indices) {
+      new_df <- bind_rows(new_df, frozen_rows)
+    }
+    new_df <- bind_rows(new_df, df[i, ])
+  }
+
+  return(new_df)
+}
+
 # Helper function for generating a table for comparing chars between the subject
 # property and its comps
 combined_char_table <- function(assessment_df, comp_df) {
+  # Define a list of the most important characteristics to be displayed
+  # first in the table
+  top_chars <- c(
+    "char_class", "meta_nbhd_code", "char_yrblt", "char_bldg_sf",
+    "char_land_sf", "char_beds", "char_fbath", "char_hbath"
+  )
   return(
-    HTML(
-      assessment_df %>%
-        mutate(
-          comp_num = "",
-          meta_sale_document_num = "",
-          meta_sale_date = "",
-          meta_sale_price = "",
-          meta_sale_price_per_sq_ft = "",
-        ) %>%
-        select(
-          "Comp Number" = comp_num,
-          "Address" = property_address,
-          "Property ID" = pretty_pin,
-          "Property Class" = char_class,
-          "Assessor Neighborhood" = meta_nbhd_code,
-          "Sale Price" = meta_sale_price,
-          "Sale $/sqft" = meta_sale_price_per_sq_ft,
-          "Sale Date" = meta_sale_date,
-          "Sale Doc. Num." = meta_sale_document_num,
-          "Year Built" = char_yrblt,
-          "Bldg. S.F." = bldg_sf,
-          "Land S.F." = land_sf,
-          Beds = char_beds,
-          "Full Baths" = char_fbath,
-          "Half Baths" = char_hbath
-        ) %>%
-        bind_rows(
-          comp_df %>%
-            mutate(comp_num = as.character(comp_num)) %>%
-            select(
-              "Comp Number" = comp_num,
-              "Address" = property_address,
-              "Property ID" = pretty_pin,
-              "Property Class" = char_class,
-              "Assessor Neighborhood" = meta_nbhd_code,
-              "Sale Price" = sale_price,
-              "Sale $/sqft" = sale_price_per_sq_ft,
-              "Sale Date" = sale_date,
-              "Sale Doc. Num." = comp_document_num,
-              "Year Built" = char_yrblt,
-              "Bldg. S.F." = bldg_sf,
-              "Land S.F." = land_sf,
-              Beds = char_beds,
-              "Full Baths" = char_fbath,
-              "Half Baths" = char_hbath
-            )
-        ) %>%
-        kable(
-          align = c(
-            "l", "l", "l", "l", "l", "r", "r", "l",
-            "l", "r", "r", "r", "r", "r", "r"
+    assessment_df %>%
+      mutate(
+        comp_num = 0,
+        meta_sale_document_num = "",
+        meta_sale_date = "",
+        meta_sale_price = "",
+        meta_sale_price_per_sq_ft = "",
+      ) %>%
+      select(
+        # If you change any chars in this list, make sure to double-check
+        # the top_chars vector and add or remove chars as necessary so that
+        # we don't accidentally add them via all_predictors
+        comp_num,
+        "Sale Price" = meta_sale_price,
+        "Sale $/sqft" = meta_sale_price_per_sq_ft,
+        "Sale Date" = meta_sale_date,
+        "Sale Doc. Num." = meta_sale_document_num,
+        "Address" = property_address,
+        "Property ID" = pretty_pin,
+        "Assessor Neighborhood" = meta_nbhd_code,
+        all_of(top_chars),
+        all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
+      ) %>%
+      bind_rows(
+        comp_df %>%
+          select(
+            comp_num,
+            "Sale Price" = sale_price,
+            "Sale $/sqft" = sale_price_per_sq_ft,
+            "Sale Date" = sale_date,
+            "Sale Doc. Num." = comp_document_num,
+            "Address" = property_address,
+            "Property ID" = pretty_pin,
+            "Assessor Neighborhood" = meta_nbhd_code,
+            all_of(top_chars),
+            all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
+          )
+      ) %>%
+      # Truncate numeric values in the data to two decimal places
+      mutate(across(where(is.numeric), ~ round(., 2))) %>%
+      # Format numeric columns with commas but no decimals
+      mutate(
+        across(
+          c(
+            "char_bldg_sf", "char_land_sf", "time_sale_day",
+            # Exclude number of foreclosures, which needs a decimal
+            starts_with("prox_num") & !matches("prox_num_foreclosure_per_1000_pin_past_5_years"),
+            ends_with("dist_ft")
           ),
-          table.attr = "data-quarto-disable-processing='true' class='table'",
-          format = "html"
+          scales::label_comma(accuracy = 1)
+        ),
+      ) %>%
+      # Format numeric columns with commas _and_ decimals
+      mutate(prox_num_foreclosure_per_1000_pin_past_5_years = scales::comma(prox_num_foreclosure_per_1000_pin_past_5_years, accuracy = 0.01)) %>%
+      # Format currency columns
+      mutate(
+        across(
+          c(
+            "acs5_median_household_renter_occupied_gross_rent",
+            starts_with("acs5_median_income")
+          ),
+          scales::label_dollar()
         )
-    )
+      ) %>%
+      # Format percent columns
+      mutate(across(starts_with("acs5_percent"), scales::label_percent())) %>%
+      # This percent column is already multiplied by 100, it just needs a
+      # percent sign
+      mutate(other_tax_bill_rate = paste0(other_tax_bill_rate, "%")) %>%
+      # Rename characteristic columns to their pretty format
+      ccao::vars_rename(names_from = "model", names_to = "pretty") %>%
+      rename("Number of Days Since First Recorded Sale" = "Sale Day") %>%
+      # Pivot the dataframe longer so that we can use pagination to navigate
+      # through multiple pages of full characteristic values.
+      # Start by casting all columns to char ahead of pivot, since otherwise we
+      # can't combine char values into one column
+      mutate(across(-comp_num, as.character)) %>%
+      pivot_longer(
+        cols = -comp_num,
+        names_to = "Characteristic",
+        values_to = "Value"
+      ) %>%
+      # Pivot back to wide so that each property has its own column representing
+      # all of its chars
+      pivot_wider(
+        names_from = comp_num,
+        values_from = Value,
+        names_prefix = "Comp "
+      ) %>%
+      rename("Subj. prop." = "Comp 0") %>%
+      # Freeze the price char rows so that they are always visible in the table
+      # even when viewing different pages
+      freeze_first_n_rows(n = 2, rows_per_page = 10) %>%
+      # Render a paginated table with results
+      reactable(
+        pagination = TRUE,
+        defaultPageSize = 10,
+        # Turn off sorting to retain the "frozen" price char rows
+        sortable = FALSE,
+        columns = list(
+          # Chars column should match the weight of the header row, to
+          # emphasize that it's acting like a header
+          Characteristic = colDef(style = list(fontWeight = 600))
+        ),
+        rowStyle = function(index) {
+          # Style the frozen rows with a grey background and a harder bottom
+          # border to visually indicate that they are frozen
+          styles <- list()
+          if (.[index, "Characteristic"] %in% c("Sale Price", "Sale $/sqft")) {
+            styles <- c(styles, background = "rgba(0, 0, 0, 0.05)")
+          }
+          if (.[index, "Characteristic"] == "Sale $/sqft") {
+            styles <- c(styles, "border-bottom" = "1px solid rgb(182, 182, 182)")
+          }
+          return(styles)
+        },
+        class = "cell-border stripe",
+        highlight = TRUE,
+        bordered = TRUE,
+        defaultColDef = colDef(align = "center")
+      )
   )
 }
 
-if (nrow(assessment_df) > 1) {
+if (parcel_is_multicard) {
   # In case of a multicard PIN, split the report out into tabsets, with one
   # tabset for each card. We have to do this in raw bootstrap because Quarto
   # tabsets aren't supported by htmltools::tagList, and we need tagList in order
