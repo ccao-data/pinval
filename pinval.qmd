@@ -68,7 +68,13 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # noctua parses arrays correctly
   noctua_options(unload = TRUE)
   athena_conn <- noctua::athena() %>%
-    dbConnect(s3_staging_dir = "s3://ccao-athena-results-us-east-1")
+    dbConnect(
+      s3_staging_dir = "s3://ccao-athena-results-us-east-1",
+      # Disable the Connections tab entry for this database, since we don't
+      # need it for the purposes of this script and it causes connection setup
+      # to take a long time by issuing a query for each table's schema
+      rstudio_conn_tab = FALSE,
+    )
 
   # Define base paths to S3 buckets where data are stored
   base_model_results_url <- "s3://ccao-model-results-us-east-1"
@@ -153,19 +159,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     all_predictors = list(all_predictors)
   )
 
-  # Load school district data, for use in translating geo IDs to names
-  school_df <- dbGetQuery(
-    conn = athena_conn,
-    glue::glue("
-      SELECT
-        pin10,
-        school_elementary_district_name AS loc_school_elementary_district_name,
-        school_secondary_district_name AS loc_school_secondary_district_name
-      FROM location.school
-      WHERE year = '{assessment_data_year}'
-    ")
-  )
-
   # Load card-level assessment data to use as the base for joining all chars
   assessment_df <- open_dataset(
     glue::glue(
@@ -177,9 +170,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_year == assessment_data_year
     ) %>%
     collect() %>%
-    # Join to school district data
-    mutate(meta_pin10 = substr(meta_pin, 1, 10)) %>%
-    left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
     mutate(
       township = ccao::town_convert(meta_township_code),
       # toTitleCase is nice here because it preserves lowercase for prepositions
@@ -193,13 +183,18 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     )
 
   # Load comp data
-  raw_comp_df <- open_dataset(
-    glue::glue(
-      "{base_model_results_url}/comp/year={params$year}/run_id={params$run_id}"
-    )
+  raw_comp_df <- dbGetQuery(
+    conn = athena_conn,
+    glue::glue("
+      SELECT *
+      FROM model.comp
+      WHERE pin = '{params$pin}'
+        AND year = '{params$year}'
+        AND run_id = '{params$run_id}'
+    ")
   ) %>%
-    filter(pin == params$pin) %>%
-    collect()
+    select(-year, -run_id) %>%
+    as_tibble()
 
   # Pivot out the comp data and drop extraneous comps
   pivoted_comp_df <- raw_comp_df %>%
@@ -251,9 +246,34 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_sale_document_num %in% pivoted_comp_df$comp_document_num
     ) %>%
     collect() %>%
-    # Join to school district data
-    left_join(school_df, by = c("meta_pin10" = "pin10")) %>%
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
+
+  # Load school district data, for use in translating geo IDs to names.
+  # We need to do this after we've loaded assessment and training sets, since
+  # we only want to grab school info for the subject property and comps
+  school_df <- dbGetQuery(
+    conn = athena_conn,
+    glue::glue("
+      SELECT
+        pin10,
+        school_elementary_district_name AS loc_school_elementary_district_name,
+        school_secondary_district_name AS loc_school_secondary_district_name
+      FROM location.school
+      WHERE year = '{assessment_data_year}'
+        AND pin10 IN (
+          '{substr(params$pin, 1, 10)}',
+          '{pivoted_comp_df$comp_pin %>% substr(1, 10) %>% paste(collapse = \"\', \'\")}'
+        )
+    ")
+  )
+
+  # Join school district data to assessment and training sets
+  assessment_df <- assessment_df %>%
+    mutate(meta_pin10 = substr(meta_pin, 1, 10)) %>%
+    left_join(school_df, by = c("meta_pin10" = "pin10"))
+
+  training_df <- training_df %>%
+    left_join(school_df, by = c("meta_pin10" = "pin10"))
 
   # Attach training chars to comps
   comp_df_with_training_chars <- pivoted_comp_df %>%
