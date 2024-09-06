@@ -236,7 +236,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   training_data_prefix <- dvc_md5_hash %>% substr(1, 2)
   training_data_filename <- dvc_md5_hash %>% substr(3, nchar(dvc_md5_hash))
 
-  training_df <- open_dataset(
+  training_df <- read_parquet(
     glue::glue(
       "{base_dvc_url}/files/md5/{training_data_prefix}/{training_data_filename}"
     )
@@ -245,7 +245,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       meta_pin %in% pivoted_comp_df$comp_pin,
       meta_sale_document_num %in% pivoted_comp_df$comp_document_num
     ) %>%
-    collect() %>%
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
 
   # Load school district data, for use in translating geo IDs to names.
