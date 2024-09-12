@@ -1,5 +1,5 @@
 ---
-title: "Cook County Assessor’s Experimental PINVAL Report"
+title: "Cook County Assessor’s Experimental Model Value Report"
 date: "`r Sys.Date()`"
 author: "Cook County Assessor's Office Data Department"
 execute:
@@ -320,15 +320,21 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 }
 ```
 
-This is an experimental home value report. The goal of this report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**. The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
+The goal of this experimental report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
+
+::: {.callout-tip collapse="true"}
+## Click to read more about this report
 
 This report attempts to explain the Assessor's model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
 
+The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
+
 For more details on how the experimental sales comp algorithm works, see [Finding comparables with LightGBM](https://ccao-data.github.io/lightsnip/articles/finding-comps.html).
+:::
 
-## `r metadata_df$subject_property_address`
+## Subject property
 
-**Property ID: `r link_pin(params$pin)`**
+**PIN**: `r link_pin(params$pin)`
 
 ```{r}
 library(htmltools)
@@ -364,12 +370,13 @@ html_tags_for_report <- function(assessment_df, comp_df) {
       list(
         h3("Location"),
         location_char_table(assessment_df),
-        h3("Property"),
+        h3("Characteristics"),
         property_char_table(assessment_df),
-        h3("Top 5 comparable homes"),
+        h2("Top 5 comparable sales"),
         comps_map(assessment_df, comp_df),
         br(),
         combined_char_table(assessment_df, comp_df),
+        h2("Summary"),
         avg_price_summary(comp_df),
         pred_fmv_summary(assessment_df)
       )
@@ -383,9 +390,10 @@ location_char_table <- function(df) {
   return(
     df %>%
       select(
+        Address = property_address,
+        Municipality = municipality,
         "Assessor Township" = township,
         "Assessor Neighborhood" = meta_nbhd_code,
-        Municipality = municipality,
         "Elementary School District" = loc_school_elementary_district_name,
         "High School District" = loc_school_secondary_district_name
       ) %>%
@@ -481,7 +489,7 @@ comps_map <- function(assessment_df, comp_df) {
         paste0(
           "<h5>Subject property</h5>",
           "<b>Address</b>: ", property_address,
-          "<br><b>Property ID</b>: ", link_pin(meta_pin),
+          "<br><b>PIN</b>: ", link_pin(meta_pin),
           "<br><b>Property class</b>: ", char_class,
           "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
           "<br><b>Year built</b>: ", char_yrblt,
@@ -538,7 +546,7 @@ comps_map <- function(assessment_df, comp_df) {
         ),
         "</h5>",
         "<b>Address</b>: ", property_address,
-        "<br><b>Property ID</b>: ", link_pin(comp_pin),
+        "<br><b>PIN</b>: ", link_pin(comp_pin),
         "<br><b>Property class</b>: ", char_class,
         "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
         "<br><b>Sale price</b>: ", sale_price,
@@ -668,6 +676,10 @@ combined_char_table <- function(assessment_df, comp_df) {
     "char_class", "meta_nbhd_code", "char_yrblt", "char_bldg_sf",
     "char_land_sf", "char_beds", "char_fbath", "char_hbath"
   )
+  # Freeze this many of the top rows in the table
+  num_frozen_rows <- 3
+  rows_per_page <- 10
+
   return(
     assessment_df %>%
       mutate(
@@ -687,7 +699,7 @@ combined_char_table <- function(assessment_df, comp_df) {
         "Sale Date" = meta_sale_date,
         "Sale Doc. Num." = meta_sale_document_num,
         "Address" = property_address,
-        "Property ID" = pretty_pin,
+        "PIN" = pretty_pin,
         "Assessor Neighborhood" = meta_nbhd_code,
         all_of(top_chars),
         all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
@@ -701,7 +713,7 @@ combined_char_table <- function(assessment_df, comp_df) {
             "Sale Date" = sale_date,
             "Sale Doc. Num." = comp_document_num,
             "Address" = property_address,
-            "Property ID" = pretty_pin,
+            "PIN" = pretty_pin,
             "Assessor Neighborhood" = meta_nbhd_code,
             all_of(top_chars),
             all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
@@ -761,13 +773,14 @@ combined_char_table <- function(assessment_df, comp_df) {
       rename("Subj. prop." = "Comp 0") %>%
       # Freeze the price char rows so that they are always visible in the table
       # even when viewing different pages
-      freeze_first_n_rows(n = 2, rows_per_page = 10) %>%
+      freeze_first_n_rows(n = num_frozen_rows, rows_per_page = rows_per_page) %>%
       # Render a paginated table with results
       reactable(
         pagination = TRUE,
-        defaultPageSize = 10,
+        defaultPageSize = rows_per_page,
         # Turn off sorting to retain the "frozen" price char rows
         sortable = FALSE,
+        searchable = TRUE,
         columns = list(
           # Chars column should match the weight of the header row, to
           # emphasize that it's acting like a header
@@ -777,10 +790,10 @@ combined_char_table <- function(assessment_df, comp_df) {
           # Style the frozen rows with a grey background and a harder bottom
           # border to visually indicate that they are frozen
           styles <- list()
-          if (.[index, "Characteristic"] %in% c("Sale Price", "Sale $/sqft")) {
+          if (index %% 10 %in% 1:num_frozen_rows) {
             styles <- c(styles, background = "rgba(0, 0, 0, 0.05)")
           }
-          if (.[index, "Characteristic"] == "Sale $/sqft") {
+          if (index %% 10 == num_frozen_rows) {
             styles <- c(styles, "border-bottom" = "1px solid rgb(182, 182, 182)")
           }
           return(styles)
