@@ -429,19 +429,13 @@ property_char_table <- function(df) {
 
 # Helper function for generating a leaflet map of comparable sales
 comps_map <- function(assessment_df, comp_df) {
-  # Define human-readable labels for the comps
-  comp_labels <- c(
-    "Comp 1 (most similar)",
-    paste0("Comp ", 2:4),
-    "Comp 5 (least similar)"
-  )
-
-  # Define a color palette that leaflet will use to distinguish between
-  # different levels of comps
-  color_palette <- colorFactor(
-    c("#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
-    comp_labels,
-    ordered = TRUE
+  # Define legend attributes for the comps
+  legend_labels <- c("Subject property", "Comparable sale")
+  comp_color <- "#00cc00"
+  circle_marker_styles <- "width: 13px; height: 13px; border-radius: 50%"
+  legend_colors <- c(
+    glue::glue("white; {circle_marker_styles}; border: 2px solid black"),
+    glue::glue("{comp_color}; {circle_marker_styles}")
   )
 
   # Set a small buffer around the map bounds so that no parcel is clipped
@@ -503,8 +497,7 @@ comps_map <- function(assessment_df, comp_df) {
     ) %>%
     # Add circle markers for the comps
     addCircleMarkers(
-      data = comp_df %>%
-        mutate(comp_num_label = comp_labels[comp_num]),
+      data = comp_df,
       ~loc_longitude,
       ~loc_latitude,
       opacity = ~ ifelse(
@@ -521,7 +514,7 @@ comps_map <- function(assessment_df, comp_df) {
         1
       ),
       radius = 4,
-      color = ~ color_palette(comp_num_label),
+      color = comp_color,
       label = ~ ifelse(
         comp_pin == params$pin,
         # It would be nice to introduce a line break here, but it doesn't
@@ -563,8 +556,8 @@ comps_map <- function(assessment_df, comp_df) {
     ) %>%
     addLegend(
       "bottomright",
-      pal = color_palette,
-      values = comp_labels,
+      labels = legend_labels,
+      colors = legend_colors,
       opacity = 1
     ) %>%
     addControl(
