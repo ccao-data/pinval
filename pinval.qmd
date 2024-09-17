@@ -1,8 +1,7 @@
 ---
-title: "Cook County Assessor’s Experimental Model Value Report"
-date: "`r Sys.Date()`"
-author: "Cook County Assessor's Office Data Department"
+title: "Cook County Assessor’s Model Value Report (Experimental)"
 title-block-banner: "#294298"
+subtitle: "PIN: `r glue::glue('<a style=color:white;text-decoration:underline target=_blank href=https://www.cookcountyassessor.com/pin/{params$pin}>{ccao::pin_format_pretty(params$pin)}</a>')`"
 execute:
   echo: false
   warning: false
@@ -322,7 +321,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 }
 ```
 
-The goal of this experimental report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
+The goal of this experimental report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model ran on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
 
 ::: {.callout-tip collapse="true"}
 ## Click to read more about this report
@@ -333,10 +332,6 @@ The sales that the model used for estimation are reported by the Illinois Depart
 
 For more details on how the experimental sales comp algorithm works, see [Finding comparables with LightGBM](https://ccao-data.github.io/lightsnip/articles/finding-comps.html).
 :::
-
-## Subject property
-
-**PIN**: `r link_pin(params$pin)`
 
 ```{r}
 library(htmltools)
@@ -370,9 +365,9 @@ html_tags_for_report <- function(assessment_df, comp_df) {
   return(
     withTags(
       list(
-        h3("Location"),
+        h2("Location"),
         location_char_table(assessment_df),
-        h3("Characteristics"),
+        h2("Characteristics"),
         property_char_table(assessment_df),
         h2("Top 5 comparable sales"),
         comps_map(assessment_df, comp_df),
