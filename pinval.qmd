@@ -2,6 +2,7 @@
 title: "Cook County Assessor’s Experimental Model Value Report"
 date: "`r Sys.Date()`"
 author: "Cook County Assessor's Office Data Department"
+title-block-banner: "#294298"
 execute:
   echo: false
   warning: false
@@ -310,7 +311,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       sale_price_per_sq_ft = (meta_sale_price / char_bldg_sf) %>%
         scales::dollar(accuracy = 1),
       sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y"),
-      pretty_pin = ccao::pin_format_pretty(comp_pin)
+      pretty_pin = ccao::pin_format_pretty(comp_pin),
+      is_subject_pin_sale = comp_pin == params$pin
     )
 
   # Write the assessment and comp data to the cache
@@ -376,6 +378,7 @@ html_tags_for_report <- function(assessment_df, comp_df) {
         comps_map(assessment_df, comp_df),
         br(),
         combined_char_table(assessment_df, comp_df),
+        subject_pin_sale_warning(comp_df),
         h2("Summary"),
         avg_price_summary(comp_df),
         pred_fmv_summary(assessment_df)
@@ -460,12 +463,12 @@ comps_map <- function(assessment_df, comp_df) {
       # since we will use the comp to display the label in order to
       # show the most recent sale price/date.
       # Use a bare `if` statement because `ifelse` can't produce NULLs
-      label = if (params$pin %in% comp_df$comp_pin) {
+      label = if (any(comp_df$is_subject_pin_sale)) {
         NULL
       } else {
         "Subject property"
       },
-      labelOptions = if (params$pin %in% comp_df$comp_pin) {
+      labelOptions = if (any(comp_df$is_subject_pin_sale)) {
         NULL
       } else {
         labelOptions(
@@ -477,7 +480,7 @@ comps_map <- function(assessment_df, comp_df) {
       },
       # Don't display a popup if the PIN is one of its own comps,
       # since we will use the comp to display the popup in that case
-      popup = ~ if (params$pin %in% comp_df$comp_pin) {
+      popup = ~ if (any(comp_df$is_subject_pin_sale)) {
         NULL
       } else {
         paste0(
@@ -504,19 +507,19 @@ comps_map <- function(assessment_df, comp_df) {
         # Hide the marker if the comp has the same PIN as its target, since
         # we want to retain the marker styles of the target but override
         # the label
-        comp_pin == params$pin,
+        is_subject_pin_sale,
         0,
         1
       ),
       fillOpacity = ~ ifelse(
-        comp_pin == params$pin,
+        is_subject_pin_sale,
         0,
         1
       ),
       radius = 4,
       color = comp_color,
       label = ~ ifelse(
-        comp_pin == params$pin,
+        is_subject_pin_sale,
         # It would be nice to introduce a line break here, but it doesn't
         # seem like the R leaflet package accepts HTML or exposes an interface
         # for advanced label formatting
@@ -533,7 +536,7 @@ comps_map <- function(assessment_df, comp_df) {
       popup = ~ paste0(
         "<h5>",
         ifelse(
-          comp_pin == params$pin,
+          is_subject_pin_sale,
           "Subject property",
           paste0("Comp ", comp_num)
         ),
@@ -676,7 +679,7 @@ combined_char_table <- function(assessment_df, comp_df) {
   return(
     assessment_df %>%
       mutate(
-        comp_num = 0,
+        comp_num = "0",
         meta_sale_document_num = "",
         meta_sale_date = "",
         meta_sale_price = "",
@@ -699,6 +702,16 @@ combined_char_table <- function(assessment_df, comp_df) {
       ) %>%
       bind_rows(
         comp_df %>%
+          # Add a marker to the comp number if it is a prior sale of the subject
+          # card
+          mutate(
+            comp_num = as.character(comp_num),
+            comp_num = ifelse(
+              is_subject_pin_sale,
+              paste0(comp_num, "*"),
+              comp_num
+            )
+          ) %>%
           select(
             comp_num,
             "Sale Price" = sale_price,
@@ -750,7 +763,7 @@ combined_char_table <- function(assessment_df, comp_df) {
       # through multiple pages of full characteristic values.
       # Start by casting all columns to char ahead of pivot, since otherwise we
       # can't combine char values into one column
-      mutate(across(-comp_num, as.character)) %>%
+      mutate(across(everything(), as.character)) %>%
       pivot_longer(
         cols = -comp_num,
         names_to = "Characteristic",
@@ -797,6 +810,20 @@ combined_char_table <- function(assessment_df, comp_df) {
         defaultColDef = colDef(align = "center")
       )
   )
+}
+
+subject_pin_sale_warning <- function(comp_df) {
+  if (any(comp_df$is_subject_pin_sale)) {
+    return(
+      HTML(
+        paste0(
+          "<b>*</b> This comparable is a sale of the subject property. ",
+          "The model typically weights these sales highly, even if they ",
+          "are older than other comparable sales."
+        )
+      )
+    )
+  }
 }
 
 if (parcel_is_multicard) {
