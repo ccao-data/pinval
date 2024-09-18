@@ -1,7 +1,7 @@
 ---
-title: "Cook County Assessor’s Experimental PINVAL Report"
-date: "`r Sys.Date()`"
-author: "Cook County Assessor's Office Data Department"
+title: "Cook County Assessor’s Model Value Report (Experimental)"
+title-block-banner: "#294298"
+subtitle: "<b>PIN: `r glue::glue('<a style=color:white;text-decoration:underline target=_blank href=https://www.cookcountyassessor.com/pin/{params$pin}>{ccao::pin_format_pretty(params$pin)}</a>')`</b>"
 execute:
   echo: false
   warning: false
@@ -41,11 +41,11 @@ library(tidyr)
 library(tools)
 
 # Helper function to wrap a PIN in a link for display purposes
-link_pin <- function(pin) {
-  pretty_pin <- ccao::pin_format_pretty(pin)
+link_pin <- function(pin, display_text) {
+  text <- ifelse(!missing(display_text), display_text, ccao::pin_format_pretty(pin))
   return(
     glue::glue(
-      "<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{pretty_pin}</a>"
+      "<a target=_blank href=https://www.cookcountyassessor.com/pin/{pin}>{text}</a>"
     )
   )
 }
@@ -310,7 +310,8 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       sale_price_per_sq_ft = (meta_sale_price / char_bldg_sf) %>%
         scales::dollar(accuracy = 1),
       sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y"),
-      pretty_pin = ccao::pin_format_pretty(comp_pin)
+      pretty_pin = ccao::pin_format_pretty(comp_pin),
+      is_subject_pin_sale = comp_pin == params$pin
     )
 
   # Write the assessment and comp data to the cache
@@ -320,15 +321,17 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 }
 ```
 
-This is an experimental home value report. The goal of this report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model was run on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**. The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
+The goal of this experimental report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model ran on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
+
+::: {.callout-tip collapse="true"}
+## Click to read more about this report
 
 This report attempts to explain the Assessor's model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
 
+The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
+
 For more details on how the experimental sales comp algorithm works, see [Finding comparables with LightGBM](https://ccao-data.github.io/lightsnip/articles/finding-comps.html).
-
-## `r metadata_df$subject_property_address`
-
-**Property ID: `r link_pin(params$pin)`**
+:::
 
 ```{r}
 library(htmltools)
@@ -357,21 +360,25 @@ library(reactable)
 #
 # @param assessment_df Dataframe representing the chars for the subject parcel
 # @param comp_df Dataframe representing chars for the comps
+# @param parcel_is_multicard Boolean indicating a multicard property
 # @return Returns a list of htmltools elements that can be rendered using `tagList()`
-html_tags_for_report <- function(assessment_df, comp_df) {
+html_tags_for_report <- function(assessment_df, comp_df, parcel_is_multicard) {
   return(
     withTags(
       list(
-        h3("Location"),
+        h2("Location"),
         location_char_table(assessment_df),
-        h3("Property"),
+        h2("Characteristics"),
         property_char_table(assessment_df),
-        h3("Top 5 comparable homes"),
-        comps_map(assessment_df, comp_df),
+        h2("Top 5 comparable sales"),
+        comps_map(assessment_df, comp_df, parcel_is_multicard),
         br(),
-        combined_char_table(assessment_df, comp_df),
+        combined_char_table(assessment_df, comp_df, parcel_is_multicard),
+        subject_pin_sale_warning(comp_df, parcel_is_multicard),
+        h2("Summary"),
         avg_price_summary(comp_df),
-        pred_fmv_summary(assessment_df)
+        pred_fmv_summary(assessment_df, parcel_is_multicard),
+        mailed_value_warning(parcel_is_multicard)
       )
     )
   )
@@ -383,9 +390,10 @@ location_char_table <- function(df) {
   return(
     df %>%
       select(
+        Address = property_address,
+        Municipality = municipality,
         "Assessor Township" = township,
         "Assessor Neighborhood" = meta_nbhd_code,
-        Municipality = municipality,
         "Elementary School District" = loc_school_elementary_district_name,
         "High School District" = loc_school_secondary_district_name
       ) %>%
@@ -420,20 +428,19 @@ property_char_table <- function(df) {
 }
 
 # Helper function for generating a leaflet map of comparable sales
-comps_map <- function(assessment_df, comp_df) {
-  # Define human-readable labels for the comps
-  comp_labels <- c(
-    "Comp 1 (most similar)",
-    paste0("Comp ", 2:4),
-    "Comp 5 (least similar)"
+comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
+  # Set the label of the subject property differently if it's multicard
+  property_label <- glue::glue("Subject {ifelse(parcel_is_multicard, 'card', 'property')}")
+  # Define legend attributes for the comps
+  legend_labels <- c(
+    property_label,
+    "Comparable sale"
   )
-
-  # Define a color palette that leaflet will use to distinguish between
-  # different levels of comps
-  color_palette <- colorFactor(
-    c("#004d00", "#006600", "#008000", "#00cc00", "#99ff99"),
-    comp_labels,
-    ordered = TRUE
+  comp_color <- "#00cc00"
+  circle_marker_styles <- "width: 13px; height: 13px; border-radius: 50%"
+  legend_colors <- c(
+    glue::glue("white; {circle_marker_styles}; border: 2px solid black"),
+    glue::glue("{comp_color}; {circle_marker_styles}")
   )
 
   # Set a small buffer around the map bounds so that no parcel is clipped
@@ -458,12 +465,12 @@ comps_map <- function(assessment_df, comp_df) {
       # since we will use the comp to display the label in order to
       # show the most recent sale price/date.
       # Use a bare `if` statement because `ifelse` can't produce NULLs
-      label = if (params$pin %in% comp_df$comp_pin) {
+      label = if (any(comp_df$is_subject_pin_sale)) {
         NULL
       } else {
-        "Subject property"
+        property_label
       },
-      labelOptions = if (params$pin %in% comp_df$comp_pin) {
+      labelOptions = if (any(comp_df$is_subject_pin_sale)) {
         NULL
       } else {
         labelOptions(
@@ -475,13 +482,13 @@ comps_map <- function(assessment_df, comp_df) {
       },
       # Don't display a popup if the PIN is one of its own comps,
       # since we will use the comp to display the popup in that case
-      popup = ~ if (params$pin %in% comp_df$comp_pin) {
+      popup = ~ if (any(comp_df$is_subject_pin_sale)) {
         NULL
       } else {
         paste0(
-          "<h5>Subject property</h5>",
+          "<h5>", property_label, "</h5>",
           "<b>Address</b>: ", property_address,
-          "<br><b>Property ID</b>: ", link_pin(meta_pin),
+          "<br><b>PIN</b>: ", link_pin(meta_pin),
           "<br><b>Property class</b>: ", char_class,
           "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
           "<br><b>Year built</b>: ", char_yrblt,
@@ -495,31 +502,30 @@ comps_map <- function(assessment_df, comp_df) {
     ) %>%
     # Add circle markers for the comps
     addCircleMarkers(
-      data = comp_df %>%
-        mutate(comp_num_label = comp_labels[comp_num]),
+      data = comp_df,
       ~loc_longitude,
       ~loc_latitude,
       opacity = ~ ifelse(
         # Hide the marker if the comp has the same PIN as its target, since
         # we want to retain the marker styles of the target but override
         # the label
-        comp_pin == params$pin,
+        is_subject_pin_sale,
         0,
         1
       ),
       fillOpacity = ~ ifelse(
-        comp_pin == params$pin,
+        is_subject_pin_sale,
         0,
         1
       ),
       radius = 4,
-      color = ~ color_palette(comp_num_label),
+      color = comp_color,
       label = ~ ifelse(
-        comp_pin == params$pin,
+        is_subject_pin_sale,
         # It would be nice to introduce a line break here, but it doesn't
         # seem like the R leaflet package accepts HTML or exposes an interface
         # for advanced label formatting
-        glue::glue("Subject property [{sale_price_short} ({sale_date})]"),
+        glue::glue("{property_label} [{sale_price_short} ({sale_date})]"),
         glue::glue("{sale_price_short} ({sale_date})")
       ),
       labelOptions = labelOptions(
@@ -532,13 +538,13 @@ comps_map <- function(assessment_df, comp_df) {
       popup = ~ paste0(
         "<h5>",
         ifelse(
-          comp_pin == params$pin,
-          "Subject property",
+          is_subject_pin_sale,
+          property_label,
           paste0("Comp ", comp_num)
         ),
         "</h5>",
         "<b>Address</b>: ", property_address,
-        "<br><b>Property ID</b>: ", link_pin(comp_pin),
+        "<br><b>PIN</b>: ", link_pin(comp_pin),
         "<br><b>Property class</b>: ", char_class,
         "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
         "<br><b>Sale price</b>: ", sale_price,
@@ -555,8 +561,8 @@ comps_map <- function(assessment_df, comp_df) {
     ) %>%
     addLegend(
       "bottomright",
-      pal = color_palette,
-      values = comp_labels,
+      labels = legend_labels,
+      colors = legend_colors,
       opacity = 1
     ) %>%
     addControl(
@@ -598,7 +604,7 @@ avg_price_summary <- function(df) {
 
 # Helper function for generating a string summary of the predicted value of
 # the subject property
-pred_fmv_summary <- function(df) {
+pred_fmv_summary <- function(df, parcel_is_multicard) {
   # Use the initial FMV since we don't care about distinguishing building
   # from land value in this context
   pred_fmv <- df$pred_card_initial_fmv
@@ -611,13 +617,32 @@ pred_fmv_summary <- function(df) {
         "Based on these and other sales, the model that ran on  ",
         format(metadata_df$final_model_run_date, "%B %d, %Y"),
         " predicted that the value of this ",
-        ifelse(parcel_is_multicard, "card", "home"),
+        ifelse(parcel_is_multicard, "card", "property"),
         " as of lien date January 1, ",
         format(metadata_df$final_model_run_date, "%Y"),
         " should be ",
         "<b>", pred_fmv %>% scales::dollar(), "</b>",
         " at ",
         "<b>", pred_fmv_per_sqft %>% scales::dollar(accuracy = 1), "/sq.ft.</b>",
+        "</p>"
+      )
+    )
+  )
+}
+
+# Helper function for generating a warning that mailed values can differ from
+# model values
+mailed_value_warning <- function(parcel_is_multicard) {
+  return(
+    HTML(
+      paste0(
+        "<p>",
+        "The model's predicted value for this ",
+        ifelse(parcel_is_multicard, "card", "property"), " ",
+        "is not necessarily the final valuation during a reassessment. ",
+        "Analysts at the Assessor's Office can review the model's predictions ",
+        "and make adjustments. To see this property's most recent valuation, ",
+        "visit the ", link_pin(params$pin, "Assessor's website"), ".",
         "</p>"
       )
     )
@@ -661,17 +686,21 @@ freeze_first_n_rows <- function(df, n = 2, rows_per_page = 10) {
 
 # Helper function for generating a table for comparing chars between the subject
 # property and its comps
-combined_char_table <- function(assessment_df, comp_df) {
+combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
   # Define a list of the most important characteristics to be displayed
   # first in the table
   top_chars <- c(
     "char_class", "meta_nbhd_code", "char_yrblt", "char_bldg_sf",
     "char_land_sf", "char_beds", "char_fbath", "char_hbath"
   )
+  # Freeze this many of the top rows in the table
+  num_frozen_rows <- 3
+  rows_per_page <- 10
+
   return(
     assessment_df %>%
       mutate(
-        comp_num = 0,
+        comp_num = "0",
         meta_sale_document_num = "",
         meta_sale_date = "",
         meta_sale_price = "",
@@ -687,13 +716,23 @@ combined_char_table <- function(assessment_df, comp_df) {
         "Sale Date" = meta_sale_date,
         "Sale Doc. Num." = meta_sale_document_num,
         "Address" = property_address,
-        "Property ID" = pretty_pin,
+        "PIN" = pretty_pin,
         "Assessor Neighborhood" = meta_nbhd_code,
         all_of(top_chars),
         all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
       ) %>%
       bind_rows(
         comp_df %>%
+          # Add a marker to the comp number if it is a prior sale of the subject
+          # card
+          mutate(
+            comp_num = as.character(comp_num),
+            comp_num = ifelse(
+              is_subject_pin_sale,
+              paste0(comp_num, "*"),
+              comp_num
+            )
+          ) %>%
           select(
             comp_num,
             "Sale Price" = sale_price,
@@ -701,7 +740,7 @@ combined_char_table <- function(assessment_df, comp_df) {
             "Sale Date" = sale_date,
             "Sale Doc. Num." = comp_document_num,
             "Address" = property_address,
-            "Property ID" = pretty_pin,
+            "PIN" = pretty_pin,
             "Assessor Neighborhood" = meta_nbhd_code,
             all_of(top_chars),
             all_of(unlist(metadata_df$all_predictors) %>% setdiff(top_chars))
@@ -745,7 +784,7 @@ combined_char_table <- function(assessment_df, comp_df) {
       # through multiple pages of full characteristic values.
       # Start by casting all columns to char ahead of pivot, since otherwise we
       # can't combine char values into one column
-      mutate(across(-comp_num, as.character)) %>%
+      mutate(across(everything(), as.character)) %>%
       pivot_longer(
         cols = -comp_num,
         names_to = "Characteristic",
@@ -758,16 +797,20 @@ combined_char_table <- function(assessment_df, comp_df) {
         values_from = Value,
         names_prefix = "Comp "
       ) %>%
-      rename("Subj. prop." = "Comp 0") %>%
+      rename_with(
+        ~ ifelse(parcel_is_multicard, "Subject card", "Subject prop."),
+        matches("Comp 0")
+      ) %>%
       # Freeze the price char rows so that they are always visible in the table
       # even when viewing different pages
-      freeze_first_n_rows(n = 2, rows_per_page = 10) %>%
+      freeze_first_n_rows(n = num_frozen_rows, rows_per_page = rows_per_page) %>%
       # Render a paginated table with results
       reactable(
         pagination = TRUE,
-        defaultPageSize = 10,
+        defaultPageSize = rows_per_page,
         # Turn off sorting to retain the "frozen" price char rows
         sortable = FALSE,
+        searchable = TRUE,
         columns = list(
           # Chars column should match the weight of the header row, to
           # emphasize that it's acting like a header
@@ -777,10 +820,10 @@ combined_char_table <- function(assessment_df, comp_df) {
           # Style the frozen rows with a grey background and a harder bottom
           # border to visually indicate that they are frozen
           styles <- list()
-          if (.[index, "Characteristic"] %in% c("Sale Price", "Sale $/sqft")) {
+          if (index %% 10 %in% 1:num_frozen_rows) {
             styles <- c(styles, background = "rgba(0, 0, 0, 0.05)")
           }
-          if (.[index, "Characteristic"] == "Sale $/sqft") {
+          if (index %% 10 == num_frozen_rows) {
             styles <- c(styles, "border-bottom" = "1px solid rgb(182, 182, 182)")
           }
           return(styles)
@@ -791,6 +834,21 @@ combined_char_table <- function(assessment_df, comp_df) {
         defaultColDef = colDef(align = "center")
       )
   )
+}
+
+subject_pin_sale_warning <- function(comp_df, parcel_is_multicard) {
+  if (any(comp_df$is_subject_pin_sale)) {
+    return(
+      HTML(
+        paste0(
+          "<b>*</b> This comparable is a sale of the subject ",
+          ifelse(parcel_is_multicard, "card", "property"), ". ",
+          "The model typically weights these sales highly, even if they ",
+          "are older than other comparable sales."
+        )
+      )
+    )
+  }
 }
 
 if (parcel_is_multicard) {
@@ -844,7 +902,7 @@ if (parcel_is_multicard) {
             class = ifelse(card_num == 1, "tab-pane active", "tab-pane"),
             role = "tabpanel",
             "aria-labelledby" = glue::glue("tabset-1-{card_num}-tab"),
-            html_tags_for_report(assessment_card_df, comp_card_df)
+            html_tags_for_report(assessment_card_df, comp_card_df, TRUE)
           )
         )
       )
@@ -869,7 +927,7 @@ if (parcel_is_multicard) {
   )
 } else {
   # For single-card PINs, skip the tablist
-  html_tags <- html_tags_for_report(assessment_df, comp_df)
+  html_tags <- html_tags_for_report(assessment_df, comp_df, FALSE)
 }
 
 # Render the list of HTML tags
