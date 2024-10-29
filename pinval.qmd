@@ -150,12 +150,16 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     mutate(property_address = loc_property_address %>% tolower() %>% str_to_title()) %>%
     pull(property_address)
 
+  pred_pin_final_fmv_round <- assessment_pin_df %>%
+    pull(pred_pin_final_fmv_round)
+
   # Save model metadata to a dedicated list for ease of access.
   # Prefer a list to a dataframe since not all of the attribute values
   # have the same dimensions
   metadata_df <- tibble(
     final_model_run_date = final_model_run_date,
     subject_property_address = subject_property_address,
+    pred_pin_final_fmv_round = pred_pin_final_fmv_round,
     all_predictors = list(all_predictors)
   )
 
@@ -375,10 +379,10 @@ html_tags_for_report <- function(assessment_df, comp_df, parcel_is_multicard) {
         br(),
         combined_char_table(assessment_df, comp_df, parcel_is_multicard),
         subject_pin_sale_warning(comp_df, parcel_is_multicard),
-        h2("Summary"),
+        h2("Summary of comparable sales"),
         avg_price_summary(comp_df),
-        pred_fmv_summary(assessment_df, parcel_is_multicard),
-        mailed_value_warning(parcel_is_multicard)
+        h2("Initial model prediction"),
+        pred_fmv_summary(assessment_df, parcel_is_multicard)
       )
     )
   )
@@ -581,6 +585,7 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
 # Helper function for generating a string summary of the average price of
 # a dataframe of comps
 avg_price_summary <- function(df) {
+  # Compute the average price and the average price per square foot
   avg_sale_price <- df$meta_sale_price %>%
     mean() %>%
     scales::dollar()
@@ -588,14 +593,26 @@ avg_price_summary <- function(df) {
     mean() %>%
     scales::dollar(accuracy = 1)
 
+  # Compute the range of dates for the sales, and get a rich text HTML string
+  # describing the range
+  sale_years <- comp_df %>%
+    mutate(sale_year = substr(meta_sale_date, 1, 4)) %>%
+    arrange(sale_year) %>%
+    pull(sale_year)
+  sale_year_range_html <- ifelse(
+    length(unique(sale_years)) > 1,
+    glue::glue("between <b>{sale_years[1]} and {sale_years[length(sale_years)]}</b>"),
+    glue::glue("in <b>{sale_years[1]}</b>")
+  )
+
   return(
     HTML(
       paste0(
-        "<p style='padding-top: 1em'>",
-        "The average sale price of the top 5 comparable homes was ",
+        "The top 5 comparable sales took place ", sale_year_range_html, ". ",
+        "The average price of these sales was ",
         "<b>", avg_sale_price, "</b>",
         " at ",
-        "<b>", avg_price_per_sqft, "/sq.ft.</b> ",
+        "<b>", avg_price_per_sqft, "/sq.ft.</b>",
         "</p>"
       )
     )
@@ -616,33 +633,14 @@ pred_fmv_summary <- function(df, parcel_is_multicard) {
         "<p>",
         "Based on these and other sales, the model that ran on  ",
         format(metadata_df$final_model_run_date, "%B %d, %Y"),
-        " predicted that the value of this ",
+        " initially predicted that the value of this ",
         ifelse(parcel_is_multicard, "card", "property"),
-        " as of lien date January 1, ",
-        format(metadata_df$final_model_run_date, "%Y"),
+        " as of lien date ",
+        "<b>January 1, ", format(metadata_df$final_model_run_date, "%Y"), "</b>",
         " should be ",
         "<b>", pred_fmv %>% scales::dollar(), "</b>",
         " at ",
         "<b>", pred_fmv_per_sqft %>% scales::dollar(accuracy = 1), "/sq.ft.</b>",
-        "</p>"
-      )
-    )
-  )
-}
-
-# Helper function for generating a warning that mailed values can differ from
-# model values
-mailed_value_warning <- function(parcel_is_multicard) {
-  return(
-    HTML(
-      paste0(
-        "<p>",
-        "The model's predicted value for this ",
-        ifelse(parcel_is_multicard, "card", "property"), " ",
-        "is not necessarily the final valuation during a reassessment. ",
-        "Analysts at the Assessor's Office can review the model's predictions ",
-        "and make adjustments. To see this property's most recent valuation, ",
-        "visit the ", link_pin(params$pin, "Assessor's website"), ".",
         "</p>"
       )
     )
@@ -933,3 +931,9 @@ if (parcel_is_multicard) {
 # Render the list of HTML tags
 tagList(html_tags)
 ```
+
+## Final model prediction
+
+After rounding and other processing, the model's final prediction for the value of this property on lien date **January 1st, `r format(metadata_df$final_model_run_date, "%Y")`** was **`r scales::dollar(metadata_df$pred_pin_final_fmv_round)`**.
+
+The model's predicted value for this property is not necessarily the final valuation during a reassessment. Analysts at the Assessor's Office can review the model's predictions and make adjustments. To see this property's most recent valuation, visit the `r link_pin(params$pin, "Assessor's website")`.
