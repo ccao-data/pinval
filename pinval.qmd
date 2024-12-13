@@ -325,12 +325,12 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 }
 ```
 
-The goal of this experimental report is to explain how the Cook County Assessor's statistical model predicted a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model ran on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
+The goal of this experimental report is to explain how the Cook County Assessor's statistical model estimated a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model ran on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
 
 ::: {.callout-tip collapse="true"}
 ## Click to read more about this report
 
-This report attempts to explain the Assessor's model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s predicted value for this property, which is based on the characteristics and sales input to the model.
+This report attempts to explain the Assessor's model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s estimated value for this property, which is based on the characteristics and sales input to the model.
 
 The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the [Real Estate Transfer Declaration form](https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf).
 
@@ -342,7 +342,7 @@ library(htmltools)
 
 parcel_is_multicard <- nrow(assessment_df) > 1
 if (parcel_is_multicard) {
-  multicard_msg <- "This property has multiple \"cards\", which is an assessment term for a building or an improvement on a property. Each card on a property can have different characteristics, so the Assessor's model predicts different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
+  multicard_msg <- "This property has multiple \"cards\", which is an assessment term for a building or an improvement on a property. Each card on a property can have different characteristics, so the Assessor's model estimates different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
   tags$p(multicard_msg)
 }
 ```
@@ -381,7 +381,7 @@ html_tags_for_report <- function(assessment_df, comp_df, parcel_is_multicard) {
         subject_pin_sale_warning(comp_df, parcel_is_multicard),
         h2("Summary of comparable sales"),
         avg_price_summary(comp_df),
-        h2("Initial model prediction"),
+        h2("Initial model estimate"),
         pred_fmv_summary(assessment_df, parcel_is_multicard)
       )
     )
@@ -633,7 +633,7 @@ pred_fmv_summary <- function(df, parcel_is_multicard) {
         "<p>",
         "Based on these and other sales, the model that ran on  ",
         format(metadata_df$final_model_run_date, "%B %d, %Y"),
-        " initially predicted that the value of this ",
+        " initially estimated that the value of this ",
         ifelse(parcel_is_multicard, "card", "property"),
         " as of lien date ",
         "<b>January 1, ", format(metadata_df$final_model_run_date, "%Y"), "</b>",
@@ -932,8 +932,8 @@ if (parcel_is_multicard) {
 tagList(html_tags)
 ```
 
-## Final model prediction
+## Final model estimate
 
-After rounding and other processing, the model's final prediction for the value of this property on lien date **January 1st, `r format(metadata_df$final_model_run_date, "%Y")`** was **`r scales::dollar(metadata_df$pred_pin_final_fmv_round)`**.
+After rounding and other processing, the model's final estimate for the value of this property on lien date **January 1st, `r format(metadata_df$final_model_run_date, "%Y")`** was **`r scales::dollar(metadata_df$pred_pin_final_fmv_round)`**.
 
-The model's predicted value for this property is not necessarily the final valuation during a reassessment. Analysts at the Assessor's Office can review the model's predictions and make adjustments. To see this property's most recent valuation, visit the `r link_pin(params$pin, "Assessor's website")`.
+The model's estimated value for this property is not necessarily the final valuation during a reassessment. Analysts at the Assessor's Office can review the model's estimate and make adjustments. To see this property's most recent valuation, visit the `r link_pin(params$pin, "Assessor's website")`.
