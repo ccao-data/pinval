@@ -12,5 +12,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run pre-commit checks
-        uses: ccao-data/actions/pre-commit@main
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
