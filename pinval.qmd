@@ -51,11 +51,11 @@ link_pin <- function(pin, display_text) {
 }
 
 # Check if this PIN/year combo is cached, and skip data loading if so
-base_cache_file_path <- glue::glue("cache/{params$pin}-{params$year}")
+base_cache_file_path <- glue::glue("cache/{params$run_id}_{params$pin}_{params$year}")
 cache_files <- list(
-  assessment = glue::glue("{base_cache_file_path}-asmt.parquet"),
-  comp = glue::glue("{base_cache_file_path}-comp.parquet"),
-  metadata = glue::glue("{base_cache_file_path}-meta.parquet")
+  assessment = glue::glue("{base_cache_file_path}_asmt.parquet"),
+  comp = glue::glue("{base_cache_file_path}_comp.parquet"),
+  metadata = glue::glue("{base_cache_file_path}_meta.parquet")
 )
 
 if (cache_files %>% sapply(file.exists) %>% all()) {
