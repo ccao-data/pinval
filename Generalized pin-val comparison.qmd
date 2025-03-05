@@ -1,0 +1,423 @@
+---
+title: "Pin Comparison Doc"
+params:
+  run_id: "2024-03-17-stupefied-maya"
+  pin1: "12242210370000"
+  pin2: "12243200250000"
+execute:
+  echo: false
+  warning: false
+  cache: true
+format:
+  html:
+    embed-resources: true
+    grid:
+      # Add a little more width to the body so the char table is full width
+      body-width: 1000px
+    # Use SVG for higher-resolution figures
+    fig-format: svg
+
+---
+
+```{r load_libraries}
+
+#| cache: false
+
+# Don't cache these libraries, since otherwise chunks that we need to rerender
+# won't have access to the libraries
+library(arrow)
+library(ccao)
+library(dplyr)
+library(DT)
+library(ggalt)
+library(glue)
+library(ggplot2)
+library(ggtext)
+library(leaflet)
+library(noctua)
+library(scales)
+library(sf)
+library(stringr)
+library(tidyr)
+
+# Many of the computation chunks share this connection and it's fast to setup
+# thanks to the `rstudio_conn_tab = FALSE` kwarg, so don't cache it
+noctua_options(cache_size = 10, unload = FALSE)
+
+conn <- dbConnect(noctua::athena(),
+  rstudio_conn_tab = FALSE
+)
+```
+
+
+```{r compute_motivating_example}
+# Query and transform data to power the motivating example
+
+# Start by defining some metadata for the example PINs and their run
+run_id <- params$run_id
+
+year <- run_id %>%
+  substr(1, 4)
+  
+
+pin_labels <- data.frame(
+  meta_pin = c(params$pin1, params$pin2),
+  meta_pin_label = c("Pin 1", "Pin 2")
+)
+
+# Query the predictor list and the hash of the assessment set for the example
+# model run
+metadata <- dbGetQuery(
+  conn,
+  # This query should only ever return one row, but limit the results to 1
+  # just to be defensive
+  glue(
+    "
+    select
+      dvc_md5_assessment_data,
+      model_predictor_all_name
+    from model.metadata
+    where run_id = '{run_id}'
+    limit 1
+    "
+  )
+)
+
+
+model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
+model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
+
+
+
+# Save characteristics for the example PINs to the cache
+char_df <- open_dataset(
+  paste0(
+    "s3://ccao-data-dvc-us-east-1/files/md5/",
+    substr(metadata$dvc_md5_assessment_data, 1, 2), "/",
+    substr(metadata$dvc_md5_assessment_data, 3, 32)
+  )
+) %>%
+  filter(meta_pin %in% pin_labels$meta_pin) %>%
+  collect() %>%
+  select(
+    # We can ignore card because the PINs we care about are single card,
+    # and we can ignore year because the assessment set only contains
+    # one year of data
+    meta_pin,
+    all_of(model_predictor_all_name)
+  )
+
+
+# Query and save value estimates for the example PINs
+value_df <- dbGetQuery(
+  conn,
+  glue_sql(
+    # Even though we're querying the card predictions, we don't need to
+    # worry about card because the PINs we're filtering for are single-card
+    "
+    select
+      card.meta_pin,
+      card.pred_card_initial_fmv,
+      pin.pred_pin_final_fmv_round
+    from model.assessment_card as card
+    left join model.assessment_pin as pin
+      on card.meta_pin = pin.meta_pin
+      and card.meta_year = pin.meta_year
+      and card.run_id = pin.run_id
+    where card.run_id = {run_id}
+    and card.meta_pin in ({pin_labels$meta_pin*})
+    ",
+    .con = conn
+  )
+)
+
+
+# Query and save SHAPs for the example PINs
+shap_df <- dbGetQuery(
+  conn,
+  glue_sql(
+    # Ignore cards because the PINs we're filtering for are single-card
+    "
+    select
+      meta_pin,
+      {`model_predictor_all_name`*}
+    from model.shap
+    where run_id = {run_id}
+      and meta_pin in ({pin_labels$meta_pin*})
+    ",
+    .con = conn
+  )
+)
+
+
+address <- dbGetQuery(
+  conn,
+  glue_sql(
+    "
+    select
+      pin,
+      year,
+      prop_address_full,
+      prop_address_city_name,
+      prop_address_state,
+      prop_address_zipcode_1
+    from default.vw_pin_address
+    where pin in ({pin_labels$meta_pin*})
+    and year = {year}
+    ",
+    .con = conn
+  )
+)
+
+address <- address %>%
+  mutate(full_address = paste(prop_address_full, prop_address_city_name, prop_address_state, prop_address_zipcode_1, sep = ", ")) %>%
+  select(pin, full_address)
+
+sales <- dbGetQuery(
+  conn,
+  glue_sql(
+    "
+    select
+      pin,
+      year,
+      sale_date,
+      doc_no,
+      sale_price,
+      sv_is_outlier
+    from default.vw_pin_sale
+    where pin in ({pin_labels$meta_pin*})
+    ",
+    .con = conn
+  )
+)
+
+comps <- dbGetQuery(
+  conn,
+  glue_sql(
+    "
+    select
+      comp.pin,
+      comp.comp_pin_1,
+      comp.comp_pin_2,
+      comp.comp_pin_3,
+      comp.comp_pin_4,
+      comp.comp_pin_5,
+      comp.comp_pin_6,
+      comp.comp_pin_7,
+      comp.comp_pin_8,
+      comp.comp_pin_9,
+      comp.comp_pin_10,
+      comp.comp_score_1,
+      comp.comp_score_2,
+      comp.comp_score_3,
+      comp.comp_score_4,
+      comp.comp_score_5,
+      comp.comp_score_6,
+      comp.comp_score_7,
+      comp.comp_score_8,
+      comp.comp_score_9,
+      comp.comp_score_10,
+      comp.card
+    from model.comp as comp
+    where comp.run_id = {run_id}
+    and comp.pin in ({pin_labels$meta_pin*})
+    ",
+    .con = conn
+  )
+)
+
+```
+
+### Map of Parcels
+
+```{r}
+char_df %>%
+  left_join(address, by = c("meta_pin" = "pin")) %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addCircleMarkers(
+    lat = ~loc_latitude,
+    lng = ~loc_longitude,
+    popup = ~ifelse(
+      meta_pin == params$pin1,
+      paste0("Address: ", full_address, "<br>",
+             "PIN: ",
+             "<a href='https://www.cookcountyassessor.com/pin/", params$pin1,
+             "' target='_blank'>", params$pin1, "</a>"),
+      ifelse(
+        meta_pin == params$pin2,
+        paste0("Address: ", full_address, "<br>",
+               "PIN: ",
+               "<a href='", params$website2, params$pin2,
+               "' target='_blank'>", params$pin2, "</a>"),
+        paste0("Address: ", address)
+      )
+    ),
+    color = ~ifelse(
+      meta_pin == params$pin1, "red",
+      ifelse(meta_pin == params$pin2, "green", "blue")
+    ),
+    radius = 5
+  )
+
+
+
+```
+
+### Feature differences between the two parcels
+
+```{r motivating_example_char_table, out.width="90%"}
+char_df_fmt <- char_df %>%
+  # Join to PIN labels so we can display more readable names
+  left_join(pin_labels, by = c("meta_pin")) %>%
+  select(-meta_pin) %>%
+  # Convert everything to character so that we can pivot and combine feature
+  # value columns
+  mutate(across(everything(), as.character)) %>%
+  # Pivot long so that rows are features and columns are feature values.
+  # This creates two rows for each feature name, one for each PIN
+  pivot_longer(
+    cols = model_predictor_all_name,
+    names_to = "Feature Name",
+    values_to = "Value"
+  ) %>%
+  # Pivot back to wide so that each property has its own column representing
+  # the value for each feature. This creates one row for each feature
+  pivot_wider(
+    names_from = meta_pin_label,
+    values_from = Value
+  ) %>%
+  # Check which feature values match across the PINs
+  mutate(
+    "PINs Match" = `Pin 1` == `Pin 2`
+  ) %>%
+  arrange(`PINs Match`)
+
+char_df_fmt %>% 
+  datatable(
+    options = list(
+      paging = FALSE,
+      scrollX = TRUE,
+      scrollY = "400px"
+    )
+  ) %>%
+  formatStyle(
+    "PINs Match",
+    backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
+  )
+
+
+```
+
+### Predicted Values
+
+```{r motivating_example_value_table}
+value_df %>%
+  left_join(pin_labels, by = c("meta_pin")) %>%
+  select(-meta_pin) %>%
+  rename(
+    "Initial estimate" = "pred_card_initial_fmv",
+    "Final rounded FMV" = "pred_pin_final_fmv_round"
+  ) %>%
+  pivot_longer(
+    cols = c("Initial estimate", "Final rounded FMV"),
+    names_to = "Value Type",
+    values_to = "Value"
+  ) %>%
+  pivot_wider(
+    names_from = "meta_pin_label",
+    values_from = "Value"
+  ) %>%
+  mutate(
+    Difference = `Pin 1` - `Pin 2`,
+    across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency())
+  ) %>%
+  datatable(rownames = FALSE, options = list(dom = "t"))
+```
+
+
+### Sale History
+
+```{r}
+# Pivot the comps table from wide to long format for the comp_pin columns
+comps_long <- comps %>%
+  pivot_longer(
+    cols = starts_with("comp_pin_"),
+    names_to = "comp_number",
+    names_prefix = "comp_pin_",
+    values_to = "comp_doc"
+  ) %>%
+  filter(!is.na(comp_doc) & comp_doc != "")
+
+sales <- sales %>%
+  mutate(other_pin = ifelse(meta_pin == pins[1], pins[2],
+                      ifelse(pin == pins[2], pins[1], NA)))
+
+
+sales_enriched <- sales %>%
+  left_join(
+    comps_long %>% rename(comp_for_pin = pin),
+    by = c("doc_no" = "comp_doc", "other_pin" = "comp_for_pin")
+  ) %>%
+  mutate(
+    is_comp     = ifelse(!is.na(comp_number), "✅", ""),
+    comp_number = ifelse(!is.na(comp_number), comp_number, ""),
+    comp_score  = ifelse(!is.na(card), card, "")
+  ) %>%
+  # Select and order columns for display
+  select(pin, sale_date, sale_price, doc_no, is_comp, comp_number, comp_score) %>%
+  arrange(desc(sale_date))
+
+
+datatable_obj <- datatable(
+  sales_enriched,
+  options = list(order = list(list(1, 'desc')))
+) %>%
+  formatStyle(
+    'pin',
+    backgroundColor = styleEqual(
+      pins, c("tomato", "lightgreen")
+    )
+  )
+
+# Render the datatable
+datatable_obj
+```
+
+
+
+### SHAP Values
+```{r}
+shap_df_pivoted <- shap_df %>%
+  left_join(pin_labels, by = c("meta_pin")) %>%
+  select(-meta_pin) %>%
+  pivot_longer(
+    cols = all_of(model_predictor_all_name),
+    names_to = "Feature Name",
+    values_to = "Value"
+  ) %>%
+  pivot_wider(
+    names_from = "meta_pin_label",
+    values_from = "Value"
+  ) %>%
+  arrange(-`Pin 1`) %>%
+  # Make `Feature Name` a factor so that ggplot doesn't order it alphabetically
+  mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
+# Plot the SHAPs as a dumbbell chart so we can compare the two PINs
+shap_df_pivoted %>% ggplot(
+  aes(y = `Feature Name`, x = `Pin 1`, xend = `Pin 2`)
+) +
+  geom_dumbbell(
+    size_x = 1,
+    size_xend = 1,
+    colour_x = "skyblue",
+    colour_xend = "tomato",
+  ) +
+  labs(
+    title = "SHAP differences between the two parcels",
+    x = "SHAP Value",
+    y = "Feature Name"
+  ) +
+  theme_minimal(base_size = 5)
+```
+
