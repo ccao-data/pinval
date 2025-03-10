@@ -20,7 +20,6 @@ format:
 ---
 
 ```{r load_libraries}
-
 #| cache: false
 
 # Don't cache these libraries, since otherwise chunks that we need to rerender
@@ -58,7 +57,7 @@ run_id <- params$run_id
 
 year <- run_id %>%
   substr(1, 4)
-  
+
 
 pin_labels <- data.frame(
   meta_pin = c(params$pin1, params$pin2),
@@ -225,7 +224,6 @@ comps <- dbGetQuery(
     .con = conn
   )
 )
-
 ```
 
 ### Map of Parcels
@@ -238,30 +236,31 @@ char_df %>%
   addCircleMarkers(
     lat = ~loc_latitude,
     lng = ~loc_longitude,
-    popup = ~ifelse(
+    popup = ~ ifelse(
       meta_pin == params$pin1,
-      paste0("Address: ", full_address, "<br>",
-             "PIN: ",
-             "<a href='https://www.cookcountyassessor.com/pin/", params$pin1,
-             "' target='_blank'>", params$pin1, "</a>"),
+      paste0(
+        "Address: ", full_address, "<br>",
+        "PIN: ",
+        "<a href='https://www.cookcountyassessor.com/pin/", params$pin1,
+        "' target='_blank'>", params$pin1, "</a>"
+      ),
       ifelse(
         meta_pin == params$pin2,
-        paste0("Address: ", full_address, "<br>",
-               "PIN: ",
-               "<a href='", params$website2, params$pin2,
-               "' target='_blank'>", params$pin2, "</a>"),
+        paste0(
+          "Address: ", full_address, "<br>",
+          "PIN: ",
+          "<a href='", params$website2, params$pin2,
+          "' target='_blank'>", params$pin2, "</a>"
+        ),
         paste0("Address: ", address)
       )
     ),
-    color = ~ifelse(
+    color = ~ ifelse(
       meta_pin == params$pin1, "red",
       ifelse(meta_pin == params$pin2, "green", "blue")
     ),
     radius = 5
   )
-
-
-
 ```
 
 ### Feature differences between the two parcels
@@ -293,7 +292,7 @@ char_df_fmt <- char_df %>%
   ) %>%
   arrange(`PINs Match`)
 
-char_df_fmt %>% 
+char_df_fmt %>%
   datatable(
     options = list(
       paging = FALSE,
@@ -305,8 +304,6 @@ char_df_fmt %>%
     "PINs Match",
     backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
   )
-
-
 ```
 
 ### Predicted Values
@@ -339,20 +336,32 @@ value_df %>%
 ### Sale History
 
 ```{r}
-# Pivot the comps table from wide to long format for the comp_pin columns
-comps_long <- comps %>%
-  pivot_longer(
-    cols = starts_with("comp_pin_"),
-    names_to = "comp_number",
-    names_prefix = "comp_pin_",
-    values_to = "comp_doc"
+comps <- comps %>%
+  rowwise() %>%
+  mutate(
+    comp_pins = list({
+      x <- c_across(starts_with("comp_pin"))
+      # Set names so we know which comp_pin each value came from
+      names(x) <- names(c_across(starts_with("comp_pin")))
+      as.character(x)
+    })
   ) %>%
-  filter(!is.na(comp_doc) & comp_doc != "")
+  ungroup()
 
-sales <- sales %>%
-  mutate(other_pin = ifelse(meta_pin == pins[1], pins[2],
-                      ifelse(pin == pins[2], pins[1], NA)))
-
+# Now create a new column that returns the comp_pin column name where pin matches
+comps <- comps %>%
+  mutate(
+    matching_comp = map2_chr(pin, comp_pins, ~ {
+      # .x is the current row's pin value, .y is the named vector from comp_pins
+      match_idx <- which(.y == .x)
+      if (length(match_idx) > 0) {
+        # If more than one match, return a comma-separated string of the column names.
+        paste(names(.y)[match_idx], collapse = ", ")
+      } else {
+        NA_character_
+      }
+    })
+  )
 
 sales_enriched <- sales %>%
   left_join(
@@ -371,10 +380,10 @@ sales_enriched <- sales %>%
 
 datatable_obj <- datatable(
   sales_enriched,
-  options = list(order = list(list(1, 'desc')))
+  options = list(order = list(list(1, "desc")))
 ) %>%
   formatStyle(
-    'pin',
+    "pin",
     backgroundColor = styleEqual(
       pins, c("tomato", "lightgreen")
     )
@@ -384,9 +393,8 @@ datatable_obj <- datatable(
 datatable_obj
 ```
 
-
-
 ### SHAP Values
+
 ```{r}
 shap_df_pivoted <- shap_df %>%
   left_join(pin_labels, by = c("meta_pin")) %>%
