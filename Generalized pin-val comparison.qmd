@@ -369,7 +369,7 @@ comps <- comps %>%
 # Group all rows together and, for each row, collect comp_pin values from all other rows
 comps <- comps %>%
   group_by(dummy = 1) %>%
-  mutate(other_comp_pins = map(row_id, ~{
+  mutate(other_comp_pins = map(row_id, ~ {
     unique(unlist(comp_pins[row_id != .x]))
   })) %>%
   ungroup() %>%
@@ -388,8 +388,8 @@ sales_enriched <- sales %>%
 
 
 unique_pins <- unique(sales_enriched$pin)
-num_colors <- length(unique_pins)  # Get the number of unique PINs
-colors <- brewer.pal(num_colors, "Set3")  # Ensure n does not exceed 12
+num_colors <- length(unique_pins) # Get the number of unique PINs
+colors <- brewer.pal(num_colors, "Set3") # Ensure n does not exceed 12
 
 # Get the unique values from the 'pin' column
 unique_pins <- unique(sales_enriched$pin)
@@ -409,8 +409,6 @@ datatable_obj <- datatable(
 
 # Render the datatable
 datatable_obj
-
-
 ```
 
 ### SHAP Values
