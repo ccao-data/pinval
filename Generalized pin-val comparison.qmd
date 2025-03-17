@@ -3,7 +3,9 @@ title: "Pin Comparison Doc"
 params:
   run_id: "2024-03-17-stupefied-maya"
   pin1: "12242210370000"
+  pin_1_card_num: "1"
   pin2: "12243200250000"
+  pin_2_card_num: "1"
 execute:
   echo: false
   warning: false
@@ -12,9 +14,7 @@ format:
   html:
     embed-resources: true
     grid:
-      # Add a little more width to the body so the char table is full width
       body-width: 1000px
-    # Use SVG for higher-resolution figures
     fig-format: svg
 
 ---
@@ -22,8 +22,6 @@ format:
 ```{r load_libraries}
 #| cache: false
 
-# Don't cache these libraries, since otherwise chunks that we need to rerender
-# won't have access to the libraries
 library(arrow)
 library(ccao)
 library(dplyr)
@@ -34,13 +32,13 @@ library(ggplot2)
 library(ggtext)
 library(leaflet)
 library(noctua)
+library(purrr)
+library(RColorBrewer)
 library(scales)
 library(sf)
 library(stringr)
 library(tidyr)
 
-# Many of the computation chunks share this connection and it's fast to setup
-# thanks to the `rstudio_conn_tab = FALSE` kwarg, so don't cache it
 noctua_options(cache_size = 10, unload = FALSE)
 
 conn <- dbConnect(noctua::athena(),
@@ -50,9 +48,6 @@ conn <- dbConnect(noctua::athena(),
 
 
 ```{r compute_motivating_example}
-# Query and transform data to power the motivating example
-
-# Start by defining some metadata for the example PINs and their run
 run_id <- params$run_id
 
 year <- run_id %>%
@@ -139,7 +134,7 @@ shap_df <- dbGetQuery(
     "
     select
       meta_pin,
-      {`model_predictor_all_name`*}
+      {model_predictor_all_name*}
     from model.shap
     where run_id = {run_id}
       and meta_pin in ({pin_labels$meta_pin*})
@@ -206,6 +201,16 @@ comps <- dbGetQuery(
       comp.comp_pin_8,
       comp.comp_pin_9,
       comp.comp_pin_10,
+      comp.comp_document_num_1,
+      comp.comp_document_num_2,
+      comp.comp_document_num_3,
+      comp.comp_document_num_4,
+      comp.comp_document_num_5,
+      comp.comp_document_num_6,
+      comp.comp_document_num_7,
+      comp.comp_document_num_8,
+      comp.comp_document_num_9,
+      comp.comp_document_num_10,
       comp.comp_score_1,
       comp.comp_score_2,
       comp.comp_score_3,
@@ -348,49 +353,64 @@ comps <- comps %>%
   ) %>%
   ungroup()
 
-# Now create a new column that returns the comp_pin column name where pin matches
+# Ensure pin is character and add a row identifier
 comps <- comps %>%
   mutate(
-    matching_comp = map2_chr(pin, comp_pins, ~ {
-      # .x is the current row's pin value, .y is the named vector from comp_pins
-      match_idx <- which(.y == .x)
-      if (length(match_idx) > 0) {
-        # If more than one match, return a comma-separated string of the column names.
-        paste(names(.y)[match_idx], collapse = ", ")
-      } else {
-        NA_character_
-      }
-    })
+    row_id = row_number(),
+    pin = as.character(pin)
   )
 
+# Create a list column with the comp_pin values (converted to character)
+comps <- comps %>%
+  rowwise() %>%
+  mutate(comp_pins = list(as.character(c_across(starts_with("comp_pin"))))) %>%
+  ungroup()
+
+# Group all rows together and, for each row, collect comp_pin values from all other rows
+comps <- comps %>%
+  group_by(dummy = 1) %>%
+  mutate(other_comp_pins = map(row_id, ~{
+    unique(unlist(comp_pins[row_id != .x]))
+  })) %>%
+  ungroup() %>%
+  # Use map2_lgl to compare each pin to the corresponding other_comp_pins vector
+  mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
+
 sales_enriched <- sales %>%
-  left_join(
-    comps_long %>% rename(comp_for_pin = pin),
-    by = c("doc_no" = "comp_doc", "other_pin" = "comp_for_pin")
-  ) %>%
+  left_join(comps, by = c("pin" = "pin")) %>%
   mutate(
-    is_comp     = ifelse(!is.na(comp_number), "✅", ""),
-    comp_number = ifelse(!is.na(comp_number), comp_number, ""),
-    comp_score  = ifelse(!is.na(card), card, "")
+    is_comp = ifelse(pin_in_other_row == TRUE, "✅", "")
   ) %>%
   # Select and order columns for display
-  select(pin, sale_date, sale_price, doc_no, is_comp, comp_number, comp_score) %>%
+  select(pin, sale_date, sale_price, doc_no, is_comp) %>%
   arrange(desc(sale_date))
 
 
+
+unique_pins <- unique(sales_enriched$pin)
+num_colors <- length(unique_pins)  # Get the number of unique PINs
+colors <- brewer.pal(num_colors, "Set3")  # Ensure n does not exceed 12
+
+# Get the unique values from the 'pin' column
+unique_pins <- unique(sales_enriched$pin)
+
+# Define two colors (adjust these as desired)
+colors <- c("lightblue", "lightgreen")
+
+# Create the datatable with conditional formatting
 datatable_obj <- datatable(
   sales_enriched,
   options = list(order = list(list(1, "desc")))
 ) %>%
   formatStyle(
     "pin",
-    backgroundColor = styleEqual(
-      pins, c("tomato", "lightgreen")
-    )
+    backgroundColor = styleEqual(unique_pins, colors)
   )
 
 # Render the datatable
 datatable_obj
+
+
 ```
 
 ### SHAP Values
