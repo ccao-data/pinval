@@ -1,15 +1,15 @@
 ---
 title: "Pin Comparison Doc"
 params:
-  run_id: "2024-03-17-stupefied-maya"
-  pin1: "20143120370000"
-  pin_1_card_num: 4
-  pin2: "11192020200000"
+  run_id: "2025-02-11-charming-eric"
+  pin1: "01282010070000"
+  pin_1_card_num:
+  pin2: "01013080340000"
   pin_2_card_num:
 execute:
   echo: false
   warning: false
-  cache: true
+  cache: false
 format:
   html:
     embed-resources: true
@@ -20,7 +20,7 @@ format:
 ---
 
 ```{r load_libraries}
-#| cache: true
+#| cache: false
 
 library(arrow)
 library(ccao)
@@ -47,266 +47,349 @@ conn <- dbConnect(noctua::athena(),
 ```
 
 
-```{r compute_motivating_example}
-run_id <- params$run_id
+```{r setup}
+library(dplyr)
+library(glue)
+library(arrow)
+library(purrr)  # for map_lgl
 
-year <- run_id %>%
-  substr(1, 4)
-
-na_if_null <- function(x) {
-  if (is.null(x)) NA else x
-}
-
-pin_labels <- data.frame(
-  meta_pin = c(params$pin1, params$pin2),
-  meta_pin_label = c("Pin 1", "Pin 2"),
-  primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
+# 1) Build the base path for caching
+base_cache_file_path <- glue::glue(
+  "cache/{params$run_id}_{params$pin1}_{params$pin_1_card_num}_{params$pin2}_{params$pin_2_card_num}"
 )
 
-# Query the predictor list and the hash of the assessment set for the example
-# model run
-metadata <- dbGetQuery(
-  conn,
-  # This query should only ever return one row, but limit the results to 1
-  # just to be defensive
-  glue(
-    "
-    select
-      dvc_md5_assessment_data,
-      model_predictor_all_name
-    from model.metadata
-    where run_id = '{run_id}'
-    limit 1
-    "
-  )
+# 2) List all files you want to cache
+cache_files <- list(
+  assessment = glue::glue("{base_cache_file_path}_asmt.parquet"),
+  comp       = glue::glue("{base_cache_file_path}_comp.parquet"),
+  metadata   = glue::glue("{base_cache_file_path}_meta.parquet"),
+  char       = glue::glue("{base_cache_file_path}_char.parquet"),
+  value      = glue::glue("{base_cache_file_path}_value.parquet"),
+  shap       = glue::glue("{base_cache_file_path}_shap.parquet"),
+  address    = glue::glue("{base_cache_file_path}_address.parquet"),
+  sales      = glue::glue("{base_cache_file_path}_sales.parquet"),
+  comps      = glue::glue("{base_cache_file_path}_comps.parquet")
 )
 
-model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
-model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
-
-char_df <- open_dataset(
-  paste0(
-    "s3://ccao-data-dvc-us-east-1/files/md5/",
-    substr(metadata$dvc_md5_assessment_data, 1, 2), "/",
-    substr(metadata$dvc_md5_assessment_data, 3, 32)
-  )
-) %>%
-  filter(meta_pin %in% pin_labels$meta_pin) %>%
-  collect() %>%
-  select(
-    meta_pin,
-    all_of(model_predictor_all_name),
-    meta_card_num
-  )
-
-pin_labels <- pin_labels %>%
-  left_join(
-    char_df %>%
-      group_by(meta_pin) %>%
-      summarise(
-        total_cards = n_distinct(meta_card_num)
-      ),
-    by = "meta_pin"
-  )
-
-# Check that for rows where total_cards <= 3, primary_card is NA
-if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
-  stop("Error: For rows with total_cards <= 3, primary_card should be NA.")
+# Make sure the cache folder exists
+if (!dir.exists("cache")) {
+  dir.create("cache", recursive = TRUE)
 }
 
-# Check that for rows where total_cards >= 4, primary_card is not NA
-if (nrow(pin_labels %>% filter(total_cards >= 4 & is.na(primary_card))) > 0) {
-  stop("Error: For rows with total_cards >= 4, primary_card should have a value.")
-}
+# 3) If ALL files exist, read them from disk; else run the code and write them out
+if (all(map_lgl(cache_files, file.exists))) {
+  message("All cache files found. Reading from disk...")
+  
+  # -- READ all cached data frames --
+  assessment_df <- read_parquet(cache_files$assessment)
+  comp_df       <- read_parquet(cache_files$comp)
+  metadata_df   <- read_parquet(cache_files$metadata)
+  char_df       <- read_parquet(cache_files$char)
+  value_df      <- read_parquet(cache_files$value)
+  shap_df       <- read_parquet(cache_files$shap)
+  address_df    <- read_parquet(cache_files$address)
+  sales_df      <- read_parquet(cache_files$sales)
+  comps_df      <- read_parquet(cache_files$comps)
 
-char_df <- char_df %>%
-  left_join(pin_labels %>% select(meta_pin, primary_card, total_cards), by = "meta_pin") %>%
-  group_by(meta_pin) %>%
-  mutate(
-    # Determine if this row is the target row within groups of 2 or 3 observations.
-    is_target = total_cards %in% c(2, 3) & char_bldg_sf == max(char_bldg_sf, na.rm = TRUE),
-    # Replace primary_card with meta_card_num for the target row; otherwise, keep the existing value.
-    primary_card = if_else(is_target, meta_card_num, as.character(primary_card)),
-    # For groups with 2 or 3 cards, replace char_bldg_sf with the group sum on the target row.
-    char_bldg_sf = if_else(is_target, sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
-  ) %>%
-  ungroup() %>%
-  # Keep only the target row for groups where we did the replacement.
-  filter(primary_card == meta_card_num) %>%
-  select(-c("meta_card_num", "total_cards", "is_target"))
+} else {
+  message("Some or all cache files are missing. Running queries and creating them...")
 
+  #
+  # ================= YOUR EXISTING “MIDDLE” CODE =================
+  #
+  # Everything below is exactly your existing code:
+  # ---------------------------------------------------------------
+  
+  # e.g. if (cache_files %>% sapply(file.exists) %>% all()) { ...
+  #   # That old `if` can be removed or replaced, because we are now
+  #   # wrapping the entire code inside this else block.
+  # }
 
-pin_labels <- pin_labels %>%
-  left_join(
-    char_df %>%
-      select(meta_pin, primary_card) %>%
-      distinct(),
-    by = "meta_pin",
-    suffix = c("", ".computed")
-  ) %>%
-  mutate(
-    primary_card = as.character(primary_card),
-    primary_card = coalesce(primary_card, primary_card.computed)
-  ) %>%
-  select(-primary_card.computed)
+  # (1) We'll assume your queries to get 'assessment_df', 'comp_df', 'metadata_df' happen here:
+  # For example:
+  #   assessment_df <- read_parquet(...)
+  #   comp_df       <- read_parquet(...)
+  #   ...
+  
+  run_id <- params$run_id
+  year <- run_id %>% substr(1, 4)
 
-value_df <- dbGetQuery(
-  conn,
-  glue_sql(
-    "
-    select
-      card.meta_pin,
-      card.meta_card_num,
-      card.pred_card_initial_fmv,
-      pin.pred_pin_final_fmv_round
-    from model.assessment_card as card
-    left join model.assessment_pin as pin
-      on card.meta_pin = pin.meta_pin
-      and card.meta_year = pin.meta_year
-      and card.run_id = pin.run_id
-    where card.run_id = {run_id}
-    and card.meta_pin in ({pin_labels$meta_pin*})
-    ",
-    .con = conn
+  na_if_null <- function(x) {
+    if (is.null(x)) NA else x
+  }
+
+  pin_labels <- data.frame(
+    meta_pin = c(params$pin1, params$pin2),
+    meta_pin_label = c("Pin 1", "Pin 2"),
+    primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
-)
 
-value_df <- value_df %>%
-  left_join(pin_labels, by = c("meta_pin"))
+  # Query the predictor list, etc.
+  metadata <- dbGetQuery(
+    conn,
+    glue(
+      "
+      select
+        dvc_md5_assessment_data,
+        model_predictor_all_name
+      from model.metadata
+      where run_id = '{run_id}'
+      limit 1
+      "
+    )
+  )
 
-shap_df <- dbGetQuery(
-  conn,
-  glue_sql(
-    "
-    select
+  model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
+  model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
+
+  char_df <- open_dataset(
+    paste0(
+      "s3://ccao-data-dvc-us-east-1/files/md5/",
+      substr(metadata$dvc_md5_assessment_data, 1, 2), "/",
+      substr(metadata$dvc_md5_assessment_data, 3, 32)
+    )
+  ) %>%
+    filter(meta_pin %in% pin_labels$meta_pin) %>%
+    collect() %>%
+    select(
       meta_pin,
-      meta_card_num,
-      {`model_predictor_all_name`*}
-    from model.shap
-    where run_id = {run_id}
-      and meta_pin in ({pin_labels$meta_pin*})
-    ",
-    .con = conn
+      all_of(model_predictor_all_name),
+      meta_card_num
+    )
+
+  pin_labels <- pin_labels %>%
+    left_join(
+      char_df %>%
+        group_by(meta_pin) %>%
+        summarise(total_cards = n_distinct(meta_card_num)),
+      by = "meta_pin"
+    )
+
+  # Validation checks
+  if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
+    stop("Error: For rows with total_cards <= 3, primary_card should be NA.")
+  }
+  if (nrow(pin_labels %>% filter(total_cards >= 4 & is.na(primary_card))) > 0) {
+    stop("Error: For rows with total_cards >= 4, primary_card should have a value.")
+  }
+
+  pin_labels <- pin_labels %>%
+    mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
+
+  char_df <- char_df %>%
+    left_join(pin_labels %>% select(meta_pin, primary_card, total_cards), by = "meta_pin") %>%
+    group_by(meta_pin) %>%
+    mutate(
+      max_sf = max(char_bldg_sf, na.rm = TRUE),
+      target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
+      is_target = total_cards %in% c(2, 3) & (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
+      primary_card = if_else(is_target, meta_card_num, as.character(primary_card)),
+      char_bldg_sf = if_else(is_target, sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
+    ) %>%
+    ungroup() %>%
+    filter(primary_card == meta_card_num) %>%
+    select(-c("meta_card_num", "total_cards", "is_target", "max_sf", "target_meta"))
+
+  pin_labels <- pin_labels %>%
+    left_join(
+      char_df %>% select(meta_pin, primary_card) %>% distinct(),
+      by = "meta_pin",
+      suffix = c("", ".computed")
+    ) %>%
+    mutate(
+      primary_card = as.character(primary_card),
+      primary_card = coalesce(primary_card, primary_card.computed)
+    ) %>%
+    select(-primary_card.computed)
+
+  value_df <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
+      select
+        card.meta_pin,
+        card.meta_card_num,
+        card.pred_card_initial_fmv,
+        pin.pred_pin_final_fmv_round
+      from model.assessment_card as card
+      left join model.assessment_pin as pin
+        on card.meta_pin = pin.meta_pin
+        and card.meta_year = pin.meta_year
+        and card.run_id = pin.run_id
+      where card.run_id = {run_id}
+      and card.meta_pin in ({pin_labels$meta_pin*})
+      ",
+      .con = conn
+    )
   )
-)
 
+  value_df <- value_df %>%
+    left_join(pin_labels, by = c("meta_pin"))
 
-shap_df <- shap_df %>%
-  left_join(pin_labels, by = c("meta_pin")) %>%
-  filter(primary_card == meta_card_num) %>%
-  select(-c("meta_pin_label", "total_cards", "primary_card", "meta_card_num"))
+  shap_df <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
+      select
+        meta_pin,
+        meta_card_num,
+        {`model_predictor_all_name`*}
+      from model.shap
+      where run_id = {run_id}
+        and meta_pin in ({pin_labels$meta_pin*})
+      ",
+      .con = conn
+    )
+  )
 
+  shap_df <- shap_df %>%
+    left_join(pin_labels, by = c("meta_pin")) %>%
+    filter(primary_card == meta_card_num) %>%
+    select(-c("meta_pin_label", "total_cards", "primary_card", "meta_card_num"))
 
-address <- dbGetQuery(
-  conn,
-  glue_sql(
-    "
-    select
-      pin,
-      year,
+  address_df <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
+      select
+        pin,
+        year,
+        prop_address_full,
+        prop_address_city_name,
+        prop_address_state,
+        prop_address_zipcode_1
+      from default.vw_pin_address
+      where pin in ({pin_labels$meta_pin*})
+      and year = {year}
+      ",
+      .con = conn
+    )
+  )
+
+  address_df <- address_df %>%
+    mutate(full_address = paste(
       prop_address_full,
       prop_address_city_name,
       prop_address_state,
-      prop_address_zipcode_1
-    from default.vw_pin_address
-    where pin in ({pin_labels$meta_pin*})
-    and year = {year}
-    ",
-    .con = conn
+      prop_address_zipcode_1,
+      sep = ", "
+    )) %>%
+    select(pin, full_address)
+
+  sales_df <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
+      select
+        pin,
+        year,
+        sale_date,
+        doc_no,
+        sale_price,
+        sv_is_outlier
+      from default.vw_pin_sale
+      where pin in ({pin_labels$meta_pin*})
+      ",
+      .con = conn
+    )
   )
-)
 
-address <- address %>%
-  mutate(full_address = paste(prop_address_full,
-    prop_address_city_name,
-    prop_address_state,
-    prop_address_zipcode_1,
-    sep = ", "
-  )) %>%
-  select(pin, full_address)
-
-sales <- dbGetQuery(
-  conn,
-  glue_sql(
-    "
-    select
-      pin,
-      year,
-      sale_date,
-      doc_no,
-      sale_price,
-      sv_is_outlier
-    from default.vw_pin_sale
-    where pin in ({pin_labels$meta_pin*})
-    ",
-    .con = conn
+  comps_df <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
+      select
+        comp.pin,
+        comp.comp_pin_1,
+        comp.comp_pin_2,
+        comp.comp_pin_3,
+        comp.comp_pin_4,
+        comp.comp_pin_5,
+        comp.comp_pin_6,
+        comp.comp_pin_7,
+        comp.comp_pin_8,
+        comp.comp_pin_9,
+        comp.comp_pin_10,
+        comp.comp_pin_11,
+        comp.comp_pin_12,
+        comp.comp_pin_13,
+        comp.comp_pin_14,
+        comp.comp_pin_15,
+        comp.comp_pin_16,
+        comp.comp_pin_17,
+        comp.comp_pin_18,
+        comp.comp_pin_19,
+        comp.comp_pin_20,
+        comp.comp_document_num_1,
+        comp.comp_document_num_2,
+        comp.comp_document_num_3,
+        comp.comp_document_num_4,
+        comp.comp_document_num_5,
+        comp.comp_document_num_6,
+        comp.comp_document_num_7,
+        comp.comp_document_num_8,
+        comp.comp_document_num_9,
+        comp.comp_document_num_10,
+        comp.comp_document_num_11,
+        comp.comp_document_num_12,
+        comp.comp_document_num_13,
+        comp.comp_document_num_14,
+        comp.comp_document_num_15,
+        comp.comp_document_num_16,
+        comp.comp_document_num_17,
+        comp.comp_document_num_18,
+        comp.comp_document_num_19,
+        comp.comp_document_num_20,
+        comp.comp_score_1,
+        comp.comp_score_2,
+        comp.comp_score_3,
+        comp.comp_score_4,
+        comp.comp_score_5,
+        comp.comp_score_6,
+        comp.comp_score_7,
+        comp.comp_score_8,
+        comp.comp_score_9,
+        comp.comp_score_10,
+        comp.comp_score_11,
+        comp.comp_score_12,
+        comp.comp_score_13,
+        comp.comp_score_14,
+        comp.comp_score_15,
+        comp.comp_score_16,
+        comp.comp_score_17,
+        comp.comp_score_18,
+        comp.comp_score_19,
+        comp.comp_score_20,
+        comp.card
+      from model.comp as comp
+      where comp.run_id = {run_id}
+      and comp.pin in ({pin_labels$meta_pin*})
+      ",
+      .con = conn
+    )
   )
-)
 
-comps <- dbGetQuery(
-  conn,
-  glue_sql(
-    "
-    select
-      comp.pin,
-      comp.comp_pin_1,
-      comp.comp_pin_2,
-      comp.comp_pin_3,
-      comp.comp_pin_4,
-      comp.comp_pin_5,
-      comp.comp_pin_6,
-      comp.comp_pin_7,
-      comp.comp_pin_8,
-      comp.comp_pin_9,
-      comp.comp_pin_10,
-      comp.comp_pin_11,
-      comp.comp_pin_12,
-      comp.comp_pin_13,
-      comp.comp_pin_14,
-      comp.comp_pin_15,
-      comp.comp_pin_16,
-      comp.comp_pin_17,
-      comp.comp_pin_18,
-      comp.comp_pin_19,
-      comp.comp_pin_20,
-      comp.comp_score_1,
-      comp.comp_score_2,
-      comp.comp_score_3,
-      comp.comp_score_4,
-      comp.comp_score_5,
-      comp.comp_score_6,
-      comp.comp_score_7,
-      comp.comp_score_8,
-      comp.comp_score_9,
-      comp.comp_score_10,
-      comp.comp_score_11,
-      comp.comp_score_12,
-      comp.comp_score_13,
-      comp.comp_score_14,
-      comp.comp_score_15,
-      comp.comp_score_16,
-      comp.comp_score_17,
-      comp.comp_score_18,
-      comp.comp_score_19,
-      comp.comp_score_20,
-      comp.card
-    from model.comp as comp
-    where comp.run_id = {run_id}
-    and comp.pin in ({pin_labels$meta_pin*})
-    ",
-    .con = conn
-  )
-)
+  comps_df <- comps_df %>%
+    left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
+    filter(primary_card == card) %>%
+    select(-c("meta_pin_label", "primary_card"))
 
-comps <- comps %>%
-  left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
-  filter(primary_card == card) %>%
-  select(-c("meta_pin_label", "primary_card"))
+  write_parquet(assessment_df, cache_files$assessment)
+  write_parquet(comp_df,       cache_files$comp)
+  write_parquet(metadata_df,   cache_files$metadata)
+  write_parquet(char_df,       cache_files$char)
+  write_parquet(value_df,      cache_files$value)
+  write_parquet(shap_df,       cache_files$shap)
+  write_parquet(address_df,    cache_files$address)
+  write_parquet(sales_df,      cache_files$sales)
+  write_parquet(comps_df,      cache_files$comps)
+}
+
 ```
 
 ### Map of Parcels
 
-```{r}
+```{r map}
 char_df %>%
   left_join(address, by = c("meta_pin" = "pin")) %>%
   leaflet() %>%
@@ -345,7 +428,7 @@ char_df %>%
 
 Note that for parcels with 2 or 3 cards, the building square footage is summed. For the rest of the features, they are pulled from the largest of the two parcels. This coincides with our modeling techniques. For parcels with 4 or more pins, we pull the features from the target card identified in the params.
 
-```{r, out.width="90%"}
+```{r feature_comparison, out.width="90%"}
 char_df_fmt <- char_df %>%
   left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = "meta_pin") %>%
   select(-meta_pin, -primary_card) %>%
@@ -387,7 +470,9 @@ char_df_fmt %>%
 
 ### Predicted Values
 
-```{r}
+If either PIN is a multi-card, values are produced with all cards summed as well as those of the target card.
+
+```{r predicted_values}
 if (any(value_df$total_cards > 1, na.rm = TRUE)) {
   # Create the summary for the primary card
   summary_primary <- value_df %>%
@@ -411,7 +496,7 @@ if (any(value_df$total_cards > 1, na.rm = TRUE)) {
       Difference = `Pin 1` - `Pin 2`,
       Group = "Primary Card"
     )
-
+  
   # Create the summary for all cards
   summary_total <- value_df %>%
     rename(
@@ -433,13 +518,12 @@ if (any(value_df$total_cards > 1, na.rm = TRUE)) {
       Difference = `Pin 1` - `Pin 2`,
       Group = "Total"
     )
-
+  
   # Bind the rows together and format the table
   final_table <- bind_rows(summary_primary, summary_total) %>%
     relocate(Group, .before = `Value Type`) %>%
     mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
-
-  print(datatable(final_table, rownames = FALSE, options = list(dom = "t")))
+  
 } else {
   # Only create a single (total) summary table if no value of total_cards > 1
   final_table <- value_df %>%
@@ -463,18 +547,21 @@ if (any(value_df$total_cards > 1, na.rm = TRUE)) {
       Group = "Total"
     ) %>%
     mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
-
-  print(datatable(final_table, rownames = FALSE, options = list(dom = "t")))
 }
+
+datatable(final_table, rownames = FALSE, options = list(dom = "t"))
+
 ```
 
 ### Sale History
 
-```{r}
+```{r sales}
+# Pre-extract the names of comp_pin columns from the original data frame
+comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
+
 comps <- comps %>%
   rowwise() %>%
   mutate(
-    # Find the index where the comp_pin value equals the current pin
     matching_index = {
       idx <- which(c_across(starts_with("comp_pin")) == pin)
       if (length(idx) > 0) idx[1] else NA_integer_
@@ -483,24 +570,27 @@ comps <- comps %>%
       c_across(starts_with("comp_score_"))[matching_index]
     } else {
       NA_real_
+    },
+    comp_number = if (!is.na(matching_index)) {
+      sub("comp_pin_", "", comp_pin_names[matching_index])
+    } else {
+      NA_character_
+    },
+    # Compute the corresponding document number from the matching comp_document_num_ column
+    comp_doc_no = if (!is.na(matching_index)) {
+      as.character(c_across(starts_with("comp_document_num_"))[matching_index])
+    } else {
+      NA_character_
     }
   ) %>%
-  ungroup()
-
-comps <- comps %>%
+  ungroup() %>%
   mutate(
     row_id = row_number(),
     pin = as.character(pin)
-  )
-
-# Create a list column with the comp_pin values (converted to character)
-comps <- comps %>%
+  ) %>%
   rowwise() %>%
   mutate(comp_pins = list(as.character(c_across(starts_with("comp_pin"))))) %>%
-  ungroup()
-
-# Group all rows together and, for each row, collect comp_pin values from all other rows
-comps <- comps %>%
+  ungroup() %>%
   group_by(dummy = 1) %>%
   mutate(other_comp_pins = map(row_id, ~ {
     unique(unlist(comp_pins[row_id != .x]))
@@ -509,15 +599,15 @@ comps <- comps %>%
   # Use map2_lgl to compare each pin to the corresponding other_comp_pins vector
   mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
 
-# Join with sales and select the final columns (including computed doc and comp)
+# Now join with sales using both pin and doc_no matching comp_doc_no
 sales <- sales %>%
-  left_join(comps, by = c("pin" = "pin")) %>%
+  left_join(comps, by = c("pin" = "pin", "doc_no" = "comp_doc_no")) %>%
   mutate(
     sale_date = substr(sale_date, 1, 10),
-    is_comp = ifelse(pin_in_other_row == TRUE, "✅", "")
+    other_pin_is_comp = ifelse(!is.na(comp_number), "✅", "")
   ) %>%
-  # Select and order columns for display; note the inclusion of doc and comp
-  select(pin, sale_date, sale_price, doc_no, comp_score, is_comp) %>%
+  # Select and order columns for display; note the inclusion of comp info
+  select(pin, sale_date, sale_price, doc_no, comp_score, comp_number, other_pin_is_comp) %>%
   arrange(desc(sale_date))
 
 unique_pins <- unique(sales$pin)
@@ -533,11 +623,13 @@ datatable_obj <- datatable(
   )
 
 datatable_obj
+
+
 ```
 
 ### SHAP Values
 
-```{r}
+```{r SHAPs}
 shap_df_pivoted <- shap_df %>%
   left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = c("meta_pin")) %>%
   select(-meta_pin) %>%
