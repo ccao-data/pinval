@@ -93,6 +93,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
     meta_pin_label = c("Pin 1", "Pin 2"),
+    # Initial primary card is only if it has to be specified
     primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
 
@@ -136,7 +137,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       by = "meta_pin"
     )
 
-  # Validation checks
+  # Validation checks - we want card to be empty unless the parcel has more than 4 cards
   if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
     stop("Error: For rows with total_cards <= 3, primary_card should be NA.")
   }
@@ -144,6 +145,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     stop("Error: For rows with total_cards >= 4, primary_card should have a value.")
   }
 
+  # Add primary card for single card parcelsss
   pin_labels <- pin_labels %>%
     mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
 
@@ -353,6 +355,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     rowwise() %>%
     mutate(
       matching_index = {
+        # Grab the comp_pin column and match it with PIN
         idx <- which(c_across(starts_with("comp_pin")) == pin)
         if (length(idx) > 0) idx[1] else NA_integer_
       },
@@ -386,7 +389,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       unique(unlist(comp_pins[row_id != .x]))
     })) %>%
     ungroup() %>%
-    # Use map2_lgl to compare each pin to the corresponding other_comp_pins vector
+    # Compare each pin to the corresponding other_comp_pins vector
     mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
 
   # Now join with sales using both pin and doc_no matching comp_doc_no
