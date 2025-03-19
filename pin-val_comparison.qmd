@@ -16,7 +16,6 @@ format:
     grid:
       body-width: 1000px
     fig-format: svg
-
 ---
 
 ```{r load_libraries}
@@ -48,69 +47,42 @@ conn <- dbConnect(noctua::athena(),
 
 
 ```{r setup}
-library(dplyr)
-library(glue)
-library(arrow)
-library(purrr)  # for map_lgl
+coalesce_empty <- function(x) {
+  if (is.null(x) || length(x) == 0) "" else x
+}
 
-# 1) Build the base path for caching
 base_cache_file_path <- glue::glue(
-  "cache/{params$run_id}_{params$pin1}_{params$pin_1_card_num}_{params$pin2}_{params$pin_2_card_num}"
+  "cache/{coalesce_empty(params$run_id)}_",
+  "{coalesce_empty(params$pin1)}_",
+  "{coalesce_empty(params$pin_1_card_num)}_",
+  "{coalesce_empty(params$pin2)}_",
+  "{coalesce_empty(params$pin_2_card_num)}"
 )
 
 # 2) List all files you want to cache
 cache_files <- list(
-  assessment = glue::glue("{base_cache_file_path}_asmt.parquet"),
-  comp       = glue::glue("{base_cache_file_path}_comp.parquet"),
-  metadata   = glue::glue("{base_cache_file_path}_meta.parquet"),
   char       = glue::glue("{base_cache_file_path}_char.parquet"),
   value      = glue::glue("{base_cache_file_path}_value.parquet"),
   shap       = glue::glue("{base_cache_file_path}_shap.parquet"),
   address    = glue::glue("{base_cache_file_path}_address.parquet"),
-  sales      = glue::glue("{base_cache_file_path}_sales.parquet"),
-  comps      = glue::glue("{base_cache_file_path}_comps.parquet")
+  sales      = glue::glue("{base_cache_file_path}_sales.parquet")
 )
 
-# Make sure the cache folder exists
 if (!dir.exists("cache")) {
   dir.create("cache", recursive = TRUE)
 }
 
-# 3) If ALL files exist, read them from disk; else run the code and write them out
 if (all(map_lgl(cache_files, file.exists))) {
   message("All cache files found. Reading from disk...")
-  
-  # -- READ all cached data frames --
-  assessment_df <- read_parquet(cache_files$assessment)
-  comp_df       <- read_parquet(cache_files$comp)
-  metadata_df   <- read_parquet(cache_files$metadata)
-  char_df       <- read_parquet(cache_files$char)
-  value_df      <- read_parquet(cache_files$value)
-  shap_df       <- read_parquet(cache_files$shap)
-  address_df    <- read_parquet(cache_files$address)
-  sales_df      <- read_parquet(cache_files$sales)
-  comps_df      <- read_parquet(cache_files$comps)
 
+  char <- read_parquet(cache_files$char)
+  value <- read_parquet(cache_files$value)
+  shap <- read_parquet(cache_files$shap)
+  address <- read_parquet(cache_files$address)
+  sales <- read_parquet(cache_files$sales)
 } else {
   message("Some or all cache files are missing. Running queries and creating them...")
 
-  #
-  # ================= YOUR EXISTING “MIDDLE” CODE =================
-  #
-  # Everything below is exactly your existing code:
-  # ---------------------------------------------------------------
-  
-  # e.g. if (cache_files %>% sapply(file.exists) %>% all()) { ...
-  #   # That old `if` can be removed or replaced, because we are now
-  #   # wrapping the entire code inside this else block.
-  # }
-
-  # (1) We'll assume your queries to get 'assessment_df', 'comp_df', 'metadata_df' happen here:
-  # For example:
-  #   assessment_df <- read_parquet(...)
-  #   comp_df       <- read_parquet(...)
-  #   ...
-  
   run_id <- params$run_id
   year <- run_id %>% substr(1, 4)
 
@@ -124,7 +96,6 @@ if (all(map_lgl(cache_files, file.exists))) {
     primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
 
-  # Query the predictor list, etc.
   metadata <- dbGetQuery(
     conn,
     glue(
@@ -142,7 +113,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
   model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
 
-  char_df <- open_dataset(
+  char <- open_dataset(
     paste0(
       "s3://ccao-data-dvc-us-east-1/files/md5/",
       substr(metadata$dvc_md5_assessment_data, 1, 2), "/",
@@ -159,7 +130,7 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   pin_labels <- pin_labels %>%
     left_join(
-      char_df %>%
+      char %>%
         group_by(meta_pin) %>%
         summarise(total_cards = n_distinct(meta_card_num)),
       by = "meta_pin"
@@ -176,12 +147,13 @@ if (all(map_lgl(cache_files, file.exists))) {
   pin_labels <- pin_labels %>%
     mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
 
-  char_df <- char_df %>%
+  char <- char %>%
     left_join(pin_labels %>% select(meta_pin, primary_card, total_cards), by = "meta_pin") %>%
     group_by(meta_pin) %>%
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
       target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
+      # If it is a 2 or 3 card property, we want to keep the max as the primary card and sum the sq footage
       is_target = total_cards %in% c(2, 3) & (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
       primary_card = if_else(is_target, meta_card_num, as.character(primary_card)),
       char_bldg_sf = if_else(is_target, sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
@@ -192,7 +164,7 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   pin_labels <- pin_labels %>%
     left_join(
-      char_df %>% select(meta_pin, primary_card) %>% distinct(),
+      char %>% select(meta_pin, primary_card) %>% distinct(),
       by = "meta_pin",
       suffix = c("", ".computed")
     ) %>%
@@ -202,7 +174,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     ) %>%
     select(-primary_card.computed)
 
-  value_df <- dbGetQuery(
+  value <- dbGetQuery(
     conn,
     glue_sql(
       "
@@ -223,10 +195,10 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  value_df <- value_df %>%
+  value <- value %>%
     left_join(pin_labels, by = c("meta_pin"))
 
-  shap_df <- dbGetQuery(
+  shap <- dbGetQuery(
     conn,
     glue_sql(
       "
@@ -242,12 +214,12 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  shap_df <- shap_df %>%
+  shap <- shap %>%
     left_join(pin_labels, by = c("meta_pin")) %>%
     filter(primary_card == meta_card_num) %>%
     select(-c("meta_pin_label", "total_cards", "primary_card", "meta_card_num"))
 
-  address_df <- dbGetQuery(
+  address <- dbGetQuery(
     conn,
     glue_sql(
       "
@@ -266,7 +238,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  address_df <- address_df %>%
+  address <- address %>%
     mutate(full_address = paste(
       prop_address_full,
       prop_address_city_name,
@@ -276,7 +248,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     )) %>%
     select(pin, full_address)
 
-  sales_df <- dbGetQuery(
+  sales <- dbGetQuery(
     conn,
     glue_sql(
       "
@@ -294,7 +266,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  comps_df <- dbGetQuery(
+  comps <- dbGetQuery(
     conn,
     glue_sql(
       "
@@ -369,28 +341,75 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  comps_df <- comps_df %>%
+  comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
     filter(primary_card == card) %>%
     select(-c("meta_pin_label", "primary_card"))
 
-  write_parquet(assessment_df, cache_files$assessment)
-  write_parquet(comp_df,       cache_files$comp)
-  write_parquet(metadata_df,   cache_files$metadata)
-  write_parquet(char_df,       cache_files$char)
-  write_parquet(value_df,      cache_files$value)
-  write_parquet(shap_df,       cache_files$shap)
-  write_parquet(address_df,    cache_files$address)
-  write_parquet(sales_df,      cache_files$sales)
-  write_parquet(comps_df,      cache_files$comps)
-}
+  # Pre-extract the names of comp_pin columns from the original data frame
+  comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
 
+  comps <- comps %>%
+    rowwise() %>%
+    mutate(
+      matching_index = {
+        idx <- which(c_across(starts_with("comp_pin")) == pin)
+        if (length(idx) > 0) idx[1] else NA_integer_
+      },
+      comp_score = if (!is.na(matching_index)) {
+        c_across(starts_with("comp_score_"))[matching_index]
+      } else {
+        NA_real_
+      },
+      comp_number = if (!is.na(matching_index)) {
+        sub("comp_pin_", "", comp_pin_names[matching_index])
+      } else {
+        NA_character_
+      },
+      # Compute the corresponding document number from the matching comp_document_num_ column
+      comp_doc_no = if (!is.na(matching_index)) {
+        as.character(c_across(starts_with("comp_document_num_"))[matching_index])
+      } else {
+        NA_character_
+      }
+    ) %>%
+    ungroup() %>%
+    mutate(
+      row_id = row_number(),
+      pin = as.character(pin)
+    ) %>%
+    rowwise() %>%
+    mutate(comp_pins = list(as.character(c_across(starts_with("comp_pin"))))) %>%
+    ungroup() %>%
+    group_by(dummy = 1) %>%
+    mutate(other_comp_pins = map(row_id, ~ {
+      unique(unlist(comp_pins[row_id != .x]))
+    })) %>%
+    ungroup() %>%
+    # Use map2_lgl to compare each pin to the corresponding other_comp_pins vector
+    mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
+
+  # Now join with sales using both pin and doc_no matching comp_doc_no
+  sales <- sales %>%
+    left_join(comps, by = c("pin" = "pin", "doc_no" = "comp_doc_no")) %>%
+    mutate(
+      sale_date = substr(sale_date, 1, 10)
+    ) %>%
+    select(pin, sale_date, sale_price, doc_no, comp_score, comp_number) %>%
+    arrange(desc(sale_date))
+
+  write_parquet(char, cache_files$char)
+  write_parquet(value, cache_files$value)
+  write_parquet(shap, cache_files$shap)
+  write_parquet(address, cache_files$address)
+  write_parquet(sales, cache_files$sales)
+}
 ```
 
 ### Map of Parcels
 
 ```{r map}
-char_df %>%
+char %>%
   left_join(address, by = c("meta_pin" = "pin")) %>%
   leaflet() %>%
   addProviderTiles("CartoDB.Positron") %>%
@@ -429,7 +448,7 @@ char_df %>%
 Note that for parcels with 2 or 3 cards, the building square footage is summed. For the rest of the features, they are pulled from the largest of the two parcels. This coincides with our modeling techniques. For parcels with 4 or more pins, we pull the features from the target card identified in the params.
 
 ```{r feature_comparison, out.width="90%"}
-char_df_fmt <- char_df %>%
+char_fmt <- char %>%
   left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = "meta_pin") %>%
   select(-meta_pin, -primary_card) %>%
   # Convert everything to character so that we can pivot and combine feature
@@ -454,7 +473,7 @@ char_df_fmt <- char_df %>%
   ) %>%
   arrange(`PINs Match`)
 
-char_df_fmt %>%
+char_fmt %>%
   datatable(
     options = list(
       paging = FALSE,
@@ -473,9 +492,9 @@ char_df_fmt %>%
 If either PIN is a multi-card, values are produced with all cards summed as well as those of the target card.
 
 ```{r predicted_values}
-if (any(value_df$total_cards > 1, na.rm = TRUE)) {
+if (any(value$total_cards > 1, na.rm = TRUE)) {
   # Create the summary for the primary card
-  summary_primary <- value_df %>%
+  summary_primary <- value %>%
     filter(primary_card == meta_card_num) %>%
     rename(
       "Initial estimate" = pred_card_initial_fmv,
@@ -496,9 +515,9 @@ if (any(value_df$total_cards > 1, na.rm = TRUE)) {
       Difference = `Pin 1` - `Pin 2`,
       Group = "Primary Card"
     )
-  
+
   # Create the summary for all cards
-  summary_total <- value_df %>%
+  summary_total <- value %>%
     rename(
       "Initial estimate" = pred_card_initial_fmv,
       "Final rounded FMV" = pred_pin_final_fmv_round
@@ -518,15 +537,14 @@ if (any(value_df$total_cards > 1, na.rm = TRUE)) {
       Difference = `Pin 1` - `Pin 2`,
       Group = "Total"
     )
-  
+
   # Bind the rows together and format the table
   final_table <- bind_rows(summary_primary, summary_total) %>%
     relocate(Group, .before = `Value Type`) %>%
     mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
-  
 } else {
   # Only create a single (total) summary table if no value of total_cards > 1
-  final_table <- value_df %>%
+  final_table <- value %>%
     rename(
       "Initial estimate" = pred_card_initial_fmv,
       "Final rounded FMV" = pred_pin_final_fmv_round
@@ -550,65 +568,13 @@ if (any(value_df$total_cards > 1, na.rm = TRUE)) {
 }
 
 datatable(final_table, rownames = FALSE, options = list(dom = "t"))
-
 ```
 
 ### Sale History
 
 ```{r sales}
-# Pre-extract the names of comp_pin columns from the original data frame
-comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
-
-comps <- comps %>%
-  rowwise() %>%
-  mutate(
-    matching_index = {
-      idx <- which(c_across(starts_with("comp_pin")) == pin)
-      if (length(idx) > 0) idx[1] else NA_integer_
-    },
-    comp_score = if (!is.na(matching_index)) {
-      c_across(starts_with("comp_score_"))[matching_index]
-    } else {
-      NA_real_
-    },
-    comp_number = if (!is.na(matching_index)) {
-      sub("comp_pin_", "", comp_pin_names[matching_index])
-    } else {
-      NA_character_
-    },
-    # Compute the corresponding document number from the matching comp_document_num_ column
-    comp_doc_no = if (!is.na(matching_index)) {
-      as.character(c_across(starts_with("comp_document_num_"))[matching_index])
-    } else {
-      NA_character_
-    }
-  ) %>%
-  ungroup() %>%
-  mutate(
-    row_id = row_number(),
-    pin = as.character(pin)
-  ) %>%
-  rowwise() %>%
-  mutate(comp_pins = list(as.character(c_across(starts_with("comp_pin"))))) %>%
-  ungroup() %>%
-  group_by(dummy = 1) %>%
-  mutate(other_comp_pins = map(row_id, ~ {
-    unique(unlist(comp_pins[row_id != .x]))
-  })) %>%
-  ungroup() %>%
-  # Use map2_lgl to compare each pin to the corresponding other_comp_pins vector
-  mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
-
-# Now join with sales using both pin and doc_no matching comp_doc_no
 sales <- sales %>%
-  left_join(comps, by = c("pin" = "pin", "doc_no" = "comp_doc_no")) %>%
-  mutate(
-    sale_date = substr(sale_date, 1, 10),
-    other_pin_is_comp = ifelse(!is.na(comp_number), "✅", "")
-  ) %>%
-  # Select and order columns for display; note the inclusion of comp info
-  select(pin, sale_date, sale_price, doc_no, comp_score, comp_number, other_pin_is_comp) %>%
-  arrange(desc(sale_date))
+  mutate(other_pin_is_comp = ifelse(!is.na(comp_number), "✅", ""))
 
 unique_pins <- unique(sales$pin)
 colors <- rainbow(length(unique_pins))
@@ -623,14 +589,12 @@ datatable_obj <- datatable(
   )
 
 datatable_obj
-
-
 ```
 
 ### SHAP Values
 
 ```{r SHAPs}
-shap_df_pivoted <- shap_df %>%
+shap_pivoted <- shap %>%
   left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = c("meta_pin")) %>%
   select(-meta_pin) %>%
   pivot_longer(
@@ -647,7 +611,7 @@ shap_df_pivoted <- shap_df %>%
   mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
 
 # Plot the SHAPs as a dumbbell chart so we can compare the two PINs
-shap_df_pivoted %>% ggplot(
+shap_pivoted %>% ggplot(
   aes(y = `Feature Name`, x = `Pin 1`, xend = `Pin 2`)
 ) +
   geom_dumbbell(
