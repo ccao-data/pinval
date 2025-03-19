@@ -138,8 +138,8 @@ char_df <- char_df %>%
 
 pin_labels <- pin_labels %>%
   left_join(
-    char_df %>% 
-      select(meta_pin, primary_card) %>% 
+    char_df %>%
+      select(meta_pin, primary_card) %>%
       distinct(),
     by = "meta_pin",
     suffix = c("", ".computed")
@@ -173,7 +173,7 @@ value_df <- dbGetQuery(
 
 value_df <- value_df %>%
   left_join(pin_labels, by = c("meta_pin"))
-            
+
 shap_df <- dbGetQuery(
   conn,
   glue_sql(
@@ -218,10 +218,11 @@ address <- dbGetQuery(
 
 address <- address %>%
   mutate(full_address = paste(prop_address_full,
-                              prop_address_city_name,
-                              prop_address_state,
-                              prop_address_zipcode_1,
-                              sep = ", ")) %>%
+    prop_address_city_name,
+    prop_address_state,
+    prop_address_zipcode_1,
+    sep = ", "
+  )) %>%
   select(pin, full_address)
 
 sales <- dbGetQuery(
@@ -334,7 +335,7 @@ char_df %>%
     ),
     color = ~ ifelse(
       meta_pin == params$pin1, "red",
-      ifelse(meta_pin == params$pin2, "green", "blue")
+      ifelse(meta_pin == params$pin2, "blue", "green")
     ),
     radius = 5
   )
@@ -347,7 +348,7 @@ Note that for parcels with 2 or 3 cards, the building square footage is summed. 
 ```{r, out.width="90%"}
 char_df_fmt <- char_df %>%
   left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = "meta_pin") %>%
-  select(-meta_pin, primary_card) %>%
+  select(-meta_pin, -primary_card) %>%
   # Convert everything to character so that we can pivot and combine feature
   # value columns
   mutate(across(everything(), as.character)) %>%
@@ -387,54 +388,84 @@ char_df_fmt %>%
 ### Predicted Values
 
 ```{r}
-summary_primary <- value_df %>%
-  filter(primary_card == meta_card_num) %>%
-  rename(
-    "Initial estimate" = pred_card_initial_fmv,
-    "Final rounded FMV" = pred_pin_final_fmv_round
-  ) %>%
-  pivot_longer(
-    cols = c("Initial estimate", "Final rounded FMV"),
-    names_to = "Value Type",
-    values_to = "Value"
-  ) %>%
-  pivot_wider(
-    names_from = meta_pin_label,
-    values_from = Value
-  ) %>%
-  group_by(`Value Type`) %>%
-  summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
-  mutate(
-    Difference = `Pin 1` - `Pin 2`,
-    Group = "Primary Card"
-  )
+if (any(value_df$total_cards > 1, na.rm = TRUE)) {
+  # Create the summary for the primary card
+  summary_primary <- value_df %>%
+    filter(primary_card == meta_card_num) %>%
+    rename(
+      "Initial estimate" = pred_card_initial_fmv,
+      "Final rounded FMV" = pred_pin_final_fmv_round
+    ) %>%
+    pivot_longer(
+      cols = c("Initial estimate", "Final rounded FMV"),
+      names_to = "Value Type",
+      values_to = "Value"
+    ) %>%
+    pivot_wider(
+      names_from = meta_pin_label,
+      values_from = Value
+    ) %>%
+    group_by(`Value Type`) %>%
+    summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
+    mutate(
+      Difference = `Pin 1` - `Pin 2`,
+      Group = "Primary Card"
+    )
 
-summary_total <- value_df %>%
-  rename(
-    "Initial estimate" = pred_card_initial_fmv,
-    "Final rounded FMV" = pred_pin_final_fmv_round
-  ) %>%
-  pivot_longer(
-    cols = c("Initial estimate", "Final rounded FMV"),
-    names_to = "Value Type",
-    values_to = "Value"
-  ) %>%
-  pivot_wider(
-    names_from = meta_pin_label,
-    values_from = Value
-  ) %>%
-  group_by(`Value Type`) %>%
-  summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
-  mutate(
-    Difference = `Pin 1` - `Pin 2`,
-    Group = "Total"
-  )
+  # Create the summary for all cards
+  summary_total <- value_df %>%
+    rename(
+      "Initial estimate" = pred_card_initial_fmv,
+      "Final rounded FMV" = pred_pin_final_fmv_round
+    ) %>%
+    pivot_longer(
+      cols = c("Initial estimate", "Final rounded FMV"),
+      names_to = "Value Type",
+      values_to = "Value"
+    ) %>%
+    pivot_wider(
+      names_from = meta_pin_label,
+      values_from = Value
+    ) %>%
+    group_by(`Value Type`) %>%
+    summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
+    mutate(
+      Difference = `Pin 1` - `Pin 2`,
+      Group = "Total"
+    )
 
-final_table <- bind_rows(summary_primary, summary_total) %>%
-  relocate(Group, .before = `Value Type`) %>%
-  mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
+  # Bind the rows together and format the table
+  final_table <- bind_rows(summary_primary, summary_total) %>%
+    relocate(Group, .before = `Value Type`) %>%
+    mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
 
-datatable(final_table, rownames = FALSE, options = list(dom = "t"))
+  print(datatable(final_table, rownames = FALSE, options = list(dom = "t")))
+} else {
+  # Only create a single (total) summary table if no value of total_cards > 1
+  final_table <- value_df %>%
+    rename(
+      "Initial estimate" = pred_card_initial_fmv,
+      "Final rounded FMV" = pred_pin_final_fmv_round
+    ) %>%
+    pivot_longer(
+      cols = c("Initial estimate", "Final rounded FMV"),
+      names_to = "Value Type",
+      values_to = "Value"
+    ) %>%
+    pivot_wider(
+      names_from = meta_pin_label,
+      values_from = Value
+    ) %>%
+    group_by(`Value Type`) %>%
+    summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
+    mutate(
+      Difference = `Pin 1` - `Pin 2`,
+      Group = "Total"
+    ) %>%
+    mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
+
+  print(datatable(final_table, rownames = FALSE, options = list(dom = "t")))
+}
 ```
 
 ### Sale History
@@ -446,11 +477,13 @@ comps <- comps %>%
     # Find the index where the comp_pin value equals the current pin
     matching_index = {
       idx <- which(c_across(starts_with("comp_pin")) == pin)
-      if(length(idx) > 0) idx[1] else NA_integer_
+      if (length(idx) > 0) idx[1] else NA_integer_
     },
-    comp_score = if(!is.na(matching_index))
-             c_across(starts_with("comp_score_"))[matching_index]
-           else NA_real_
+    comp_score = if (!is.na(matching_index)) {
+      c_across(starts_with("comp_score_"))[matching_index]
+    } else {
+      NA_real_
+    }
   ) %>%
   ungroup()
 
@@ -500,7 +533,6 @@ datatable_obj <- datatable(
   )
 
 datatable_obj
-
 ```
 
 ### SHAP Values
@@ -529,8 +561,8 @@ shap_df_pivoted %>% ggplot(
   geom_dumbbell(
     size_x = 1,
     size_xend = 1,
-    colour_x = "skyblue",
-    colour_xend = "tomato",
+    colour_x = "red",
+    colour_xend = "blue",
   ) +
   labs(
     title = "SHAP differences between the two parcels",
