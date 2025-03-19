@@ -19,8 +19,6 @@ format:
 ---
 
 ```{r load_libraries}
-#| cache: false
-
 library(arrow)
 library(ccao)
 library(dplyr)
@@ -47,6 +45,7 @@ conn <- dbConnect(noctua::athena(),
 
 
 ```{r setup}
+# helps with NULL values for pin_x_card_num
 coalesce_empty <- function(x) {
   if (is.null(x) || length(x) == 0) "" else x
 }
@@ -59,7 +58,6 @@ base_cache_file_path <- glue::glue(
   "{coalesce_empty(params$pin_2_card_num)}"
 )
 
-# 2) List all files you want to cache
 cache_files <- list(
   char       = glue::glue("{base_cache_file_path}_char.parquet"),
   value      = glue::glue("{base_cache_file_path}_value.parquet"),
@@ -93,7 +91,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
     meta_pin_label = c("Pin 1", "Pin 2"),
-    # Initial primary card is only if it has to be specified
+    # Initial primary card should only be input if it has to be specified
     primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
 
@@ -569,7 +567,7 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
     ) %>%
     mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
 }
-
+# Formatting is outside since it doesn't render properly inside
 datatable(final_table, rownames = FALSE, options = list(dom = "t"))
 ```
 
@@ -613,7 +611,6 @@ shap_pivoted <- shap %>%
   # Make `Feature Name` a factor so that ggplot doesn't order it alphabetically
   mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
 
-# Plot the SHAPs as a dumbbell chart so we can compare the two PINs
 shap_pivoted %>% ggplot(
   aes(y = `Feature Name`, x = `Pin 1`, xend = `Pin 2`)
 ) +
