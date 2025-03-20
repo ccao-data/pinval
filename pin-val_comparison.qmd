@@ -217,7 +217,6 @@ if (all(map_lgl(cache_files, file.exists))) {
     left_join(pin_labels, by = c("meta_pin")) %>%
     filter(primary_card == meta_card_num) %>%
     select(-c("total_cards", "primary_card", "meta_card_num")) %>%
-    left_join(pin_labels %>% select(meta_pin), by = c("meta_pin")) %>%
     pivot_longer(
       cols = all_of(model_predictor_all_name),
       names_to = "Feature Name",
