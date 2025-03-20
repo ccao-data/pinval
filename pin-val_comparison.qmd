@@ -90,7 +90,6 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
-    meta_pin_label = c("Pin 1", "Pin 2"),
     # Initial primary card should only be input if it has to be specified
     primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
@@ -123,8 +122,8 @@ if (all(map_lgl(cache_files, file.exists))) {
     collect() %>%
     select(
       meta_pin,
-      all_of(model_predictor_all_name),
-      meta_card_num
+      meta_card_num,
+      all_of(model_predictor_all_name)
     )
 
   pin_labels <- pin_labels %>%
@@ -217,7 +216,19 @@ if (all(map_lgl(cache_files, file.exists))) {
   shap <- shap %>%
     left_join(pin_labels, by = c("meta_pin")) %>%
     filter(primary_card == meta_card_num) %>%
-    select(-c("meta_pin_label", "total_cards", "primary_card", "meta_card_num"))
+    select(-c("total_cards", "primary_card", "meta_card_num")) %>%
+    left_join(pin_labels %>% select(meta_pin), by = c("meta_pin")) %>%
+    pivot_longer(
+      cols = all_of(model_predictor_all_name),
+      names_to = "Feature Name",
+      values_to = "Value"
+    ) %>%
+    arrange(desc(meta_pin == params$pin1), desc(Value)) %>%
+    pivot_wider(
+      names_from = meta_pin,
+      values_from = Value
+    ) %>%
+    mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
 
   address <- dbGetQuery(
     conn,
@@ -344,7 +355,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
     filter(primary_card == card) %>%
-    select(-c("meta_pin_label", "primary_card"))
+    select(-c("primary_card"))
 
   # Pre-extract the names of comp_pin columns from the original data frame
   comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
@@ -407,6 +418,8 @@ if (all(map_lgl(cache_files, file.exists))) {
 }
 ```
 
+Comparison between PINs `r params$pin1` and `r params$pin2`
+
 ### Map of Parcels
 
 ```{r map}
@@ -450,27 +463,30 @@ Note that for parcels with 2 or 3 cards, the building square footage is summed. 
 
 ```{r feature_comparison, out.width="90%"}
 char_fmt <- char %>%
-  left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = "meta_pin") %>%
-  select(-meta_pin, -primary_card) %>%
+  select(-primary_card) %>%
   # Convert everything to character so that we can pivot and combine feature
   # value columns
   mutate(across(everything(), as.character)) %>%
   # Pivot long so that rows are features and columns are feature values.
   # This creates two rows for each feature name, one for each PIN
   pivot_longer(
-    cols = model_predictor_all_name,
+    cols = -meta_pin,
     names_to = "Feature Name",
     values_to = "Value"
   ) %>%
   # Pivot back to wide so that each property has its own column representing
   # the value for each feature. This creates one row for each feature
   pivot_wider(
-    names_from = meta_pin_label,
+    names_from = meta_pin,
     values_from = Value
   ) %>%
   # Check which feature values match across the PINs
   mutate(
-    "PINs Match" = `Pin 1` == `Pin 2`
+    "PINs Match" = {
+      params$pin1
+    } == {
+      params$pin2
+    }
   ) %>%
   arrange(`PINs Match`)
 
@@ -507,13 +523,13 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       values_to = "Value"
     ) %>%
     pivot_wider(
-      names_from = meta_pin_label,
+      names_from = meta_pin,
       values_from = Value
     ) %>%
     group_by(`Value Type`) %>%
-    summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)), sum, na.rm = TRUE)) %>%
     mutate(
-      Difference = `Pin 1` - `Pin 2`,
+      Difference = .data[[params$pin1]] - .data[[params$pin2]],
       Group = "Primary Card"
     )
 
@@ -529,20 +545,20 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       values_to = "Value"
     ) %>%
     pivot_wider(
-      names_from = meta_pin_label,
+      names_from = meta_pin,
       values_from = Value
     ) %>%
     group_by(`Value Type`) %>%
-    summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)), sum, na.rm = TRUE)) %>%
     mutate(
-      Difference = `Pin 1` - `Pin 2`,
+      Difference = .data[[params$pin1]] - .data[[params$pin2]],
       Group = "Total"
     )
 
   # Bind the rows together and format the table
   final_table <- bind_rows(summary_primary, summary_total) %>%
     relocate(Group, .before = `Value Type`) %>%
-    mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
+    mutate(across(all_of(c(params$pin2, params$pin1, "Difference")), scales::label_currency()))
 } else {
   # Only create a single (total) summary table if no value of total_cards > 1
   final_table <- value %>%
@@ -556,22 +572,23 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       values_to = "Value"
     ) %>%
     pivot_wider(
-      names_from = meta_pin_label,
+      names_from = meta_pin,
       values_from = Value
     ) %>%
     group_by(`Value Type`) %>%
-    summarise(across(c(`Pin 1`, `Pin 2`), sum, na.rm = TRUE)) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)), sum, na.rm = TRUE)) %>%
     mutate(
-      Difference = `Pin 1` - `Pin 2`,
-      Group = "Total"
+      Difference = .data[[params$pin1]] - .data[[params$pin2]]
     ) %>%
-    mutate(across(c("Pin 2", "Pin 1", "Difference"), scales::label_currency()))
+    mutate(across(all_of(c(params$pin2, params$pin1, "Difference")), scales::label_currency()))
 }
 # Formatting is outside since it doesn't render properly inside
 datatable(final_table, rownames = FALSE, options = list(dom = "t"))
 ```
 
 ### Sale History
+
+Each sale is marked with a checkmark if it is used as a comp sale for the reciporical pin. 
 
 ```{r sales}
 sales <- sales %>%
@@ -595,30 +612,17 @@ datatable_obj
 ### SHAP Values
 
 ```{r SHAPs}
-shap_pivoted <- shap %>%
-  left_join(pin_labels %>% select(meta_pin, meta_pin_label), by = c("meta_pin")) %>%
-  select(-meta_pin) %>%
-  pivot_longer(
-    cols = all_of(model_predictor_all_name),
-    names_to = "Feature Name",
-    values_to = "Value"
-  ) %>%
-  pivot_wider(
-    names_from = "meta_pin_label",
-    values_from = "Value"
-  ) %>%
-  arrange(-`Pin 1`) %>%
-  # Make `Feature Name` a factor so that ggplot doesn't order it alphabetically
-  mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
-
-shap_pivoted %>% ggplot(
-  aes(y = `Feature Name`, x = `Pin 1`, xend = `Pin 2`)
-) +
+shap %>%
+  ggplot(aes(
+    y = `Feature Name`,
+    x = .data[[params$pin1]],
+    xend = .data[[params$pin2]]
+  )) +
   geom_dumbbell(
     size_x = 1,
     size_xend = 1,
     colour_x = "red",
-    colour_xend = "blue",
+    colour_xend = "blue"
   ) +
   labs(
     title = "SHAP differences between the two parcels",
