@@ -134,7 +134,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       by = "meta_pin"
     )
 
-  # Validation checks - we want card to be empty unless the parcel has more than 4 cards
+  # Validation checks - we want card to be empty unless the PIN has more than 4 cards
   if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
     stop("Error: For rows with total_cards <= 3, primary_card should be NA.")
   }
@@ -142,7 +142,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     stop("Error: For rows with total_cards >= 4, primary_card should have a value.")
   }
 
-  # Add primary card for single card parcelsss
+  # Add primary card for single card PINs
   pin_labels <- pin_labels %>%
     mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
 
@@ -420,7 +420,7 @@ if (all(map_lgl(cache_files, file.exists))) {
 
 Comparison between PINs `r params$pin1` and `r params$pin2`
 
-### Map of Parcels
+### Map of PINs
 
 ```{r map}
 char %>%
@@ -457,9 +457,9 @@ char %>%
   )
 ```
 
-### Feature differences between the two parcels
+### Feature differences between the two PINs
 
-Note that for parcels with 2 or 3 cards, the building square footage is summed. For the rest of the features, they are pulled from the largest of the two parcels. This coincides with our modeling techniques. For parcels with 4 or more pins, we pull the features from the target card identified in the params.
+Note that for PINs with 2 or 3 cards, the building square footage is summed. For these PINs, they are pulled from the larger of the PINs. This coincides with our modeling techniques. For PINs with 4 or more pins, we pull the features from the target card identified in the params.
 
 ```{r feature_comparison, out.width="90%"}
 char_fmt <- char %>%
@@ -625,7 +625,7 @@ shap %>%
     colour_xend = "blue"
   ) +
   labs(
-    title = "SHAP differences between the two parcels",
+    title = "SHAP differences between the two PINs",
     x = "SHAP Value",
     y = "Feature Name"
   ) +
