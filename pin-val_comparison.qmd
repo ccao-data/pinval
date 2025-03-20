@@ -362,7 +362,7 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
 
-  comps_a <- comps %>%
+  comps <- comps %>%
     rowwise() %>%
     mutate(
       # Use inverse_pin to find the matching index among comp_pin columns
@@ -402,7 +402,7 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   # Join with sales using both pin and doc_no matching comp_doc_no
   sales <- sales %>%
-    left_join(comps_a, by = c("pin" = "inverse_pin", "doc_no" = "comp_doc_no")) %>%
+    left_join(comps, by = c("pin" = "inverse_pin", "doc_no" = "comp_doc_no")) %>%
     mutate(
       sale_date = substr(sale_date, 1, 10)
     ) %>%
