@@ -482,11 +482,7 @@ char_fmt <- char %>%
   ) %>%
   # Check which feature values match across the PINs
   mutate(
-    "PINs Match" = {
-      params$pin1
-    } == {
-      params$pin2
-    }
+    `PINs Match` = .data[[params$pin1]] == .data[[params$pin2]]
   ) %>%
   arrange(`PINs Match`)
 
@@ -555,10 +551,13 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       Group = "Total"
     )
 
-  # Bind the rows together and format the table
+  # Bind the rows together and format the table with full dollar rounding
   final_table <- bind_rows(summary_primary, summary_total) %>%
     relocate(Group, .before = `Value Type`) %>%
-    mutate(across(all_of(c(params$pin2, params$pin1, "Difference")), scales::label_currency()))
+    mutate(across(
+      all_of(c(params$pin2, params$pin1, "Difference")),
+      scales::label_currency(accuracy = 1)
+    ))
 } else {
   # Only create a single (total) summary table if no value of total_cards > 1
   final_table <- value %>%
@@ -580,7 +579,10 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]]
     ) %>%
-    mutate(across(all_of(c(params$pin2, params$pin1, "Difference")), scales::label_currency()))
+    mutate(across(
+      all_of(c(params$pin2, params$pin1, "Difference")),
+      scales::label_currency(accuracy = 1)
+    ))
 }
 # Formatting is outside since it doesn't render properly inside
 datatable(final_table, rownames = FALSE, options = list(dom = "t"))
