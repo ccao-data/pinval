@@ -4,7 +4,7 @@ params:
   run_id: "2025-02-11-charming-eric"
   pin1: "01282010070000"
   pin_1_card_num:
-  pin2: "01013080340000"
+  pin2: "01282080070000"
   pin_2_card_num:
 execute:
   echo: false
@@ -354,17 +354,20 @@ if (all(map_lgl(cache_files, file.exists))) {
   comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
     filter(primary_card == card) %>%
-    select(-c("primary_card"))
+    select(-primary_card) %>%
+    # Create a row_id to know the order of rows
+    mutate(row_id = row_number()) %>%
+    # For exactly two rows: if row 1 then inverse_pin is the next row's pin; if row 2 then inverse_pin is the previous row's pin
+    mutate(inverse_pin = if_else(row_id == 1, lead(pin, 1), lag(pin, 1)))
 
-  # Pre-extract the names of comp_pin columns from the original data frame
   comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
 
-  comps <- comps %>%
+  comps_a <- comps %>%
     rowwise() %>%
     mutate(
+      # Use inverse_pin to find the matching index among comp_pin columns
       matching_index = {
-        # Grab the comp_pin column and match it with PIN
-        idx <- which(c_across(starts_with("comp_pin")) == pin)
+        idx <- which(c_across(starts_with("comp_pin")) == inverse_pin)
         if (length(idx) > 0) idx[1] else NA_integer_
       },
       comp_score = if (!is.na(matching_index)) {
@@ -377,7 +380,6 @@ if (all(map_lgl(cache_files, file.exists))) {
       } else {
         NA_character_
       },
-      # Compute the corresponding document number from the matching comp_document_num_ column
       comp_doc_no = if (!is.na(matching_index)) {
         as.character(c_across(starts_with("comp_document_num_"))[matching_index])
       } else {
@@ -386,7 +388,6 @@ if (all(map_lgl(cache_files, file.exists))) {
     ) %>%
     ungroup() %>%
     mutate(
-      row_id = row_number(),
       pin = as.character(pin)
     ) %>%
     rowwise() %>%
@@ -397,12 +398,11 @@ if (all(map_lgl(cache_files, file.exists))) {
       unique(unlist(comp_pins[row_id != .x]))
     })) %>%
     ungroup() %>%
-    # Compare each pin to the corresponding other_comp_pins vector
     mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
 
-  # Now join with sales using both pin and doc_no matching comp_doc_no
+  # Join with sales using both pin and doc_no matching comp_doc_no
   sales <- sales %>%
-    left_join(comps, by = c("pin" = "pin", "doc_no" = "comp_doc_no")) %>%
+    left_join(comps_a, by = c("pin" = "inverse_pin", "doc_no" = "comp_doc_no")) %>%
     mutate(
       sale_date = substr(sale_date, 1, 10)
     ) %>%
