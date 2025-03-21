@@ -361,7 +361,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     mutate(
       sale_date = substr(sale_date, 1, 10)
     ) %>%
-    select(pin, sale_date, sale_price, doc_no, comp_score, comp_number) %>%
+    select(pin, sale_date, sale_price, sv_is_outlier, doc_no, comp_score, comp_number) %>%
     arrange(desc(sale_date))
 
   write_parquet(char, cache_files$char)
@@ -410,8 +410,6 @@ char %>%
     radius = 5
   )
 ```
-
-
 
 ### Predicted Values
 
@@ -542,7 +540,6 @@ char_fmt %>%
     "PINs Match",
     backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
   )
-
 ```
 
 ### Sale History
@@ -551,21 +548,24 @@ Each sale is marked with a checkmark if it is used as a comp sale for the recipo
 
 ```{r sales}
 sales <- sales %>%
-  mutate(other_pin_is_comp = ifelse(!is.na(comp_number), "✅", ""))
+  mutate(
+    other_pin_is_comp = ifelse(!is.na(comp_number), "✅", ""),
+    sale_price = dollar(as.numeric(sale_price))
+  )
 
 unique_pins <- unique(sales$pin)
 colors <- rainbow(length(unique_pins))
-
-datatable_obj <- datatable(
+datatable(
   sales,
-  options = list(order = list(list(1, "desc")))
+  options = list(
+    order = list(list(1, "desc")),
+    scrollX = TRUE
+  )
 ) %>%
   formatStyle(
     "pin",
     backgroundColor = styleEqual(unique_pins, colors)
   )
-
-datatable_obj
 ```
 
 ### SHAP Values
