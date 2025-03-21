@@ -411,49 +411,7 @@ char %>%
   )
 ```
 
-### Feature differences between the two PINs
 
-Note that for PINs with 2 or 3 cards, the building square footage is summed. For these PINs, they are pulled from the larger of the PINs. This coincides with our modeling techniques. For PINs with 4 or more pins, we pull the features from the target card identified in the params.
-
-```{r feature_comparison, out.width="90%"}
-char_fmt <- char %>%
-  select(-primary_card) %>%
-  # Convert everything to character so that we can pivot and combine feature value columns
-  mutate(across(everything(), as.character)) %>%
-  # Pivot long so that rows are features and columns are feature values.
-  # This creates two rows for each feature name, one for each PIN
-  pivot_longer(
-    cols = -meta_pin,
-    names_to = "Feature Name",
-    values_to = "Value"
-  ) %>%
-  # Pivot back to wide so that each property has its own column representing the value for each feature.
-  pivot_wider(
-    names_from = meta_pin,
-    values_from = Value
-  ) %>%
-  # Replace NA values with an empty string
-  mutate(across(everything(), ~ replace_na(., ""))) %>%
-  # Check which feature values match across the PINs
-  mutate(
-    `PINs Match` = .data[[params$pin1]] == .data[[params$pin2]]
-  ) %>%
-  arrange(`PINs Match`)
-
-char_fmt %>%
-  datatable(
-    options = list(
-      paging = FALSE,
-      scrollX = TRUE,
-      scrollY = "400px"
-    )
-  ) %>%
-  formatStyle(
-    "PINs Match",
-    backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
-  )
-
-```
 
 ### Predicted Values
 
@@ -541,6 +499,50 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
 }
 # Formatting is outside since it doesn't render properly inside
 datatable(final_table, rownames = FALSE, options = list(dom = "t"))
+```
+
+### Feature differences between the two PINs
+
+Note that for PINs with 2 or 3 cards, the building square footage is summed. For these PINs, they are pulled from the larger of the PINs. This coincides with our modeling techniques. For PINs with 4 or more pins, we pull the features from the target card identified in the params.
+
+```{r feature_comparison, out.width="90%"}
+char_fmt <- char %>%
+  select(-primary_card) %>%
+  # Convert everything to character so that we can pivot and combine feature value columns
+  mutate(across(everything(), as.character)) %>%
+  # Pivot long so that rows are features and columns are feature values.
+  # This creates two rows for each feature name, one for each PIN
+  pivot_longer(
+    cols = -meta_pin,
+    names_to = "Feature Name",
+    values_to = "Value"
+  ) %>%
+  # Pivot back to wide so that each property has its own column representing the value for each feature.
+  pivot_wider(
+    names_from = meta_pin,
+    values_from = Value
+  ) %>%
+  # Replace NA values with an empty string
+  mutate(across(everything(), ~ replace_na(., ""))) %>%
+  # Check which feature values match across the PINs
+  mutate(
+    `PINs Match` = .data[[params$pin1]] == .data[[params$pin2]]
+  ) %>%
+  arrange(`PINs Match`)
+
+char_fmt %>%
+  datatable(
+    options = list(
+      paging = FALSE,
+      scrollX = TRUE,
+      scrollY = "400px"
+    )
+  ) %>%
+  formatStyle(
+    "PINs Match",
+    backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
+  )
+
 ```
 
 ### Sale History
