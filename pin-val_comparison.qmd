@@ -276,80 +276,35 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  comps <- dbGetQuery(
-    conn,
-    glue_sql(
-      "
-      select
-        comp.pin,
-        comp.comp_pin_1,
-        comp.comp_pin_2,
-        comp.comp_pin_3,
-        comp.comp_pin_4,
-        comp.comp_pin_5,
-        comp.comp_pin_6,
-        comp.comp_pin_7,
-        comp.comp_pin_8,
-        comp.comp_pin_9,
-        comp.comp_pin_10,
-        comp.comp_pin_11,
-        comp.comp_pin_12,
-        comp.comp_pin_13,
-        comp.comp_pin_14,
-        comp.comp_pin_15,
-        comp.comp_pin_16,
-        comp.comp_pin_17,
-        comp.comp_pin_18,
-        comp.comp_pin_19,
-        comp.comp_pin_20,
-        comp.comp_document_num_1,
-        comp.comp_document_num_2,
-        comp.comp_document_num_3,
-        comp.comp_document_num_4,
-        comp.comp_document_num_5,
-        comp.comp_document_num_6,
-        comp.comp_document_num_7,
-        comp.comp_document_num_8,
-        comp.comp_document_num_9,
-        comp.comp_document_num_10,
-        comp.comp_document_num_11,
-        comp.comp_document_num_12,
-        comp.comp_document_num_13,
-        comp.comp_document_num_14,
-        comp.comp_document_num_15,
-        comp.comp_document_num_16,
-        comp.comp_document_num_17,
-        comp.comp_document_num_18,
-        comp.comp_document_num_19,
-        comp.comp_document_num_20,
-        comp.comp_score_1,
-        comp.comp_score_2,
-        comp.comp_score_3,
-        comp.comp_score_4,
-        comp.comp_score_5,
-        comp.comp_score_6,
-        comp.comp_score_7,
-        comp.comp_score_8,
-        comp.comp_score_9,
-        comp.comp_score_10,
-        comp.comp_score_11,
-        comp.comp_score_12,
-        comp.comp_score_13,
-        comp.comp_score_14,
-        comp.comp_score_15,
-        comp.comp_score_16,
-        comp.comp_score_17,
-        comp.comp_score_18,
-        comp.comp_score_19,
-        comp.comp_score_20,
-        comp.card
-      from model.comp as comp
-      where comp.run_id = {run_id}
-      and comp.pin in ({pin_labels$meta_pin*})
-      ",
-      .con = conn
-    )
-  )
+ comps <- dbGetQuery(
+   conn,
+   glue_sql(
+     "
+     select
+       comp.pin,
+       comp.comp_pin_1,
+       comp.comp_pin_2,
+       comp.comp_pin_3,
+       comp.comp_pin_4,
+       comp.comp_pin_5,
+       comp.comp_document_num_1,
+       comp.comp_document_num_2,
+       comp.comp_document_num_3,
+       comp.comp_document_num_4,
+       comp.comp_document_num_5,
+       comp.comp_score_1,
+       comp.comp_score_2,
+       comp.comp_score_3,
+       comp.comp_score_4,
+       comp.comp_score_5,
+       comp.card
+     from model.comp as comp
+     where comp.run_id = {run_id}
+     and comp.pin in ({pin_labels$meta_pin*})
+     ",
+     .con = conn
+   )
+ )
 
   comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
