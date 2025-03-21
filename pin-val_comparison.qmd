@@ -136,10 +136,10 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   # Validation checks - we want card to be empty unless the PIN has more than 4 cards
   if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
-    stop("Error: For rows with total_cards <= 3, primary_card should be NA.")
+    stop("Error: For PINs with <= 3 cards,  the `pin_{x}_card_num` param must be empty.")
   }
   if (nrow(pin_labels %>% filter(total_cards >= 4 & is.na(primary_card))) > 0) {
-    stop("Error: For rows with total_cards >= 4, primary_card should have a value.")
+    stop("Error: For PINs with >= 4 cards, the `pin_{x}_card_num` param must have a value.")
   }
 
   # Add primary card for single card PINs
