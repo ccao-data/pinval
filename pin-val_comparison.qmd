@@ -276,10 +276,10 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
- comps <- dbGetQuery(
-   conn,
-   glue_sql(
-     "
+  comps <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
      select
        comp.pin,
        comp.comp_pin_1,
@@ -302,9 +302,9 @@ if (all(map_lgl(cache_files, file.exists))) {
      where comp.run_id = {run_id}
      and comp.pin in ({pin_labels$meta_pin*})
      ",
-     .con = conn
-   )
- )
+      .con = conn
+    )
+  )
 
   comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
