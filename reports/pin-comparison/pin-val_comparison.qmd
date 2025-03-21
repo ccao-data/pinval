@@ -578,7 +578,6 @@ datatable(
     "pin",
     backgroundColor = styleEqual(unique_pins, pin_colors)
   )
-
 ```
 
 ### SHAP Values
