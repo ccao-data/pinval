@@ -45,37 +45,37 @@ conn <- dbConnect(noctua::athena(),
 
 
 ```{r setup}
-# helps with NULL values for pin_x_card_num
+# Helper function to handle NULL or empty values
 coalesce_empty <- function(x) {
   if (is.null(x) || length(x) == 0) "" else x
 }
 
-base_cache_file_path <- glue::glue(
-  "reports/pin_comparison/cache/{coalesce_empty(params$run_id)}_",
+# Build a unique folder name using the provided parameters
+unique_folder <- glue::glue(
+  "{coalesce_empty(params$run_id)}_",
   "{coalesce_empty(params$pin1)}_",
   "{coalesce_empty(params$pin_1_card_num)}_",
   "{coalesce_empty(params$pin2)}_",
   "{coalesce_empty(params$pin_2_card_num)}"
 )
 
-dir.create(dirname(base_cache_file_path), recursive = TRUE, showWarnings = FALSE)
+# Create the base cache directory inside the "cache" folder
+base_cache_dir <- file.path("cache", unique_folder)
+dir.create(base_cache_dir, recursive = TRUE, showWarnings = FALSE)
 
-
+# Define file paths for the cache files inside the unique folder
 cache_files <- list(
-  char       = glue::glue("{base_cache_file_path}/char.parquet"),
-  value      = glue::glue("{base_cache_file_path}/value.parquet"),
-  shap       = glue::glue("{base_cache_file_path}/shap.parquet"),
-  address    = glue::glue("{base_cache_file_path}/address.parquet"),
-  sales      = glue::glue("{base_cache_file_path}/sales.parquet")
+  char    = file.path(base_cache_dir, "char.parquet"),
+  value   = file.path(base_cache_dir, "value.parquet"),
+  shap    = file.path(base_cache_dir, "shap.parquet"),
+  address = file.path(base_cache_dir, "address.parquet"),
+  sales   = file.path(base_cache_dir, "sales.parquet")
 )
 
-if (!dir.exists("cache")) {
-  dir.create("cache", recursive = TRUE)
-}
-
+# Check if the unique folder already exists and if all cache files are present
 if (all(map_lgl(cache_files, file.exists))) {
   message("All cache files found. Reading from disk...")
-
+  
   char <- read_parquet(cache_files$char)
   value <- read_parquet(cache_files$value)
   shap <- read_parquet(cache_files$shap)
@@ -83,37 +83,34 @@ if (all(map_lgl(cache_files, file.exists))) {
   sales <- read_parquet(cache_files$sales)
 } else {
   message("Some or all cache files are missing. Running queries and creating them...")
-
+  
   run_id <- params$run_id
-  year <- run_id %>% substr(1, 4)
-
+  year <- substr(run_id, 1, 4)
+  
   na_if_null <- function(x) {
     if (is.null(x)) NA else x
   }
-
+  
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
-    # Initial primary card should only be input if it has to be specified
     primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
-
+  
   metadata <- dbGetQuery(
     conn,
     glue(
-      "
-      select
-        dvc_md5_assessment_data,
-        model_predictor_all_name
-      from model.metadata
-      where run_id = '{run_id}'
-      limit 1
-      "
+      "select
+         dvc_md5_assessment_data,
+         model_predictor_all_name
+       from model.metadata
+       where run_id = '{run_id}'
+       limit 1"
     )
   )
-
+  
   model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
   model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
-
+  
   char <- open_dataset(
     paste0(
       "s3://ccao-data-dvc-us-east-1/files/md5/",
@@ -128,7 +125,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       meta_card_num,
       all_of(model_predictor_all_name)
     )
-
+  
   pin_labels <- pin_labels %>%
     left_join(
       char %>%
@@ -136,26 +133,23 @@ if (all(map_lgl(cache_files, file.exists))) {
         summarise(total_cards = n_distinct(meta_card_num)),
       by = "meta_pin"
     )
-
-  # Validation checks - we want card to be empty unless the PIN has more than 4 cards
+  
   if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
-    stop("Error: For PINs with <= 3 cards,  the `pin_{x}_card_num` param must be empty.")
+    stop("Error: For PINs with <= 3 cards, the `pin_{x}_card_num` param must be empty.")
   }
   if (nrow(pin_labels %>% filter(total_cards >= 4 & is.na(primary_card))) > 0) {
     stop("Error: For PINs with >= 4 cards, the `pin_{x}_card_num` param must have a value.")
   }
-
-  # Add primary card for single card PINs
+  
   pin_labels <- pin_labels %>%
     mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
-
+  
   char <- char %>%
     left_join(pin_labels %>% select(meta_pin, primary_card, total_cards), by = "meta_pin") %>%
     group_by(meta_pin) %>%
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
       target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
-      # If it is a 2 or 3 card property, we want to keep the max as the primary card and sum the sq footage
       is_target = total_cards %in% c(2, 3) & (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
       primary_card = if_else(is_target, meta_card_num, as.character(primary_card)),
       char_bldg_sf = if_else(is_target, sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
@@ -163,7 +157,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     ungroup() %>%
     filter(primary_card == meta_card_num) %>%
     select(-c("meta_card_num", "total_cards", "is_target", "max_sf", "target_meta"))
-
+  
   pin_labels <- pin_labels %>%
     left_join(
       char %>% select(meta_pin, primary_card) %>% distinct(),
@@ -175,47 +169,43 @@ if (all(map_lgl(cache_files, file.exists))) {
       primary_card = coalesce(primary_card, primary_card.computed)
     ) %>%
     select(-primary_card.computed)
-
+  
   value <- dbGetQuery(
     conn,
     glue_sql(
-      "
-      select
-        card.meta_pin,
-        card.meta_card_num,
-        card.pred_card_initial_fmv,
-        pin.pred_pin_final_fmv_round
-      from model.assessment_card as card
-      left join model.assessment_pin as pin
-        on card.meta_pin = pin.meta_pin
-        and card.meta_year = pin.meta_year
-        and card.run_id = pin.run_id
-      where card.run_id = {run_id}
-      and card.meta_pin in ({pin_labels$meta_pin*})
-      ",
+      "select
+         card.meta_pin,
+         card.meta_card_num,
+         card.pred_card_initial_fmv,
+         pin.pred_pin_final_fmv_round
+       from model.assessment_card as card
+       left join model.assessment_pin as pin
+         on card.meta_pin = pin.meta_pin
+         and card.meta_year = pin.meta_year
+         and card.run_id = pin.run_id
+       where card.run_id = {run_id}
+         and card.meta_pin in ({pin_labels$meta_pin*})",
       .con = conn
     )
   )
-
+  
   value <- value %>%
     left_join(pin_labels, by = c("meta_pin"))
-
+  
   shap <- dbGetQuery(
     conn,
     glue_sql(
-      "
-      select
-        meta_pin,
-        meta_card_num,
-        {`model_predictor_all_name`*}
-      from model.shap
-      where run_id = {run_id}
-        and meta_pin in ({pin_labels$meta_pin*})
-      ",
+      "select
+         meta_pin,
+         meta_card_num,
+         {`model_predictor_all_name`*}
+       from model.shap
+       where run_id = {run_id}
+         and meta_pin in ({pin_labels$meta_pin*})",
       .con = conn
     )
   )
-
+  
   shap <- shap %>%
     left_join(pin_labels, by = c("meta_pin")) %>%
     filter(primary_card == meta_card_num) %>%
@@ -231,26 +221,24 @@ if (all(map_lgl(cache_files, file.exists))) {
       values_from = Value
     ) %>%
     mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
-
+  
   address <- dbGetQuery(
     conn,
     glue_sql(
-      "
-      select
-        pin,
-        year,
-        prop_address_full,
-        prop_address_city_name,
-        prop_address_state,
-        prop_address_zipcode_1
-      from default.vw_pin_address
-      where pin in ({pin_labels$meta_pin*})
-      and year = {year}
-      ",
+      "select
+         pin,
+         year,
+         prop_address_full,
+         prop_address_city_name,
+         prop_address_state,
+         prop_address_zipcode_1
+       from default.vw_pin_address
+       where pin in ({pin_labels$meta_pin*})
+         and year = {year}",
       .con = conn
     )
   )
-
+  
   address <- address %>%
     mutate(full_address = paste(
       prop_address_full,
@@ -260,70 +248,63 @@ if (all(map_lgl(cache_files, file.exists))) {
       sep = ", "
     )) %>%
     select(pin, full_address)
-
+  
   sales <- dbGetQuery(
     conn,
     glue_sql(
-      "
-      select
-        pin,
-        year,
-        sale_date,
-        doc_no,
-        sale_price,
-        sv_is_outlier
-      from default.vw_pin_sale
-      where pin in ({pin_labels$meta_pin*})
-      ",
+      "select
+         pin,
+         year,
+         sale_date,
+         doc_no,
+         sale_price,
+         sv_is_outlier
+       from default.vw_pin_sale
+       where pin in ({pin_labels$meta_pin*})",
       .con = conn
     )
   )
-
+  
   comps <- dbGetQuery(
     conn,
     glue_sql(
-      "
-     select
-       comp.pin,
-       comp.comp_pin_1,
-       comp.comp_pin_2,
-       comp.comp_pin_3,
-       comp.comp_pin_4,
-       comp.comp_pin_5,
-       comp.comp_document_num_1,
-       comp.comp_document_num_2,
-       comp.comp_document_num_3,
-       comp.comp_document_num_4,
-       comp.comp_document_num_5,
-       comp.comp_score_1,
-       comp.comp_score_2,
-       comp.comp_score_3,
-       comp.comp_score_4,
-       comp.comp_score_5,
-       comp.card
-     from model.comp as comp
-     where comp.run_id = {run_id}
-     and comp.pin in ({pin_labels$meta_pin*})
-     ",
+      "select
+         comp.pin,
+         comp.comp_pin_1,
+         comp.comp_pin_2,
+         comp.comp_pin_3,
+         comp.comp_pin_4,
+         comp.comp_pin_5,
+         comp.comp_document_num_1,
+         comp.comp_document_num_2,
+         comp.comp_document_num_3,
+         comp.comp_document_num_4,
+         comp.comp_document_num_5,
+         comp.comp_score_1,
+         comp.comp_score_2,
+         comp.comp_score_3,
+         comp.comp_score_4,
+         comp.comp_score_5,
+         comp.card
+       from model.comp as comp
+       where comp.run_id = {run_id}
+         and comp.pin in ({pin_labels$meta_pin*})",
       .con = conn
     )
   )
-
+  
   comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
     filter(primary_card == card) %>%
     select(-primary_card) %>%
-    # Create a row_id to know the order of rows
     mutate(row_id = row_number()) %>%
-    # For exactly two rows: if row 1 then inverse_pin is the next row's pin; if row 2 then inverse_pin is the previous row's pin
     mutate(inverse_pin = if_else(row_id == 1, lead(pin, 1), lag(pin, 1)))
-
+  
   comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
-
+  
   comps <- comps %>%
     rowwise() %>%
     mutate(
-      # Use inverse_pin to find the matching index among comp_pin columns
       matching_index = {
         idx <- which(c_across(starts_with("comp_pin")) == inverse_pin)
         if (length(idx) > 0) idx[1] else NA_integer_
@@ -357,22 +338,21 @@ if (all(map_lgl(cache_files, file.exists))) {
     })) %>%
     ungroup() %>%
     mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
-
-  # Join with sales using both pin and doc_no matching comp_doc_no
+  
   sales <- sales %>%
     left_join(comps, by = c("pin" = "inverse_pin", "doc_no" = "comp_doc_no")) %>%
-    mutate(
-      sale_date = substr(sale_date, 1, 10)
-    ) %>%
+    mutate(sale_date = substr(sale_date, 1, 10)) %>%
     select(pin, sale_date, sale_price, sv_is_outlier, doc_no, comp_score, comp_number) %>%
     arrange(desc(sale_date))
-
+  
+  # Write the cache files into the unique folder
   write_parquet(char, cache_files$char)
   write_parquet(value, cache_files$value)
   write_parquet(shap, cache_files$shap)
   write_parquet(address, cache_files$address)
   write_parquet(sales, cache_files$sales)
 }
+
 ```
 
 Comparison between PINs `r params$pin1` and `r params$pin2`
