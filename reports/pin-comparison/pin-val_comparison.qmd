@@ -36,7 +36,7 @@ library(sf)
 library(stringr)
 library(tidyr)
 
-noctua_options(cache_size = 10, unload = FALSE)
+noctua_options(cache_size = 10)
 
 conn <- dbConnect(noctua::athena(),
   rstudio_conn_tab = FALSE
@@ -51,12 +51,15 @@ coalesce_empty <- function(x) {
 }
 
 base_cache_file_path <- glue::glue(
-  "cache/{coalesce_empty(params$run_id)}_",
+  "reports/pin_comparison/cache/{coalesce_empty(params$run_id)}_",
   "{coalesce_empty(params$pin1)}_",
   "{coalesce_empty(params$pin_1_card_num)}_",
   "{coalesce_empty(params$pin2)}_",
   "{coalesce_empty(params$pin_2_card_num)}"
 )
+
+dir.create(dirname(base_cache_file_path), recursive = TRUE, showWarnings = FALSE)
+
 
 cache_files <- list(
   char       = glue::glue("{base_cache_file_path}/char.parquet"),
@@ -550,11 +553,20 @@ Each sale is marked with a checkmark if it is used as a comp sale for the recipo
 sales <- sales %>%
   mutate(
     other_pin_is_comp = ifelse(!is.na(comp_number), "✅", ""),
-    sale_price = dollar(as.numeric(sale_price))
+    sale_price = dollar(as.numeric(sale_price)),
+    color = ifelse(
+      pin == params$pin1, "red",
+      ifelse(pin == params$pin2, "blue", "green")
+    )
   )
 
+# Get the unique pins and derive their corresponding colors
 unique_pins <- unique(sales$pin)
-colors <- rainbow(length(unique_pins))
+pin_colors <- sapply(unique_pins, function(p) {
+  # It’s assumed that every pin has a unique color.
+  unique(sales$color[sales$pin == p])
+})
+
 datatable(
   sales,
   options = list(
@@ -564,8 +576,9 @@ datatable(
 ) %>%
   formatStyle(
     "pin",
-    backgroundColor = styleEqual(unique_pins, colors)
+    backgroundColor = styleEqual(unique_pins, pin_colors)
   )
+
 ```
 
 ### SHAP Values
