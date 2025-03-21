@@ -568,6 +568,8 @@ datatable_obj
 ### SHAP Values
 
 ```{r SHAPs}
+# | column: screen-inset
+
 shap %>%
   ggplot(aes(
     y = `Feature Name`,
