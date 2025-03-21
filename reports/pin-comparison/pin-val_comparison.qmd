@@ -4,7 +4,7 @@ params:
   run_id: "2025-02-11-charming-eric"
   pin1: "01282010070000"
   pin_1_card_num:
-  pin2: "01282080070000"
+  pin2: "16251120630000"
   pin_2_card_num:
 execute:
   echo: false
@@ -75,7 +75,7 @@ cache_files <- list(
 # Check if the unique folder already exists and if all cache files are present
 if (all(map_lgl(cache_files, file.exists))) {
   message("All cache files found. Reading from disk...")
-  
+
   char <- read_parquet(cache_files$char)
   value <- read_parquet(cache_files$value)
   shap <- read_parquet(cache_files$shap)
@@ -83,19 +83,19 @@ if (all(map_lgl(cache_files, file.exists))) {
   sales <- read_parquet(cache_files$sales)
 } else {
   message("Some or all cache files are missing. Running queries and creating them...")
-  
+
   run_id <- params$run_id
   year <- substr(run_id, 1, 4)
-  
+
   na_if_null <- function(x) {
     if (is.null(x)) NA else x
   }
-  
+
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
     primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
   )
-  
+
   metadata <- dbGetQuery(
     conn,
     glue(
@@ -107,10 +107,10 @@ if (all(map_lgl(cache_files, file.exists))) {
        limit 1"
     )
   )
-  
+
   model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
   model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
-  
+
   char <- open_dataset(
     paste0(
       "s3://ccao-data-dvc-us-east-1/files/md5/",
@@ -125,7 +125,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       meta_card_num,
       all_of(model_predictor_all_name)
     )
-  
+
   pin_labels <- pin_labels %>%
     left_join(
       char %>%
@@ -133,17 +133,17 @@ if (all(map_lgl(cache_files, file.exists))) {
         summarise(total_cards = n_distinct(meta_card_num)),
       by = "meta_pin"
     )
-  
+
   if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
     stop("Error: For PINs with <= 3 cards, the `pin_{x}_card_num` param must be empty.")
   }
   if (nrow(pin_labels %>% filter(total_cards >= 4 & is.na(primary_card))) > 0) {
     stop("Error: For PINs with >= 4 cards, the `pin_{x}_card_num` param must have a value.")
   }
-  
+
   pin_labels <- pin_labels %>%
     mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
-  
+
   char <- char %>%
     left_join(pin_labels %>% select(meta_pin, primary_card, total_cards), by = "meta_pin") %>%
     group_by(meta_pin) %>%
@@ -157,7 +157,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     ungroup() %>%
     filter(primary_card == meta_card_num) %>%
     select(-c("meta_card_num", "total_cards", "is_target", "max_sf", "target_meta"))
-  
+
   pin_labels <- pin_labels %>%
     left_join(
       char %>% select(meta_pin, primary_card) %>% distinct(),
@@ -169,7 +169,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       primary_card = coalesce(primary_card, primary_card.computed)
     ) %>%
     select(-primary_card.computed)
-  
+
   value <- dbGetQuery(
     conn,
     glue_sql(
@@ -188,10 +188,10 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
-  
+
   value <- value %>%
     left_join(pin_labels, by = c("meta_pin"))
-  
+
   shap <- dbGetQuery(
     conn,
     glue_sql(
@@ -205,7 +205,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
-  
+
   shap <- shap %>%
     left_join(pin_labels, by = c("meta_pin")) %>%
     filter(primary_card == meta_card_num) %>%
@@ -221,7 +221,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       values_from = Value
     ) %>%
     mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
-  
+
   address <- dbGetQuery(
     conn,
     glue_sql(
@@ -238,7 +238,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
-  
+
   address <- address %>%
     mutate(full_address = paste(
       prop_address_full,
@@ -248,7 +248,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       sep = ", "
     )) %>%
     select(pin, full_address)
-  
+
   sales <- dbGetQuery(
     conn,
     glue_sql(
@@ -264,7 +264,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
-  
+
   comps <- dbGetQuery(
     conn,
     glue_sql(
@@ -292,16 +292,16 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
-  
+
   comps <- comps %>%
     left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
     filter(primary_card == card) %>%
     select(-primary_card) %>%
     mutate(row_id = row_number()) %>%
     mutate(inverse_pin = if_else(row_id == 1, lead(pin, 1), lag(pin, 1)))
-  
+
   comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
-  
+
   comps <- comps %>%
     rowwise() %>%
     mutate(
@@ -338,13 +338,13 @@ if (all(map_lgl(cache_files, file.exists))) {
     })) %>%
     ungroup() %>%
     mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
-  
+
   sales <- sales %>%
     left_join(comps, by = c("pin" = "inverse_pin", "doc_no" = "comp_doc_no")) %>%
     mutate(sale_date = substr(sale_date, 1, 10)) %>%
     select(pin, sale_date, sale_price, sv_is_outlier, doc_no, comp_score, comp_number) %>%
     arrange(desc(sale_date))
-  
+
   # Write the cache files into the unique folder
   write_parquet(char, cache_files$char)
   write_parquet(value, cache_files$value)
@@ -352,7 +352,6 @@ if (all(map_lgl(cache_files, file.exists))) {
   write_parquet(address, cache_files$address)
   write_parquet(sales, cache_files$sales)
 }
-
 ```
 
 Comparison between PINs `r params$pin1` and `r params$pin2`
@@ -396,9 +395,11 @@ char %>%
 
 ### Predicted Values
 
-If either PIN is a multi-card, values are produced with all cards summed as well as those of the target card.
-
 ```{r predicted_values}
+if (any(value$total_cards > 1, na.rm = TRUE)) {
+  cat("If either PIN is a multi-card, values are produced with all cards summed as well as those of the target card.\n")
+}
+
 if (any(value$total_cards > 1, na.rm = TRUE)) {
   # Create the summary for the primary card
   summary_primary <- value %>%
@@ -484,9 +485,16 @@ datatable(final_table, rownames = FALSE, options = list(dom = "t"))
 
 ### Feature differences between the two PINs
 
-Note that for PINs with 2 or 3 cards, the building square footage is summed. For these PINs, they are pulled from the larger of the PINs. This coincides with our modeling techniques. For PINs with 4 or more pins, we pull the features from the target card identified in the params.
 
 ```{r feature_comparison, out.width="90%"}
+if (any(value$total_cards %in% c(2, 3), na.rm = TRUE)) {
+  cat("If PIN has 2 or 3 cards, we select values from the card with a larger sq. footage. Ties are broke by the lower pin number. Square footage is summed in accordance with our modeling technique.\n")
+}
+
+if (any(value$total_cards > 3, na.rm = TRUE)) {
+  cat("If a PIN has 4 or more cards, we use features from the target card.\n")
+}
+
 char_fmt <- char %>%
   select(-primary_card) %>%
   # Convert everything to character so that we can pivot and combine feature value columns
@@ -543,15 +551,20 @@ sales <- sales %>%
 # Get the unique pins and derive their corresponding colors
 unique_pins <- unique(sales$pin)
 pin_colors <- sapply(unique_pins, function(p) {
-  # It’s assumed that every pin has a unique color.
   unique(sales$color[sales$pin == p])
 })
+
+sales <- sales %>%
+  select(-color)
 
 datatable(
   sales,
   options = list(
     order = list(list(1, "desc")),
-    scrollX = TRUE
+    scrollX = TRUE,
+    columnDefs = list(
+      list(visible = FALSE, targets = which(names(sales) == "color") - 1)
+    )
   )
 ) %>%
   formatStyle(
