@@ -483,7 +483,7 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
 datatable(final_table, rownames = FALSE, options = list(dom = "t"))
 ```
 
-### Feature differences between the two PINs
+### Feature Differences Between the two PINs
 
 
 ```{r feature_comparison, out.width="90%"}
