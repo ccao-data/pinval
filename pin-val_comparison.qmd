@@ -59,11 +59,11 @@ base_cache_file_path <- glue::glue(
 )
 
 cache_files <- list(
-  char       = glue::glue("{base_cache_file_path}_char.parquet"),
-  value      = glue::glue("{base_cache_file_path}_value.parquet"),
-  shap       = glue::glue("{base_cache_file_path}_shap.parquet"),
-  address    = glue::glue("{base_cache_file_path}_address.parquet"),
-  sales      = glue::glue("{base_cache_file_path}_sales.parquet")
+  char       = glue::glue("{base_cache_file_path}/char.parquet"),
+  value      = glue::glue("{base_cache_file_path}/value.parquet"),
+  shap       = glue::glue("{base_cache_file_path}/shap.parquet"),
+  address    = glue::glue("{base_cache_file_path}/address.parquet"),
+  sales      = glue::glue("{base_cache_file_path}/sales.parquet")
 )
 
 if (!dir.exists("cache")) {
