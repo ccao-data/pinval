@@ -20,7 +20,6 @@ format:
 
 ```{r load_libraries}
 library(arrow)
-library(ccao)
 library(dplyr)
 library(DT)
 library(ggalt)
