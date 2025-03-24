@@ -545,7 +545,8 @@ sales <- sales %>%
       pin == params$pin1, "red",
       ifelse(pin == params$pin2, "blue", "green")
     )
-  )
+  ) %>%
+  relocate(other_pin_is_comp , .after = sv_is_outlier)
 
 # Get the unique pins and derive their corresponding colors
 unique_pins <- unique(sales$pin)
