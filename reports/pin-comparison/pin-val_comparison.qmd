@@ -2,9 +2,9 @@
 title: "Pin Comparison Doc"
 params:
   run_id: "2025-02-11-charming-eric"
-  pin1: "01282010070000"
+  pin1: "04263060200000"
   pin_1_card_num:
-  pin2: "16251120630000"
+  pin2: "04263040310000"
   pin_2_card_num:
 execute:
   echo: false
@@ -249,101 +249,99 @@ if (all(map_lgl(cache_files, file.exists))) {
     )) %>%
     select(pin, full_address)
 
+  # Query the sales data
   sales <- dbGetQuery(
     conn,
     glue_sql(
       "select
-         pin,
-         year,
-         sale_date,
-         doc_no,
-         sale_price,
-         sv_is_outlier
-       from default.vw_pin_sale
-       where pin in ({pin_labels$meta_pin*})",
+       pin,
+       year,
+       sale_date,
+       doc_no,
+       sale_price,
+       sv_is_outlier
+     from default.vw_pin_sale
+     where pin in ({pin_labels$meta_pin*})",
       .con = conn
     )
   )
 
+  # Query the comps data
   comps <- dbGetQuery(
     conn,
     glue_sql(
       "select
-         comp.pin,
-         comp.comp_pin_1,
-         comp.comp_pin_2,
-         comp.comp_pin_3,
-         comp.comp_pin_4,
-         comp.comp_pin_5,
-         comp.comp_document_num_1,
-         comp.comp_document_num_2,
-         comp.comp_document_num_3,
-         comp.comp_document_num_4,
-         comp.comp_document_num_5,
-         comp.comp_score_1,
-         comp.comp_score_2,
-         comp.comp_score_3,
-         comp.comp_score_4,
-         comp.comp_score_5,
-         comp.card
-       from model.comp as comp
-       where comp.run_id = {run_id}
-         and comp.pin in ({pin_labels$meta_pin*})",
+       comp.pin,
+       comp.comp_pin_1,
+       comp.comp_pin_2,
+       comp.comp_pin_3,
+       comp.comp_pin_4,
+       comp.comp_pin_5,
+       comp.comp_document_num_1,
+       comp.comp_document_num_2,
+       comp.comp_document_num_3,
+       comp.comp_document_num_4,
+       comp.comp_document_num_5,
+       comp.comp_score_1,
+       comp.comp_score_2,
+       comp.comp_score_3,
+       comp.comp_score_4,
+       comp.comp_score_5,
+       comp.card
+     from model.comp as comp
+     where comp.run_id = {run_id}
+       and comp.pin in ({pin_labels$meta_pin*})",
       .con = conn
     )
   )
 
+  # Identify the appended comp_pin columns (e.g. "comp_pin_1", "comp_pin_2", etc.)
+  comp_pin_cols <- grep("^comp_pin_", names(comps), value = TRUE)
+
+  # For each appended comp_pin column, create new columns for the document number and comp score
+  # if the comp_pin value matches a primary pin.
+  for (col in comp_pin_cols) {
+    # Extract the comp_number number from the column name (e.g. "1" from "comp_pin_1")
+    comp_number <- sub("comp_pin_", "", col)
+
+    # Build the corresponding column names for document number and comp score
+    doc_no_col <- paste0("comp_document_num_", comp_number)
+    score_col <- paste0("comp_score_", comp_number)
+
+    # Create new columns with a prefix "matched_"
+    comps <- comps %>%
+      mutate(
+        # If the comp_pin value is not NA, is different from the current row's primary pin,
+        # and appears in the list of primary pins, then copy the corresponding doc_no value;
+        # otherwise, set to NA.
+        !!paste0("matched_doc_no_", comp_number) := if_else(
+          !is.na(.data[[col]]) & (.data[[col]] != pin) & (.data[[col]] %in% pin_labels$meta_pin),
+          as.character(.data[[doc_no_col]]),
+          NA_character_
+        ),
+        !!paste0("matched_comp_score_", comp_number) := if_else(
+          !is.na(.data[[col]]) & (.data[[col]] != pin) & (.data[[col]] %in% pin_labels$meta_pin),
+          .data[[score_col]],
+          NA_real_
+        )
+      )
+  }
+
+  # Pivot the matched columns together using a names_pattern
   comps <- comps %>%
-    left_join(pin_labels, by = c("pin" = "meta_pin")) %>%
-    filter(primary_card == card) %>%
-    select(-primary_card) %>%
-    mutate(row_id = row_number()) %>%
-    mutate(inverse_pin = if_else(row_id == 1, lead(pin, 1), lag(pin, 1)))
-
-  comp_pin_names <- names(comps)[grepl("^comp_pin", names(comps))]
-
-  comps <- comps %>%
-    rowwise() %>%
-    mutate(
-      matching_index = {
-        idx <- which(c_across(starts_with("comp_pin")) == inverse_pin)
-        if (length(idx) > 0) idx[1] else NA_integer_
-      },
-      comp_score = if (!is.na(matching_index)) {
-        c_across(starts_with("comp_score_"))[matching_index]
-      } else {
-        NA_real_
-      },
-      comp_number = if (!is.na(matching_index)) {
-        sub("comp_pin_", "", comp_pin_names[matching_index])
-      } else {
-        NA_character_
-      },
-      comp_doc_no = if (!is.na(matching_index)) {
-        as.character(c_across(starts_with("comp_document_num_"))[matching_index])
-      } else {
-        NA_character_
-      }
+    pivot_longer(
+      cols = matches("^matched_(doc_no|comp_score)_"),
+      names_to = c(".value", "comp_number"),
+      names_pattern = "matched_(doc_no|comp_score)_(.*)"
     ) %>%
-    ungroup() %>%
-    mutate(
-      pin = as.character(pin)
-    ) %>%
-    rowwise() %>%
-    mutate(comp_pins = list(as.character(c_across(starts_with("comp_pin"))))) %>%
-    ungroup() %>%
-    group_by(dummy = 1) %>%
-    mutate(other_comp_pins = map(row_id, ~ {
-      unique(unlist(comp_pins[row_id != .x]))
-    })) %>%
-    ungroup() %>%
-    mutate(pin_in_other_row = map2_lgl(pin, other_comp_pins, ~ .x %in% .y))
+    select(-pin)
 
+  # Now merge with sales based on doc_no.
+  # This join will add the comp_number and its comp_score to the sale row.
   sales <- sales %>%
-    left_join(comps, by = c("pin" = "inverse_pin", "doc_no" = "comp_doc_no")) %>%
-    mutate(sale_date = substr(sale_date, 1, 10)) %>%
-    select(pin, sale_date, sale_price, sv_is_outlier, doc_no, comp_score, comp_number) %>%
-    arrange(desc(sale_date))
+    left_join(comps, by = "doc_no") %>%
+    arrange(desc(sale_date)) %>%
+    select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier, comp_number, comp_score)
 
   # Write the cache files into the unique folder
   write_parquet(char, cache_files$char)
@@ -542,6 +540,8 @@ sales <- sales %>%
   mutate(
     other_pin_is_comp = ifelse(!is.na(comp_number), "✅", ""),
     sale_price = dollar(as.numeric(sale_price)),
+    comp_score = round(comp_score, 4),
+    sale_date = substr(sale_date, 1, 10),
     color = ifelse(
       pin == params$pin1, "red",
       ifelse(pin == params$pin2, "blue", "green")
@@ -555,12 +555,12 @@ pin_colors <- sapply(unique_pins, function(p) {
 })
 
 sales <- sales %>%
-  select(-color)
+  select(-color) %>%
+  arrange(desc(sale_date))
 
 datatable(
   sales,
   options = list(
-    order = list(list(1, "desc")),
     scrollX = TRUE,
     columnDefs = list(
       list(visible = FALSE, targets = which(names(sales) == "color") - 1)
