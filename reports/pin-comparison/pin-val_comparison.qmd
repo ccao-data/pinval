@@ -351,7 +351,7 @@ if (all(map_lgl(cache_files, file.exists))) {
 }
 ```
 
-Comparison between PINs `r params$pin1` and `r params$pin2`
+Comparison between PINs <span style="color: red;">`r params$pin1`</span> and <span style="color: blue;">`r params$pin2`</span>
 
 ### Map of PINs
 
