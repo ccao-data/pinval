@@ -2,7 +2,7 @@
 title: "Pin Comparison Doc"
 params:
   run_id: "2025-02-11-charming-eric"
-  pin1: "16071030180000"
+  pin1: "04263040380000"
   pin_1_card_num:
   pin2: "04263040310000"
   pin_2_card_num:
@@ -340,7 +340,10 @@ if (all(map_lgl(cache_files, file.exists))) {
   sales <- sales %>%
     left_join(comps, by = "doc_no") %>%
     arrange(desc(sale_date)) %>%
-    select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier, comp_number, comp_score)
+    select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
+      other_pin_comp_number = comp_number,
+      other_pin_comp_score = comp_score
+    )
 
   # Write the cache files into the unique folder
   write_parquet(char, cache_files$char)
@@ -477,7 +480,20 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
     ))
 }
 # Formatting is outside since it doesn't render properly inside
-datatable(final_table, rownames = FALSE, options = list(dom = "t"))
+datatable(
+  final_table,
+  rownames = FALSE,
+  options = list(
+    dom = "t",
+    headerCallback = JS(sprintf(
+      "function(thead, data, start, end, display) {
+         $('th:contains(\"%s\")', thead).css('color', 'red');
+         $('th:contains(\"%s\")', thead).css('color', 'blue');
+       }",
+      params$pin1, params$pin2
+    ))
+  )
+)
 ```
 
 ### Feature Differences Between the two PINs
@@ -516,14 +532,23 @@ char_fmt <- char %>%
   ) %>%
   arrange(`PINs Match`)
 
-char_fmt %>%
-  datatable(
-    options = list(
-      paging = FALSE,
-      scrollX = TRUE,
-      scrollY = "400px"
-    )
-  ) %>%
+datatable(
+  char_fmt,
+  options = list(
+    paging = FALSE,
+    scrollX = TRUE,
+    scrollY = "400px",
+    # Use a headerCallback to color the header cells only
+    headerCallback = JS(sprintf(
+      "function(thead, data, start, end, display) {
+         $('th:contains(\"%s\")', thead).css('color', 'red');
+         $('th:contains(\"%s\")', thead).css('color', 'blue');
+       }",
+      params$pin1, params$pin2
+    ))
+  )
+) %>%
+  # Keep your PINs Match color formatting
   formatStyle(
     "PINs Match",
     backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
@@ -537,9 +562,9 @@ Each sale is marked with a checkmark if it is used as a comp sale for the recipo
 ```{r sales}
 sales <- sales %>%
   mutate(
-    other_pin_is_comp = ifelse(!is.na(comp_number), "✅", ""),
+    other_pin_is_comp = ifelse(!is.na(other_pin_comp_number), "✅", ""),
     sale_price = dollar(as.numeric(sale_price)),
-    comp_score = round(comp_score, 4),
+    other_pin_comp_score = round(other_pin_comp_score, 4),
     sale_date = substr(sale_date, 1, 10),
     color = ifelse(
       pin == params$pin1, "red",
@@ -563,6 +588,7 @@ datatable(
   options = list(
     scrollX = TRUE,
     columnDefs = list(
+      # Hide the "color" column
       list(visible = FALSE, targets = which(names(sales) == "color") - 1)
     )
   )
