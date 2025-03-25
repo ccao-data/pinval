@@ -2,7 +2,7 @@
 title: "Pin Comparison Doc"
 params:
   run_id: "2025-02-11-charming-eric"
-  pin1: "04263060200000"
+  pin1: "16071030180000"
   pin_1_card_num:
   pin2: "04263040310000"
   pin_2_card_num:
@@ -546,7 +546,7 @@ sales <- sales %>%
       ifelse(pin == params$pin2, "blue", "green")
     )
   ) %>%
-  relocate(other_pin_is_comp , .after = sv_is_outlier)
+  relocate(other_pin_is_comp, .after = sv_is_outlier)
 
 # Get the unique pins and derive their corresponding colors
 unique_pins <- unique(sales$pin)
