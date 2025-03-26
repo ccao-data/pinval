@@ -395,11 +395,9 @@ char %>%
 
 ### Predicted Values
 
-```{r predicted_values}
-if (any(value$total_cards > 1, na.rm = TRUE)) {
-  cat("If either PIN is a multi-card, values are produced with all cards summed as well as those of the target card.\n")
-}
+`r if (any(value$total_cards > 1, na.rm = TRUE)) 'For multicard PINs, "total" values represent the sum of values across all cards in the PIN.'`
 
+```{r predicted_values}
 if (any(value$total_cards > 1, na.rm = TRUE)) {
   # Create the summary for the primary card
   summary_primary <- value %>%
