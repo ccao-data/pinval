@@ -510,6 +510,8 @@ if (any(value$total_cards > 3, na.rm = TRUE)) {
 
 char_fmt <- char %>%
   select(-primary_card) %>%
+  # Convert characteristic codes to human-readable values
+  ccao::vars_recode(code_type = "short") %>%
   # Convert everything to character so that we can pivot and combine feature value columns
   mutate(across(everything(), as.character)) %>%
   # Pivot long so that rows are features and columns are feature values.
