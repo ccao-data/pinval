@@ -2,9 +2,9 @@
 title: "PIN Comparison Doc"
 params:
   run_id: "2025-02-11-charming-eric"
-  pin1: "04263040380000"
+  pin1: "01011100120000"
   pin_1_card_num:
-  pin2: "04263040310000"
+  pin2: "01011250100000"
   pin_2_card_num:
 execute:
   echo: false
@@ -198,7 +198,8 @@ if (all(map_lgl(cache_files, file.exists))) {
       "select
          meta_pin,
          meta_card_num,
-         {`model_predictor_all_name`*}
+         {`model_predictor_all_name`*},
+         pred_card_shap_baseline_fmv
        from model.shap
        where run_id = {run_id}
          and meta_pin in ({pin_labels$meta_pin*})",
@@ -211,7 +212,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     filter(primary_card == meta_card_num) %>%
     select(-c("total_cards", "primary_card", "meta_card_num")) %>%
     pivot_longer(
-      cols = all_of(model_predictor_all_name),
+      cols = c(all_of(model_predictor_all_name), pred_card_shap_baseline_fmv),
       names_to = "Feature Name",
       values_to = "Value"
     ) %>%
@@ -486,8 +487,8 @@ datatable(
     dom = "t",
     headerCallback = JS(sprintf(
       "function(thead, data, start, end, display) {
-         $('th:contains(\"%s\")', thead).css('color', 'red');
-         $('th:contains(\"%s\")', thead).css('color', 'blue');
+         $('th:contains(\"%s\")', thead).css({'color': 'red', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color': 'blue', 'font-weight': 'bold'});
        }",
       params$pin1, params$pin2
     ))
@@ -537,7 +538,6 @@ datatable(
     paging = FALSE,
     scrollX = TRUE,
     scrollY = "400px",
-    # Use a headerCallback to color the header cells only
     headerCallback = JS(sprintf(
       "function(thead, data, start, end, display) {
          $('th:contains(\"%s\")', thead).css({'color': 'red', 'font-weight': 'bold'});
@@ -561,7 +561,7 @@ Each sale is marked with a checkmark if the model considers it to be a comp for 
 ```{r sales}
 sales <- sales %>%
   mutate(
-    other_pin_is_comp = ifelse(!is.na(other_pin_comp_number), "✅", ""),
+    is_comp = ifelse(!is.na(other_pin_comp_number), "✅", ""),
     sale_price = dollar(as.numeric(sale_price)),
     other_pin_comp_score = round(other_pin_comp_score, 4),
     sale_date = substr(sale_date, 1, 10),
@@ -570,7 +570,7 @@ sales <- sales %>%
       ifelse(pin == params$pin2, "blue", NA)
     )
   ) %>%
-  relocate(other_pin_is_comp, .after = sv_is_outlier)
+  relocate(is_comp, .after = sv_is_outlier)
 
 # Get the unique pins and derive their corresponding colors
 unique_pins <- unique(sales$pin)
@@ -603,12 +603,13 @@ datatable(
 
 ::: {.panel-tabset}
 
-### Raw SHAP Values
+### $ Values
 
 ```{r SHAPs}
 #| column: screen-inset
 
 shap %>%
+  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
   ggplot(aes(
     y = `Feature Name`,
     x = .data[[params$pin1]],
@@ -621,18 +622,21 @@ shap %>%
     colour_xend = "blue"
   ) +
   labs(
-    title = "SHAP differences between the two PINs",
     x = "SHAP Value",
     y = "Feature Name"
   ) +
+  scale_x_continuous(labels = scales::dollar_format()) +
   theme_minimal(base_size = 5)
 ```
-### Percent of Total Absolute SHAP Values
+### Value as a % of House Value
+Because SHAPs are Positive and Negative, Percentages do not = 100%
+
 ```{r}
 #| column: screen-inset
 
 shap %>%
-  mutate(across(2:3, ~ (. / sum(abs(.))) * 100)) %>%
+  mutate(across(where(is.numeric), ~ (. / sum(.)) * 100)) %>%
+  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
   ggplot(aes(
     y = `Feature Name`,
     x = .data[[params$pin1]],
@@ -645,9 +649,10 @@ shap %>%
     colour_xend = "blue"
   ) +
   labs(
-    x = "SHAP Value",
+    x = "Value as a % of Housing Values",
     y = "Feature Name"
   ) +
+  scale_x_continuous(labels = scales::percent_format(scale = 1)) +
   theme_minimal(base_size = 5)
 ```
 

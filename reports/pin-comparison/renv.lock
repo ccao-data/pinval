@@ -170,6 +170,22 @@
       ],
       "Hash": "50c838a310445e954bc13f26f26a6ecf"
     },
+    "assessr": {
+      "Package": "assessr",
+      "Version": "0.6.0",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "ccao-data",
+      "RemoteRepo": "assessr",
+      "RemoteRef": "master",
+      "RemoteSha": "6ae99ac69b6857e58dbb811e6c8c814865a89e57",
+      "Requirements": [
+        "R",
+        "stats"
+      ],
+      "Hash": "1ddda9ec5a9ca63ec34b08e3a503a7bf"
+    },
     "base64enc": {
       "Package": "base64enc",
       "Version": "0.1-3",
@@ -237,6 +253,27 @@
         "rlang"
       ],
       "Hash": "cd9a672193789068eb5a2aad65a0dedf"
+    },
+    "ccao": {
+      "Package": "ccao",
+      "Version": "1.3.0",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "ccao-data",
+      "RemoteRepo": "ccao",
+      "RemoteRef": "master",
+      "RemoteSha": "e97bab236d9cbf3035b3c06ec735d016a693cae2",
+      "Remotes": "ccao-data/assessr",
+      "Requirements": [
+        "R",
+        "assessr",
+        "dplyr",
+        "magrittr",
+        "rlang",
+        "tidyr"
+      ],
+      "Hash": "b448ae08402e086f4984e003a899dbcb"
     },
     "class": {
       "Package": "class",
