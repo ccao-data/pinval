@@ -1,5 +1,5 @@
 ---
-title: "Pin Comparison Doc"
+title: "PIN Comparison Doc"
 params:
   run_id: "2025-02-11-charming-eric"
   pin1: "04263040380000"
