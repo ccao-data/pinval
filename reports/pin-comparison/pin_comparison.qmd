@@ -21,6 +21,7 @@ format:
 ```{r load_libraries}
 library(arrow)
 library(dplyr)
+library(ccao)
 library(DT)
 library(ggalt)
 library(glue)
@@ -379,7 +380,7 @@ char %>%
         paste0(
           "Address: ", full_address, "<br>",
           "PIN: ",
-          "<a href='", params$website2, params$pin2,
+          "<a href='https://www.cookcountyassessor.com/pin/", params$pin2,
           "' target='_blank'>", params$pin2, "</a>"
         ),
         paste0("Address: ", address)
@@ -387,10 +388,11 @@ char %>%
     ),
     color = ~ ifelse(
       meta_pin == params$pin1, "red",
-      ifelse(meta_pin == params$pin2, "blue", "green")
+      ifelse(meta_pin == params$pin2, "blue", NA)
     ),
     radius = 5
   )
+
 ```
 
 ### Predicted Values
@@ -539,8 +541,8 @@ datatable(
     # Use a headerCallback to color the header cells only
     headerCallback = JS(sprintf(
       "function(thead, data, start, end, display) {
-         $('th:contains(\"%s\")', thead).css('color', 'red');
-         $('th:contains(\"%s\")', thead).css('color', 'blue');
+         $('th:contains(\"%s\")', thead).css({'color': 'red', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color': 'blue', 'font-weight': 'bold'});
        }",
       params$pin1, params$pin2
     ))
@@ -566,7 +568,7 @@ sales <- sales %>%
     sale_date = substr(sale_date, 1, 10),
     color = ifelse(
       pin == params$pin1, "red",
-      ifelse(pin == params$pin2, "blue", "green")
+      ifelse(pin == params$pin2, "blue", NA)
     )
   ) %>%
   relocate(other_pin_is_comp, .after = sv_is_outlier)
@@ -598,7 +600,11 @@ datatable(
   )
 ```
 
-### SHAP Values
+## SHAP Values
+
+::: {.panel-tabset}
+
+### Raw SHAP Values
 
 ```{r SHAPs}
 #| column: screen-inset
@@ -622,4 +628,28 @@ shap %>%
   ) +
   theme_minimal(base_size = 5)
 ```
+### Percent of Total Absolute SHAP Values
+```{r}
+#| column: screen-inset
 
+shap %>%
+  mutate(across(2:3, ~ (. / sum(abs(.))) * 100)) %>%
+  ggplot(aes(
+      y = `Feature Name`,
+      x = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "SHAP Value",
+      y = "Feature Name"
+    ) +
+    theme_minimal(base_size = 5)
+```
+
+:::
