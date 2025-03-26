@@ -392,7 +392,6 @@ char %>%
     ),
     radius = 5
   )
-
 ```
 
 ### Predicted Values
@@ -635,21 +634,21 @@ shap %>%
 shap %>%
   mutate(across(2:3, ~ (. / sum(abs(.))) * 100)) %>%
   ggplot(aes(
-      y = `Feature Name`,
-      x = .data[[params$pin1]],
-      xend = .data[[params$pin2]]
-    )) +
-    geom_dumbbell(
-      size_x = 1,
-      size_xend = 1,
-      colour_x = "red",
-      colour_xend = "blue"
-    ) +
-    labs(
-      x = "SHAP Value",
-      y = "Feature Name"
-    ) +
-    theme_minimal(base_size = 5)
+    y = `Feature Name`,
+    x = .data[[params$pin1]],
+    xend = .data[[params$pin2]]
+  )) +
+  geom_dumbbell(
+    size_x = 1,
+    size_xend = 1,
+    colour_x = "red",
+    colour_xend = "blue"
+  ) +
+  labs(
+    x = "SHAP Value",
+    y = "Feature Name"
+  ) +
+  theme_minimal(base_size = 5)
 ```
 
 :::
