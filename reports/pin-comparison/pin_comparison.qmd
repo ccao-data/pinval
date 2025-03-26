@@ -384,9 +384,17 @@ if (all(map_lgl(cache_files, file.exists))) {
   write_parquet(address, cache_files$address)
   write_parquet(sales, cache_files$sales)
 }
+
+cards <- value %>%
+  filter(meta_pin %in% c(params$pin1, params$pin2)) %>%
+  distinct(meta_pin, .keep_all = TRUE) %>%
+  { setNames(pull(., total_cards), .$meta_pin) }
+
+total_cards_1 <- cards[as.character(params$pin1)]
+total_cards_2 <- cards[as.character(params$pin2)]
 ```
 
-Comparison between PINs <span style="color: red;"><b>`r params$pin1`</b></span> and <span style="color: blue;"><b>`r params$pin2`</b></span>
+Comparison between PINs <span style="color: red;"><b>`r params$pin1`</b></span> (`r total_cards_1` card`r if(total_cards_1 > 1) "s" else ""`) and <span style="color: blue;"><b>`r params$pin2`</b></span> (`r total_cards_2` card`r if(total_cards_2 > 1) "s" else ""`).
 
 ### Map of PINs
 
@@ -648,7 +656,7 @@ datatable(
 
 ::: {.panel-tabset}
 
-### $ Values
+### $ Value
 
 ```{r SHAPs}
 #| column: screen-inset
@@ -673,10 +681,10 @@ shap %>%
   scale_x_continuous(labels = scales::dollar_format()) +
   theme_minimal(base_size = 5)
 ```
-### Value as a % of House Value
+### SHAP as a % of Value
 Because SHAPs are Positive and Negative, Percentages do not = 100%
 
-```{r}
+```{r SHAPs percent}
 #| column: screen-inset
 
 shap %>%
