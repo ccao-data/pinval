@@ -593,7 +593,8 @@ datatable(
 ) %>%
   formatStyle(
     "pin",
-    backgroundColor = styleEqual(unique_pins, pin_colors)
+    color = styleEqual(unique_pins, pin_colors),
+    fontWeight = "bold"
   )
 ```
 
