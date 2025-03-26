@@ -386,7 +386,6 @@ if (all(map_lgl(cache_files, file.exists))) {
 }
 
 cards <- value %>%
-  filter(meta_pin %in% c(params$pin1, params$pin2)) %>%
   distinct(meta_pin, .keep_all = TRUE) %>%
   { setNames(pull(., total_cards), .$meta_pin) }
 
