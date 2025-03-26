@@ -602,7 +602,7 @@ datatable(
 ### SHAP Values
 
 ```{r SHAPs}
-# | column: screen-inset
+#| column: screen-inset
 
 shap %>%
   ggplot(aes(
