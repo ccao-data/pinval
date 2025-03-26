@@ -82,7 +82,8 @@ if (all(map_lgl(cache_files, file.exists))) {
   address <- read_parquet(cache_files$address)
   sales <- read_parquet(cache_files$sales)
 } else {
-  message("Some or all cache files are missing. Running queries and creating them...")
+  message("Some or all cache files are missing.
+          Running queries and creating them...")
 
   run_id <- params$run_id
   year <- substr(run_id, 1, 4)
@@ -93,7 +94,8 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
-    primary_card = c(na_if_null(params$pin_1_card_num), na_if_null(params$pin_2_card_num))
+    primary_card = c(na_if_null(params$pin_1_card_num),
+                     na_if_null(params$pin_2_card_num))
   )
 
   metadata <- dbGetQuery(
@@ -109,7 +111,12 @@ if (all(map_lgl(cache_files, file.exists))) {
   )
 
   model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
-  model_predictor_all_name <- trimws(strsplit(gsub("^\\[|\\]$", "", model_predictor_all_name), ",")[[1]])
+  model_predictor_all_name <- trimws(
+    strsplit(
+      gsub("^\\[|\\]$", "", model_predictor_all_name),
+      ","
+    )[[1]]
+  )
 
   char <- open_dataset(
     paste0(
@@ -134,29 +141,39 @@ if (all(map_lgl(cache_files, file.exists))) {
       by = "meta_pin"
     )
 
-  if (nrow(pin_labels %>% filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
-    stop("Error: For PINs with <= 3 cards, the `pin_{x}_card_num` param must be empty.")
+  if (nrow(pin_labels %>%
+             filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
+    stop("Error: For PINs with <= 3 cards,
+         the `pin_{x}_card_num` param must be empty.")
   }
-  if (nrow(pin_labels %>% filter(total_cards >= 4 & is.na(primary_card))) > 0) {
-    stop("Error: For PINs with >= 4 cards, the `pin_{x}_card_num` param must have a value.")
+  if (nrow(pin_labels %>%
+             filter(total_cards >= 4 & is.na(primary_card))) > 0) {
+    stop("Error: For PINs with >= 4 cards,
+         the `pin_{x}_card_num` param must have a value.")
   }
 
   pin_labels <- pin_labels %>%
     mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
 
   char <- char %>%
-    left_join(pin_labels %>% select(meta_pin, primary_card, total_cards), by = "meta_pin") %>%
+    left_join(pin_labels %>%
+                select(meta_pin, primary_card,
+                       total_cards), by = "meta_pin") %>%
     group_by(meta_pin) %>%
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
       target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
-      is_target = total_cards %in% c(2, 3) & (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
-      primary_card = if_else(is_target, meta_card_num, as.character(primary_card)),
-      char_bldg_sf = if_else(is_target, sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
+      is_target = total_cards %in% c(2, 3) &
+        (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
+      primary_card = if_else(is_target,
+                             meta_card_num, as.character(primary_card)),
+      char_bldg_sf = if_else(is_target,
+                             sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
     ) %>%
     ungroup() %>%
     filter(primary_card == meta_card_num) %>%
-    select(-c("meta_card_num", "total_cards", "is_target", "max_sf", "target_meta"))
+    select(-c("meta_card_num", "total_cards",
+              "is_target", "max_sf", "target_meta"))
 
   pin_labels <- pin_labels %>%
     left_join(
@@ -296,13 +313,14 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
-  # Identify the appended comp_pin columns (e.g. "comp_pin_1", "comp_pin_2", etc.)
+  # Identify the appended comp_pin columns (e.g. "comp_pin_1", "comp_pin_2")
   comp_pin_cols <- grep("^comp_pin_", names(comps), value = TRUE)
 
-  # For each appended comp_pin column, create new columns for the document number and comp score
+  # For each appended comp_pin column, create new columns
+  # for the document number and comp score
   # if the comp_pin value matches a primary pin.
   for (col in comp_pin_cols) {
-    # Extract the comp_number number from the column name (e.g. "1" from "comp_pin_1")
+    # Extract the comp_number number from the column name
     comp_number <- sub("comp_pin_", "", col)
 
     # Build the corresponding column names for document number and comp score
@@ -312,16 +330,20 @@ if (all(map_lgl(cache_files, file.exists))) {
     # Create new columns with a prefix "matched_"
     comps <- comps %>%
       mutate(
-        # If the comp_pin value is not NA, is different from the current row's primary pin,
-        # and appears in the list of primary pins, then copy the corresponding doc_no value;
+        # If the comp_pin value is not NA, is different
+        # from the current row's primary pin,
+        # and appears in the list of primary pins, then
+        # copy the corresponding doc_no value;
         # otherwise, set to NA.
         !!paste0("matched_doc_no_", comp_number) := if_else(
-          !is.na(.data[[col]]) & (.data[[col]] != pin) & (.data[[col]] %in% pin_labels$meta_pin),
+          !is.na(.data[[col]]) & (.data[[col]] != pin) &
+            (.data[[col]] %in% pin_labels$meta_pin),
           as.character(.data[[doc_no_col]]),
           NA_character_
         ),
         !!paste0("matched_comp_score_", comp_number) := if_else(
-          !is.na(.data[[col]]) & (.data[[col]] != pin) & (.data[[col]] %in% pin_labels$meta_pin),
+          !is.na(.data[[col]]) & (.data[[col]] != pin) &
+            (.data[[col]] %in% pin_labels$meta_pin),
           .data[[score_col]],
           NA_real_
         )
@@ -418,7 +440,8 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       values_from = Value
     ) %>%
     group_by(`Value Type`) %>%
-    summarise(across(all_of(c(params$pin1, params$pin2)), sum, na.rm = TRUE)) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)),
+                     sum, na.rm = TRUE)) %>%
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]],
       Group = "Primary Card"
@@ -440,7 +463,8 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       values_from = Value
     ) %>%
     group_by(`Value Type`) %>%
-    summarise(across(all_of(c(params$pin1, params$pin2)), sum, na.rm = TRUE)) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)),
+                     sum, na.rm = TRUE)) %>%
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]],
       Group = "Total"
@@ -470,7 +494,8 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
       values_from = Value
     ) %>%
     group_by(`Value Type`) %>%
-    summarise(across(all_of(c(params$pin1, params$pin2)), sum, na.rm = TRUE)) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)),
+                     sum, na.rm = TRUE)) %>%
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]]
     ) %>%
@@ -487,8 +512,10 @@ datatable(
     dom = "t",
     headerCallback = JS(sprintf(
       "function(thead, data, start, end, display) {
-         $('th:contains(\"%s\")', thead).css({'color': 'red', 'font-weight': 'bold'});
-         $('th:contains(\"%s\")', thead).css({'color': 'blue', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color':
+         'red', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color':
+         'blue', 'font-weight': 'bold'});
        }",
       params$pin1, params$pin2
     ))
@@ -510,7 +537,8 @@ char_fmt <- char %>%
   select(-primary_card) %>%
   # Convert characteristic codes to human-readable values
   ccao::vars_recode(code_type = "short") %>%
-  # Convert everything to character so that we can pivot and combine feature value columns
+  # Convert everything to character so that we can
+  # pivot and combine feature value columns
   mutate(across(everything(), as.character)) %>%
   # Pivot long so that rows are features and columns are feature values.
   # This creates two rows for each feature name, one for each PIN
@@ -519,7 +547,8 @@ char_fmt <- char %>%
     names_to = "Feature Name",
     values_to = "Value"
   ) %>%
-  # Pivot back to wide so that each property has its own column representing the value for each feature.
+  # Pivot back to wide so that each property has its own
+  # column representing the value for each feature.
   pivot_wider(
     names_from = meta_pin,
     values_from = Value
@@ -540,8 +569,10 @@ datatable(
     scrollY = "400px",
     headerCallback = JS(sprintf(
       "function(thead, data, start, end, display) {
-         $('th:contains(\"%s\")', thead).css({'color': 'red', 'font-weight': 'bold'});
-         $('th:contains(\"%s\")', thead).css({'color': 'blue', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color':
+         'red', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color':
+         'blue', 'font-weight': 'bold'});
        }",
       params$pin1, params$pin2
     ))
