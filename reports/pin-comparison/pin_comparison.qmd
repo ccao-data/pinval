@@ -694,7 +694,7 @@ shap %>%
     colour_xend = "blue"
   ) +
   labs(
-    x = "Value as a % of Housing Values",
+    x = "Value as a % of Housing Value",
     y = "Feature Name"
   ) +
   scale_x_continuous(labels = scales::percent_format(scale = 1)) +
