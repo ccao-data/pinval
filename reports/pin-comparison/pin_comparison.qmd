@@ -94,8 +94,10 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   pin_labels <- data.frame(
     meta_pin = c(params$pin1, params$pin2),
-    primary_card = c(na_if_null(params$pin_1_card_num),
-                     na_if_null(params$pin_2_card_num))
+    primary_card = c(
+      na_if_null(params$pin_1_card_num),
+      na_if_null(params$pin_2_card_num)
+    )
   )
 
   metadata <- dbGetQuery(
@@ -142,12 +144,12 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
 
   if (nrow(pin_labels %>%
-             filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
+    filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
     stop("Error: For PINs with <= 3 cards,
          the `pin_{x}_card_num` param must be empty.")
   }
   if (nrow(pin_labels %>%
-             filter(total_cards >= 4 & is.na(primary_card))) > 0) {
+    filter(total_cards >= 4 & is.na(primary_card))) > 0) {
     stop("Error: For PINs with >= 4 cards,
          the `pin_{x}_card_num` param must have a value.")
   }
@@ -157,8 +159,10 @@ if (all(map_lgl(cache_files, file.exists))) {
 
   char <- char %>%
     left_join(pin_labels %>%
-                select(meta_pin, primary_card,
-                       total_cards), by = "meta_pin") %>%
+      select(
+        meta_pin, primary_card,
+        total_cards
+      ), by = "meta_pin") %>%
     group_by(meta_pin) %>%
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
@@ -166,14 +170,18 @@ if (all(map_lgl(cache_files, file.exists))) {
       is_target = total_cards %in% c(2, 3) &
         (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
       primary_card = if_else(is_target,
-                             meta_card_num, as.character(primary_card)),
+        meta_card_num, as.character(primary_card)
+      ),
       char_bldg_sf = if_else(is_target,
-                             sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf)
+        sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf
+      )
     ) %>%
     ungroup() %>%
     filter(primary_card == meta_card_num) %>%
-    select(-c("meta_card_num", "total_cards",
-              "is_target", "max_sf", "target_meta"))
+    select(-c(
+      "meta_card_num", "total_cards",
+      "is_target", "max_sf", "target_meta"
+    ))
 
   pin_labels <- pin_labels %>%
     left_join(
@@ -441,7 +449,9 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
     ) %>%
     group_by(`Value Type`) %>%
     summarise(across(all_of(c(params$pin1, params$pin2)),
-                     sum, na.rm = TRUE)) %>%
+      sum,
+      na.rm = TRUE
+    )) %>%
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]],
       Group = "Primary Card"
@@ -464,7 +474,9 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
     ) %>%
     group_by(`Value Type`) %>%
     summarise(across(all_of(c(params$pin1, params$pin2)),
-                     sum, na.rm = TRUE)) %>%
+      sum,
+      na.rm = TRUE
+    )) %>%
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]],
       Group = "Total"
@@ -495,7 +507,9 @@ if (any(value$total_cards > 1, na.rm = TRUE)) {
     ) %>%
     group_by(`Value Type`) %>%
     summarise(across(all_of(c(params$pin1, params$pin2)),
-                     sum, na.rm = TRUE)) %>%
+      sum,
+      na.rm = TRUE
+    )) %>%
     mutate(
       Difference = .data[[params$pin1]] - .data[[params$pin2]]
     ) %>%
