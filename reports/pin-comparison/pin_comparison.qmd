@@ -683,7 +683,7 @@ shap %>%
   theme_minimal(base_size = 5)
 ```
 ### SHAP as a % of Value
-Because SHAPs are Positive and Negative, Percentages do not = 100%
+Because SHAPs are positive and negative, percentages do not sum to 100%
 
 ```{r SHAPs percent}
 #| column: screen-inset
