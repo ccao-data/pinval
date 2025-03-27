@@ -1,0 +1,718 @@
+---
+title: "PIN Comparison Doc"
+params:
+  run_id: "2025-02-11-charming-eric"
+  pin1: "01011100120000"
+  pin_1_card_num:
+  pin2: "01011250100000"
+  pin_2_card_num:
+execute:
+  echo: false
+  warning: false
+  cache: false
+format:
+  html:
+    embed-resources: true
+    grid:
+      body-width: 1000px
+    fig-format: svg
+---
+
+```{r load_libraries}
+library(arrow)
+library(dplyr)
+library(ccao)
+library(DT)
+library(ggalt)
+library(glue)
+library(ggplot2)
+library(ggtext)
+library(leaflet)
+library(noctua)
+library(purrr)
+library(RColorBrewer)
+library(scales)
+library(sf)
+library(stringr)
+library(tibble)
+library(tidyr)
+
+noctua_options(cache_size = 10)
+
+conn <- dbConnect(noctua::athena(),
+  rstudio_conn_tab = FALSE
+)
+```
+
+
+```{r setup}
+# Helper function to handle NULL or empty values
+coalesce_empty <- function(x) {
+  if (is.null(x) || length(x) == 0) "" else x
+}
+
+# Build a unique folder name using the provided parameters
+unique_folder <- glue::glue(
+  "{coalesce_empty(params$run_id)}_",
+  "{coalesce_empty(params$pin1)}_",
+  "{coalesce_empty(params$pin_1_card_num)}_",
+  "{coalesce_empty(params$pin2)}_",
+  "{coalesce_empty(params$pin_2_card_num)}"
+)
+
+# Create the base cache directory inside the "cache" folder
+base_cache_dir <- file.path("cache", unique_folder)
+dir.create(base_cache_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Define file paths for the cache files inside the unique folder
+cache_files <- list(
+  char    = file.path(base_cache_dir, "char.parquet"),
+  value   = file.path(base_cache_dir, "value.parquet"),
+  shap    = file.path(base_cache_dir, "shap.parquet"),
+  address = file.path(base_cache_dir, "address.parquet"),
+  sales   = file.path(base_cache_dir, "sales.parquet")
+)
+
+# Check if the unique folder already exists and if all cache files are present
+if (all(map_lgl(cache_files, file.exists))) {
+  message("All cache files found. Reading from disk...")
+
+  char <- read_parquet(cache_files$char)
+  value <- read_parquet(cache_files$value)
+  shap <- read_parquet(cache_files$shap)
+  address <- read_parquet(cache_files$address)
+  sales <- read_parquet(cache_files$sales)
+} else {
+  message("Some or all cache files are missing.
+          Running queries and creating them...")
+
+  run_id <- params$run_id
+  year <- substr(run_id, 1, 4)
+
+  na_if_null <- function(x) {
+    if (is.null(x)) NA else x
+  }
+
+  pin_labels <- data.frame(
+    meta_pin = c(params$pin1, params$pin2),
+    primary_card = c(
+      na_if_null(params$pin_1_card_num),
+      na_if_null(params$pin_2_card_num)
+    )
+  )
+
+  metadata <- dbGetQuery(
+    conn,
+    glue(
+      "select
+         dvc_md5_assessment_data,
+         model_predictor_all_name
+       from model.metadata
+       where run_id = '{run_id}'
+       limit 1"
+    )
+  )
+
+  model_predictor_all_name <- metadata$model_predictor_all_name %>% unlist()
+  model_predictor_all_name <- trimws(
+    strsplit(
+      gsub("^\\[|\\]$", "", model_predictor_all_name),
+      ","
+    )[[1]]
+  )
+
+  char <- open_dataset(
+    paste0(
+      "s3://ccao-data-dvc-us-east-1/files/md5/",
+      substr(metadata$dvc_md5_assessment_data, 1, 2), "/",
+      substr(metadata$dvc_md5_assessment_data, 3, 32)
+    )
+  ) %>%
+    filter(meta_pin %in% pin_labels$meta_pin) %>%
+    collect() %>%
+    select(
+      meta_pin,
+      meta_card_num,
+      all_of(model_predictor_all_name)
+    )
+
+  pin_labels <- pin_labels %>%
+    left_join(
+      char %>%
+        group_by(meta_pin) %>%
+        summarise(total_cards = n_distinct(meta_card_num)),
+      by = "meta_pin"
+    )
+
+  if (nrow(pin_labels %>%
+    filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
+    stop("Error: For PINs with <= 3 cards,
+         the `pin_{x}_card_num` param must be empty.")
+  }
+  if (nrow(pin_labels %>%
+    filter(total_cards >= 4 & is.na(primary_card))) > 0) {
+    stop("Error: For PINs with >= 4 cards,
+         the `pin_{x}_card_num` param must have a value.")
+  }
+
+  pin_labels <- pin_labels %>%
+    mutate(primary_card = if_else(total_cards == 1, 1, primary_card))
+
+  char <- char %>%
+    left_join(pin_labels %>%
+      select(
+        meta_pin, primary_card,
+        total_cards
+      ), by = "meta_pin") %>%
+    group_by(meta_pin) %>%
+    mutate(
+      max_sf = max(char_bldg_sf, na.rm = TRUE),
+      target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
+      is_target = total_cards %in% c(2, 3) &
+        (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
+      primary_card = if_else(is_target,
+        meta_card_num, as.character(primary_card)
+      ),
+      char_bldg_sf = if_else(is_target,
+        sum(char_bldg_sf, na.rm = TRUE), char_bldg_sf
+      )
+    ) %>%
+    ungroup() %>%
+    filter(primary_card == meta_card_num) %>%
+    select(-c(
+      "meta_card_num", "total_cards",
+      "is_target", "max_sf", "target_meta"
+    ))
+
+  pin_labels <- pin_labels %>%
+    left_join(
+      char %>% select(meta_pin, primary_card) %>% distinct(),
+      by = "meta_pin",
+      suffix = c("", ".computed")
+    ) %>%
+    mutate(
+      primary_card = as.character(primary_card),
+      primary_card = coalesce(primary_card, primary_card.computed)
+    ) %>%
+    select(-primary_card.computed)
+
+  value <- dbGetQuery(
+    conn,
+    glue_sql(
+      "select
+         card.meta_pin,
+         card.meta_card_num,
+         card.pred_card_initial_fmv,
+         pin.pred_pin_final_fmv_round
+       from model.assessment_card as card
+       left join model.assessment_pin as pin
+         on card.meta_pin = pin.meta_pin
+         and card.meta_year = pin.meta_year
+         and card.run_id = pin.run_id
+       where card.run_id = {run_id}
+         and card.meta_pin in ({pin_labels$meta_pin*})",
+      .con = conn
+    )
+  )
+
+  value <- value %>%
+    left_join(pin_labels, by = c("meta_pin"))
+
+  shap <- dbGetQuery(
+    conn,
+    glue_sql(
+      "select
+         meta_pin,
+         meta_card_num,
+         {`model_predictor_all_name`*},
+         pred_card_shap_baseline_fmv
+       from model.shap
+       where run_id = {run_id}
+         and meta_pin in ({pin_labels$meta_pin*})",
+      .con = conn
+    )
+  )
+
+  shap <- shap %>%
+    left_join(pin_labels, by = c("meta_pin")) %>%
+    filter(primary_card == meta_card_num) %>%
+    select(-c("total_cards", "primary_card", "meta_card_num")) %>%
+    pivot_longer(
+      cols = c(all_of(model_predictor_all_name), pred_card_shap_baseline_fmv),
+      names_to = "Feature Name",
+      values_to = "Value"
+    ) %>%
+    arrange(desc(meta_pin == params$pin1), desc(Value)) %>%
+    pivot_wider(
+      names_from = meta_pin,
+      values_from = Value
+    ) %>%
+    mutate(`Feature Name` = factor(`Feature Name`, levels = `Feature Name`))
+
+  address <- dbGetQuery(
+    conn,
+    glue_sql(
+      "select
+         pin,
+         year,
+         prop_address_full,
+         prop_address_city_name,
+         prop_address_state,
+         prop_address_zipcode_1
+       from default.vw_pin_address
+       where pin in ({pin_labels$meta_pin*})
+         and year = {year}",
+      .con = conn
+    )
+  )
+
+  address <- address %>%
+    mutate(full_address = paste(
+      prop_address_full,
+      prop_address_city_name,
+      prop_address_state,
+      prop_address_zipcode_1,
+      sep = ", "
+    )) %>%
+    select(pin, full_address)
+
+  # Query the sales data
+  sales <- dbGetQuery(
+    conn,
+    glue_sql(
+      "select
+       pin,
+       year,
+       sale_date,
+       doc_no,
+       sale_price,
+       sv_is_outlier
+     from default.vw_pin_sale
+     where pin in ({pin_labels$meta_pin*})",
+      .con = conn
+    )
+  )
+
+  # Query the comps data
+  comps <- dbGetQuery(
+    conn,
+    glue_sql(
+      "select
+       comp.pin,
+       comp.comp_pin_1,
+       comp.comp_pin_2,
+       comp.comp_pin_3,
+       comp.comp_pin_4,
+       comp.comp_pin_5,
+       comp.comp_document_num_1,
+       comp.comp_document_num_2,
+       comp.comp_document_num_3,
+       comp.comp_document_num_4,
+       comp.comp_document_num_5,
+       comp.comp_score_1,
+       comp.comp_score_2,
+       comp.comp_score_3,
+       comp.comp_score_4,
+       comp.comp_score_5,
+       comp.card
+     from model.comp as comp
+     where comp.run_id = {run_id}
+       and comp.pin in ({pin_labels$meta_pin*})",
+      .con = conn
+    )
+  )
+
+  # Identify the appended comp_pin columns (e.g. "comp_pin_1", "comp_pin_2")
+  comp_pin_cols <- grep("^comp_pin_", names(comps), value = TRUE)
+
+  # For each appended comp_pin column, create new columns
+  # for the document number and comp score
+  # if the comp_pin value matches a primary pin.
+  for (col in comp_pin_cols) {
+    # Extract the comp_number number from the column name
+    comp_number <- sub("comp_pin_", "", col)
+
+    # Build the corresponding column names for document number and comp score
+    doc_no_col <- paste0("comp_document_num_", comp_number)
+    score_col <- paste0("comp_score_", comp_number)
+
+    # Create new columns with a prefix "matched_"
+    comps <- comps %>%
+      mutate(
+        # If the comp_pin value is not NA, is different
+        # from the current row's primary pin,
+        # and appears in the list of primary pins, then
+        # copy the corresponding doc_no value;
+        # otherwise, set to NA.
+        !!paste0("matched_doc_no_", comp_number) := if_else(
+          !is.na(.data[[col]]) & (.data[[col]] != pin) &
+            (.data[[col]] %in% pin_labels$meta_pin),
+          as.character(.data[[doc_no_col]]),
+          NA_character_
+        ),
+        !!paste0("matched_comp_score_", comp_number) := if_else(
+          !is.na(.data[[col]]) & (.data[[col]] != pin) &
+            (.data[[col]] %in% pin_labels$meta_pin),
+          .data[[score_col]],
+          NA_real_
+        )
+      )
+  }
+
+  # Pivot the matched columns together using a names_pattern
+  comps <- comps %>%
+    pivot_longer(
+      cols = matches("^matched_(doc_no|comp_score)_"),
+      names_to = c(".value", "comp_number"),
+      names_pattern = "matched_(doc_no|comp_score)_(.*)"
+    ) %>%
+    select(-pin)
+
+  # Now merge with sales based on doc_no.
+  # This join will add the comp_number and its comp_score to the sale row.
+  sales <- sales %>%
+    left_join(comps, by = "doc_no") %>%
+    arrange(desc(sale_date)) %>%
+    select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
+      other_pin_comp_number = comp_number,
+      other_pin_comp_score = comp_score
+    )
+
+  # Write the cache files into the unique folder
+  write_parquet(char, cache_files$char)
+  write_parquet(value, cache_files$value)
+  write_parquet(shap, cache_files$shap)
+  write_parquet(address, cache_files$address)
+  write_parquet(sales, cache_files$sales)
+}
+
+card_values <- value %>%
+  distinct(meta_pin, .keep_all = TRUE) %>%
+  select(meta_pin, total_cards, primary_card) %>%
+  filter(meta_pin %in% c(params$pin1, params$pin2)) %>%
+  column_to_rownames("meta_pin")
+
+total_cards_1 <- card_values[as.character(params$pin1), "total_cards"]
+total_cards_2 <- card_values[as.character(params$pin2), "total_cards"]
+primary_card_1 <- card_values[as.character(params$pin1), "primary_card"]
+primary_card_2 <- card_values[as.character(params$pin2), "primary_card"]
+```
+
+Comparison between PINs:
+
+<span style="color: red;"><b>`r params$pin1`</b></span> (card `r primary_card_1` of `r total_cards_1` card`r if (total_cards_1 > 1) "s" else ""`)
+
+<span style="color: blue;"><b>`r params$pin2`</b></span> (card `r primary_card_2` of `r total_cards_2` card`r if (total_cards_2 > 1) "s" else ""`)
+
+### Map of PINs
+
+```{r map}
+char %>%
+  left_join(address, by = c("meta_pin" = "pin")) %>%
+  leaflet() %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  addCircleMarkers(
+    lat = ~loc_latitude,
+    lng = ~loc_longitude,
+    popup = ~ ifelse(
+      meta_pin == params$pin1,
+      paste0(
+        "Address: ", full_address, "<br>",
+        "PIN: ",
+        "<a href='https://www.cookcountyassessor.com/pin/", params$pin1,
+        "' target='_blank'>", params$pin1, "</a>"
+      ),
+      ifelse(
+        meta_pin == params$pin2,
+        paste0(
+          "Address: ", full_address, "<br>",
+          "PIN: ",
+          "<a href='https://www.cookcountyassessor.com/pin/", params$pin2,
+          "' target='_blank'>", params$pin2, "</a>"
+        ),
+        paste0("Address: ", address)
+      )
+    ),
+    color = ~ ifelse(
+      meta_pin == params$pin1, "red",
+      ifelse(meta_pin == params$pin2, "blue", NA)
+    ),
+    radius = 5
+  )
+```
+
+### Predicted Values
+
+`r if (any(value$total_cards > 1, na.rm = TRUE)) 'For multicard PINs, "total" values represent the sum of values across all cards in the PIN.'`
+
+```{r predicted_values}
+if (any(value$total_cards > 1, na.rm = TRUE)) {
+  # Create the summary for the primary card
+  summary_primary <- value %>%
+    filter(primary_card == meta_card_num) %>%
+    rename(
+      "Initial estimate" = pred_card_initial_fmv,
+      "Final rounded FMV" = pred_pin_final_fmv_round
+    ) %>%
+    pivot_longer(
+      cols = c("Initial estimate", "Final rounded FMV"),
+      names_to = "Value Type",
+      values_to = "Value"
+    ) %>%
+    pivot_wider(
+      names_from = meta_pin,
+      values_from = Value
+    ) %>%
+    group_by(`Value Type`) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)),
+      sum,
+      na.rm = TRUE
+    )) %>%
+    mutate(
+      Difference = .data[[params$pin1]] - .data[[params$pin2]],
+      Group = "Primary Card"
+    )
+
+  # Create the summary for all cards
+  summary_total <- value %>%
+    rename(
+      "Initial estimate" = pred_card_initial_fmv,
+      "Final rounded FMV" = pred_pin_final_fmv_round
+    ) %>%
+    pivot_longer(
+      cols = c("Initial estimate", "Final rounded FMV"),
+      names_to = "Value Type",
+      values_to = "Value"
+    ) %>%
+    pivot_wider(
+      names_from = meta_pin,
+      values_from = Value
+    ) %>%
+    group_by(`Value Type`) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)),
+      sum,
+      na.rm = TRUE
+    )) %>%
+    mutate(
+      Difference = .data[[params$pin1]] - .data[[params$pin2]],
+      Group = "Total"
+    )
+
+  # Bind the rows together and format the table with full dollar rounding
+  final_table <- bind_rows(summary_primary, summary_total) %>%
+    relocate(Group, .before = `Value Type`) %>%
+    mutate(across(
+      all_of(c(params$pin2, params$pin1, "Difference")),
+      scales::label_currency(accuracy = 1)
+    ))
+} else {
+  # Only create a single (total) summary table if no value of total_cards > 1
+  final_table <- value %>%
+    rename(
+      "Initial estimate" = pred_card_initial_fmv,
+      "Final rounded FMV" = pred_pin_final_fmv_round
+    ) %>%
+    pivot_longer(
+      cols = c("Initial estimate", "Final rounded FMV"),
+      names_to = "Value Type",
+      values_to = "Value"
+    ) %>%
+    pivot_wider(
+      names_from = meta_pin,
+      values_from = Value
+    ) %>%
+    group_by(`Value Type`) %>%
+    summarise(across(all_of(c(params$pin1, params$pin2)),
+      sum,
+      na.rm = TRUE
+    )) %>%
+    mutate(
+      Difference = .data[[params$pin1]] - .data[[params$pin2]]
+    ) %>%
+    mutate(across(
+      all_of(c(params$pin2, params$pin1, "Difference")),
+      scales::label_currency(accuracy = 1)
+    ))
+}
+# Formatting is outside since it doesn't render properly inside
+datatable(
+  final_table,
+  rownames = FALSE,
+  options = list(
+    dom = "t",
+    headerCallback = JS(sprintf(
+      "function(thead, data, start, end, display) {
+         $('th:contains(\"%s\")', thead).css({'color':
+         'red', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color':
+         'blue', 'font-weight': 'bold'});
+       }",
+      params$pin1, params$pin2
+    ))
+  )
+)
+```
+
+### Feature Differences Between the Two PINs
+
+
+`r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE)) "If a PIN has 2 or 3 cards, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
+
+`r if (any(value$total_cards > 3, na.rm = TRUE)) "If a PIN has 4 or more cards, we use features from the target card."`
+
+```{r feature_comparison, out.width="90%"}
+char_fmt <- char %>%
+  select(-primary_card) %>%
+  # Convert characteristic codes to human-readable values
+  ccao::vars_recode(code_type = "short") %>%
+  # Convert everything to character so that we can
+  # pivot and combine feature value columns
+  mutate(across(everything(), as.character)) %>%
+  # Pivot long so that rows are features and columns are feature values.
+  # This creates two rows for each feature name, one for each PIN
+  pivot_longer(
+    cols = -meta_pin,
+    names_to = "Feature Name",
+    values_to = "Value"
+  ) %>%
+  # Pivot back to wide so that each property has its own
+  # column representing the value for each feature.
+  pivot_wider(
+    names_from = meta_pin,
+    values_from = Value
+  ) %>%
+  # Replace NA values with an empty string
+  mutate(across(everything(), ~ replace_na(., ""))) %>%
+  # Check which feature values match across the PINs
+  mutate(
+    `PINs Match` = .data[[params$pin1]] == .data[[params$pin2]]
+  ) %>%
+  arrange(`PINs Match`)
+
+datatable(
+  char_fmt,
+  options = list(
+    paging = FALSE,
+    scrollX = TRUE,
+    scrollY = "400px",
+    headerCallback = JS(sprintf(
+      "function(thead, data, start, end, display) {
+         $('th:contains(\"%s\")', thead).css({'color':
+         'red', 'font-weight': 'bold'});
+         $('th:contains(\"%s\")', thead).css({'color':
+         'blue', 'font-weight': 'bold'});
+       }",
+      params$pin1, params$pin2
+    ))
+  )
+) %>%
+  # Keep your PINs Match color formatting
+  formatStyle(
+    "PINs Match",
+    backgroundColor = styleEqual(c(TRUE, FALSE), c("lightgreen", "tomato"))
+  )
+```
+
+### Sale History
+
+Each sale is marked with a checkmark if the model considers it to be a comp for the other PIN. 
+
+```{r sales}
+sales <- sales %>%
+  mutate(
+    is_comp = ifelse(!is.na(other_pin_comp_number), "✅", ""),
+    sale_price = dollar(as.numeric(sale_price)),
+    other_pin_comp_score = round(other_pin_comp_score, 4),
+    sale_date = substr(sale_date, 1, 10),
+    color = ifelse(
+      pin == params$pin1, "red",
+      ifelse(pin == params$pin2, "blue", NA)
+    )
+  ) %>%
+  relocate(is_comp, .after = sv_is_outlier)
+
+# Get the unique pins and derive their corresponding colors
+unique_pins <- unique(sales$pin)
+pin_colors <- sapply(unique_pins, function(p) {
+  unique(sales$color[sales$pin == p])
+})
+
+sales <- sales %>%
+  select(-color) %>%
+  arrange(desc(sale_date))
+
+datatable(
+  sales,
+  options = list(
+    scrollX = TRUE,
+    columnDefs = list(
+      # Hide the "color" column
+      list(visible = FALSE, targets = which(names(sales) == "color") - 1)
+    )
+  )
+) %>%
+  formatStyle(
+    "pin",
+    color = styleEqual(unique_pins, pin_colors),
+    fontWeight = "bold"
+  )
+```
+
+## SHAP Values
+
+::: {.panel-tabset}
+
+### $ Value
+
+```{r SHAPs}
+#| column: screen-inset
+
+shap %>%
+  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+  ggplot(aes(
+    y = `Feature Name`,
+    x = .data[[params$pin1]],
+    xend = .data[[params$pin2]]
+  )) +
+  geom_dumbbell(
+    size_x = 1,
+    size_xend = 1,
+    colour_x = "red",
+    colour_xend = "blue"
+  ) +
+  labs(
+    x = "SHAP Value",
+    y = "Feature Name"
+  ) +
+  scale_x_continuous(labels = scales::dollar_format()) +
+  theme_minimal(base_size = 5)
+```
+### SHAP as a % of Value
+Because SHAPs are positive and negative, percentages do not sum to 100%
+
+```{r SHAPs percent}
+#| column: screen-inset
+
+shap %>%
+  mutate(across(where(is.numeric), ~ (. / sum(.)) * 100)) %>%
+  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+  ggplot(aes(
+    y = `Feature Name`,
+    x = .data[[params$pin1]],
+    xend = .data[[params$pin2]]
+  )) +
+  geom_dumbbell(
+    size_x = 1,
+    size_xend = 1,
+    colour_x = "red",
+    colour_xend = "blue"
+  ) +
+  labs(
+    x = "SHAP Value as a % of FMV",
+    y = "Feature Name"
+  ) +
+  scale_x_continuous(labels = scales::percent_format(scale = 1)) +
+  theme_minimal(base_size = 5)
+```
+
+:::
