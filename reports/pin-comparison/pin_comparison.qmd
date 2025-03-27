@@ -551,11 +551,9 @@ datatable(
 
 `r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE)) "If a PIN has 2 or 3 cards, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
 
-```{r feature_comparison, out.width="90%"}
-if (any(value$total_cards > 3, na.rm = TRUE)) {
-  cat("If a PIN has 4 or more cards, we use features from the target card.\n")
-}
+`r if (any(value$total_cards > 3, na.rm = TRUE)) "If a PIN has 4 or more cards, we use features from the target card."`
 
+```{r feature_comparison, out.width="90%"}
 char_fmt <- char %>%
   select(-primary_card) %>%
   # Convert characteristic codes to human-readable values
