@@ -34,6 +34,7 @@ library(RColorBrewer)
 library(scales)
 library(sf)
 library(stringr)
+library(tibble)
 library(tidyr)
 
 noctua_options(cache_size = 10)
@@ -385,17 +386,23 @@ if (all(map_lgl(cache_files, file.exists))) {
   write_parquet(sales, cache_files$sales)
 }
 
-cards <- value %>%
+card_values <- value %>%
   distinct(meta_pin, .keep_all = TRUE) %>%
-  {
-    setNames(pull(., total_cards), .$meta_pin)
-  }
+  select(meta_pin, total_cards, primary_card) %>%
+  filter(meta_pin %in% c(params$pin1, params$pin2)) %>%
+  column_to_rownames("meta_pin")
 
-total_cards_1 <- cards[as.character(params$pin1)]
-total_cards_2 <- cards[as.character(params$pin2)]
+total_cards_1 <- card_values[as.character(params$pin1), "total_cards"]
+total_cards_2 <- card_values[as.character(params$pin2), "total_cards"]
+primary_card_1 <- card_values[as.character(params$pin1), "primary_card"]
+primary_card_2 <- card_values[as.character(params$pin2), "primary_card"]
 ```
 
-Comparison between PINs <span style="color: red;"><b>`r params$pin1`</b></span> (`r total_cards_1` card`r if(total_cards_1 > 1) "s" else ""`) and <span style="color: blue;"><b>`r params$pin2`</b></span> (`r total_cards_2` card`r if(total_cards_2 > 1) "s" else ""`).
+Comparison between PINs:
+
+<span style="color: red;"><b>`r params$pin1`</b></span> (card `r primary_card_1` of `r total_cards_1` card`r if (total_cards_1 > 1) "s" else ""`)
+
+<span style="color: blue;"><b>`r params$pin2`</b></span> (card `r primary_card_2` of `r total_cards_2` card`r if (total_cards_2 > 1) "s" else ""`)
 
 ### Map of PINs
 
@@ -546,7 +553,7 @@ datatable(
 )
 ```
 
-### Feature Differences Between the two PINs
+### Feature Differences Between the Two PINs
 
 
 `r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE)) "If a PIN has 2 or 3 cards, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
