@@ -30,7 +30,11 @@ params:
 
 
 ```{r, time_it = TRUE}
-tic("libraries")
+
+#TODO: Fix double appearence in comps map output
+
+
+
 # This block loads data for the selected parcel, year, and model run.
 # Start by loading R dependencies
 library(tictoc)
@@ -42,9 +46,9 @@ library(stringr)
 library(tibble)
 library(tidyr)
 library(tools)
-toc()
 
-tic("ingest")
+
+
 # Helper function to wrap a PIN in a link for display purposes
 link_pin <- function(pin, display_text) {
   text <- ifelse(!missing(display_text), display_text, ccao::pin_format_pretty(pin))
@@ -88,6 +92,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Get the assessment year and predictor list for characteristic queries.
   # Assessment year is important since chars are defined for the year preceding
   # the lien date
+  tic("model_metadata_df")
   model_metadata_df <- dbGetQuery(
     conn = athena_conn,
     # This query should only ever return one row, but limit the results to 1
@@ -99,6 +104,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       LIMIT 1"
     )
   )
+  toc()
   assessment_data_year <- model_metadata_df %>% pull(assessment_data_year)
   all_predictors_raw <- model_metadata_df %>%
     pull(model_predictor_all_name) %>%
@@ -121,6 +127,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
   # not the same as the final model run
+  tic("final_model_run_date")
   final_model_run_date <- dbGetQuery(
     conn = athena_conn,
     # As above, the LIMIT here is defensive
@@ -136,50 +143,11 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     pull(run_id) %>%
     substr(1, 10) %>%
     as.Date()
+  toc()
 
-  
-  # assessment_pin_df_test <- dbGetQuery(
-  #   conn = athena_conn,
-  #   glue::glue("
-  #     SELECT * FROM z_ci_add_pinval_tables_default.pinval_assessment_card
-  #     WHERE pin = '{params$pin}'
-  #       AND year = '{params$year}'
-  #       AND run_id = '{params$run_id}'
-  #   ")
-  # ) 
-  # Load chars that are stored in the PIN-level assessment data
-  assessment_pin_df <- open_dataset(
-    glue::glue(
-      "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
-    )
-  ) %>%
-    filter(
-      meta_pin == params$pin,
-      meta_year == assessment_data_year
-    ) %>%
-    collect()
-
-  subject_property_address <- assessment_pin_df %>%
-    # str_to_title is nice for addresses because it preserves the capitalization
-    # of directionals like 'N' or 'W'
-    mutate(property_address = loc_property_address %>% tolower() %>% str_to_title()) %>%
-    pull(property_address)
-
-  pred_pin_final_fmv_round <- assessment_pin_df %>%
-    pull(pred_pin_final_fmv_round)
-
-  # Save model metadata to a dedicated list for ease of access.
-  # Prefer a list to a dataframe since not all of the attribute values
-  # have the same dimensions
-  metadata_df <- tibble(
-    final_model_run_date = final_model_run_date,
-    subject_property_address = subject_property_address,
-    pred_pin_final_fmv_round = pred_pin_final_fmv_round,
-    all_predictors = list(all_predictors)
-  )
 
   # Load card-level assessment data to use as the base for joining all chars
-  
+  tic("assessment_df")
   assessment_df <- dbGetQuery(
     conn = athena_conn,
     glue::glue("
@@ -196,12 +164,29 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       municipality = loc_tax_municipality_name %>% tolower() %>% tools::toTitleCase(),
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
-      pretty_pin = ccao::pin_format_pretty(pin),
-      # Attach PIN-level chars to all cards
-      property_address = subject_property_address
+      pretty_pin = ccao::pin_format_pretty(pin)
     )
-
+  toc()
   
+  
+  subject_property_address <- assessment_df %>%
+    pull(property_address)
+
+  pred_pin_final_fmv_round <- assessment_df %>%
+    pull(pred_pin_final_fmv_round)
+
+  # Save model metadata to a dedicated list for ease of access.
+  # Prefer a list to a dataframe since not all of the attribute values
+  # have the same dimensions
+  metadata_df <- tibble(
+    final_model_run_date = final_model_run_date,
+    subject_property_address = subject_property_address,
+    pred_pin_final_fmv_round = assessment_df %>%
+      pull(pred_pin_final_fmv_round),
+    all_predictors = list(all_predictors)
+  )
+
+    tic("comp_df")
     comp_df <- dbGetQuery(
       conn = athena_conn,
       glue::glue("
@@ -211,6 +196,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
           AND run_id = '{params$run_id}'
       ")
     )
+    toc()
     
     chars_to_recode <- comp_df %>%
     select(starts_with("char_") & !char_apts) %>%
@@ -225,7 +211,9 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     ) %>% mutate(
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
-      pretty_pin = ccao::pin_format_pretty(comp_pin)
+      pretty_pin = ccao::pin_format_pretty(comp_pin),
+      sale_date = as.Date(sale_date) %>%
+        format("%b %Y")
     )
     
     
@@ -234,7 +222,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # write_parquet(comp_df, cache_files$comp)
   # write_parquet(metadata_df, cache_files$metadata)
 }
-toc()
 ```
 
 The goal of this experimental report is to explain how the Cook County Assessor's statistical model estimated a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model ran on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
@@ -613,7 +600,7 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
       mutate(
         comp_num = "0",
         meta_sale_document_num = NA_character_,
-        sale_date = as.Date(NA),
+        sale_date = NA_character_,
         meta_sale_price = NA_real_,
         meta_sale_price_per_sq_ft = NA_real_
       ) %>%
