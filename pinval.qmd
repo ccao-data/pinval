@@ -18,19 +18,22 @@ knitr:
     out.width: "100%"
 editor: source
 params:
-  run_id: "2024-06-18-calm-nathan"
-  year: "2024"
+  run_id: "2025-02-11-charming-eric"
+  year: "2025"
   # Good PINs for testing:
   #   * Single card: 14051280390000
   #   * Multicard: 16251020210000
   #   * Past sale is a comp: 14331000240000
-  pin: "14331000240000"
+  pin: "08102100010000"
   num_comps: 5
 ---
 
-```{r}
+
+```{r, time_it = TRUE}
+tic("libraries")
 # This block loads data for the selected parcel, year, and model run.
 # Start by loading R dependencies
+library(tictoc)
 library(arrow)
 library(ccao)
 library(dplyr)
@@ -39,7 +42,9 @@ library(stringr)
 library(tibble)
 library(tidyr)
 library(tools)
+toc()
 
+tic("ingest")
 # Helper function to wrap a PIN in a link for display purposes
 link_pin <- function(pin, display_text) {
   text <- ifelse(!missing(display_text), display_text, ccao::pin_format_pretty(pin))
@@ -132,6 +137,16 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     substr(1, 10) %>%
     as.Date()
 
+  
+  # assessment_pin_df_test <- dbGetQuery(
+  #   conn = athena_conn,
+  #   glue::glue("
+  #     SELECT * FROM z_ci_add_pinval_tables_default.pinval_assessment_card
+  #     WHERE pin = '{params$pin}'
+  #       AND year = '{params$year}'
+  #       AND run_id = '{params$run_id}'
+  #   ")
+  # ) 
   # Load chars that are stored in the PIN-level assessment data
   assessment_pin_df <- open_dataset(
     glue::glue(
@@ -164,16 +179,16 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   )
 
   # Load card-level assessment data to use as the base for joining all chars
-  assessment_df <- open_dataset(
-    glue::glue(
-      "{base_model_results_url}/assessment_card/year={params$year}/run_id={params$run_id}"
-    )
-  ) %>%
-    filter(
-      meta_pin == params$pin,
-      meta_year == assessment_data_year
-    ) %>%
-    collect() %>%
+  
+  assessment_df <- dbGetQuery(
+    conn = athena_conn,
+    glue::glue("
+      SELECT * FROM z_ci_add_pinval_tables_default.pinval_assessment_card
+      WHERE pin = '{params$pin}'
+        AND year = '{params$year}'
+        AND run_id = '{params$run_id}'
+    ")
+  ) %>% 
     mutate(
       township = ccao::town_convert(meta_township_code),
       # toTitleCase is nice here because it preserves lowercase for prepositions
@@ -181,148 +196,45 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       municipality = loc_tax_municipality_name %>% tolower() %>% tools::toTitleCase(),
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
-      pretty_pin = ccao::pin_format_pretty(meta_pin),
+      pretty_pin = ccao::pin_format_pretty(pin),
       # Attach PIN-level chars to all cards
-      property_address = subject_property_address,
+      property_address = subject_property_address
     )
 
-  # Load comp data
-  raw_comp_df <- dbGetQuery(
-    conn = athena_conn,
-    glue::glue("
-      SELECT *
-      FROM model.comp
-      WHERE pin = '{params$pin}'
-        AND year = '{params$year}'
-        AND run_id = '{params$run_id}'
-    ")
-  ) %>%
-    select(-year, -run_id) %>%
-    as_tibble()
-
-  # Pivot out the comp data and drop extraneous comps
-  pivoted_comp_df <- raw_comp_df %>%
-    # This requires multiple pivots joined by bind_cols because the comp attribute
-    # columns have different types, so they can't be pivoted in one operation.
-    # Start by pivoting on comp_pin
-    pivot_longer(
-      starts_with("comp_pin_"),
-      values_to = "comp_pin",
-      names_to = "comp_num",
-      names_pattern = "comp_pin_(\\d+)"
-    ) %>%
-    select(-starts_with("comp_score_"), -starts_with("comp_document_num_")) %>%
-    bind_cols(
-      # Next, pivot on comp_score and bind the resulting column to the dataframe
-      raw_comp_df %>%
-        pivot_longer(starts_with("comp_score_"), values_to = "comp_score") %>%
-        select(comp_score),
-      # Finally, pivot on comp_document_num and bind the column
-      raw_comp_df %>%
-        pivot_longer(
-          starts_with("comp_document_num_"),
-          values_to = "comp_document_num"
-        ) %>%
-        select(comp_document_num)
-    ) %>%
-    # Filter for only the top N comps
-    mutate(comp_num = as.integer(comp_num)) %>%
-    filter(comp_num <= params$num_comps)
-
-  # Load training data from the DVC cache to grab characteristics for comps
-  dvc_md5_hash <- read_parquet(
-    glue::glue(
-      "{base_model_results_url}/metadata/year={params$year}/{params$run_id}.parquet"
+  
+    comp_df <- dbGetQuery(
+      conn = athena_conn,
+      glue::glue("
+        SELECT * FROM z_ci_add_pinval_tables_default.pinval_comp
+        WHERE pin = '{params$pin}'
+          AND year = '{params$year}'
+          AND run_id = '{params$run_id}'
+      ")
     )
-  ) %>%
-    pull(dvc_md5_training_data)
-
-  training_data_prefix <- dvc_md5_hash %>% substr(1, 2)
-  training_data_filename <- dvc_md5_hash %>% substr(3, nchar(dvc_md5_hash))
-
-  training_df <- read_parquet(
-    glue::glue(
-      "{base_dvc_url}/files/md5/{training_data_prefix}/{training_data_filename}"
-    )
-  ) %>%
-    filter(
-      meta_pin %in% pivoted_comp_df$comp_pin,
-      meta_sale_document_num %in% pivoted_comp_df$comp_document_num
-    ) %>%
-    mutate(property_address = loc_property_address %>% tolower() %>% str_to_title())
-
-  # Load school district data, for use in translating geo IDs to names.
-  # We need to do this after we've loaded assessment and training sets, since
-  # we only want to grab school info for the subject property and comps
-  school_df <- dbGetQuery(
-    conn = athena_conn,
-    glue::glue("
-      SELECT
-        pin10,
-        school_elementary_district_name AS loc_school_elementary_district_name,
-        school_secondary_district_name AS loc_school_secondary_district_name
-      FROM location.school
-      WHERE year = '{assessment_data_year}'
-        AND pin10 IN (
-          '{substr(params$pin, 1, 10)}',
-          '{pivoted_comp_df$comp_pin %>% substr(1, 10) %>% paste(collapse = \"\', \'\")}'
-        )
-    ")
-  )
-
-  # Join school district data to assessment and training sets
-  assessment_df <- assessment_df %>%
-    mutate(meta_pin10 = substr(meta_pin, 1, 10)) %>%
-    left_join(school_df, by = c("meta_pin10" = "pin10"))
-
-  training_df <- training_df %>%
-    left_join(school_df, by = c("meta_pin10" = "pin10"))
-
-  # Attach training chars to comps
-  comp_df_with_training_chars <- pivoted_comp_df %>%
-    left_join(
-      training_df,
-      by = c(
-        "comp_pin" = "meta_pin",
-        "comp_document_num" = "meta_sale_document_num"
-      )
-    )
-
-  # Recode all chars except char_apts since we do not code it in the training
-  # data in the same way we code other chars
-  chars_to_recode <- comp_df_with_training_chars %>%
+    
+    chars_to_recode <- comp_df %>%
     select(starts_with("char_") & !char_apts) %>%
     names()
 
-  comp_df <- comp_df_with_training_chars %>%
+    comp_df <- comp_df %>%
     # Translate coded vars to human readable values
     ccao::vars_recode(
       cols = chars_to_recode,
       type = "long",
       as_factor = FALSE
-    ) %>%
-    mutate(
+    ) %>% mutate(
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
-      sale_price = scales::dollar(meta_sale_price),
-      sale_price_short = scales::dollar(
-        meta_sale_price,
-        accuracy = 1,
-        scale = 1 / 1000,
-        suffix = "K"
-      ),
-      sale_price_per_sq_ft = (meta_sale_price / char_bldg_sf) %>%
-        scales::dollar(accuracy = 1),
-      sale_date = meta_sale_date %>% as.Date() %>% format("%h %Y"),
-      pretty_pin = ccao::pin_format_pretty(comp_pin),
-      is_subject_pin_sale = comp_pin == params$pin
+      pretty_pin = ccao::pin_format_pretty(comp_pin)
     )
-
-  # Write the assessment and comp data to the cache
-  write_parquet(assessment_df, cache_files$assessment)
-  write_parquet(comp_df, cache_files$comp)
-  write_parquet(metadata_df, cache_files$metadata)
+    
+    
+  #Write the assessment and comp data to the cache
+  # write_parquet(assessment_df, cache_files$assessment)
+  # write_parquet(comp_df, cache_files$comp)
+  # write_parquet(metadata_df, cache_files$metadata)
 }
+toc()
 ```
 
 The goal of this experimental report is to explain how the Cook County Assessor's statistical model estimated a subject home’s value. The `r format(metadata_df$final_model_run_date, "%Y")` model ran on **`r format(metadata_df$final_model_run_date, "%B %d, %Y")`**, and it used characteristics and sales available at that time to learn about the real estate market and estimate what the subject home would sell for if it sold on **January 1, `r format(metadata_df$final_model_run_date, "%Y")`**.
@@ -348,6 +260,7 @@ if (parcel_is_multicard) {
 ```
 
 ```{r output="asis"}
+tic("html stuff")
 # This block takes the data generated by the previous block and displays them
 # in the report. Since multicard PINs require rendering the same elements for
 # different cards in a loop, we take the approach of generating HTML
@@ -492,7 +405,7 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
         paste0(
           "<h5>", property_label, "</h5>",
           "<b>Address</b>: ", property_address,
-          "<br><b>PIN</b>: ", link_pin(meta_pin),
+          "<br><b>PIN</b>: ", link_pin(pin),
           "<br><b>Property class</b>: ", char_class,
           "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
           "<br><b>Year built</b>: ", char_yrblt,
@@ -596,7 +509,7 @@ avg_price_summary <- function(df) {
   # Compute the range of dates for the sales, and get a rich text HTML string
   # describing the range
   sale_years <- comp_df %>%
-    mutate(sale_year = substr(meta_sale_date, 1, 4)) %>%
+    mutate(sale_year = substr(sale_date, 1, 4)) %>%
     arrange(sale_year) %>%
     pull(sale_year)
   sale_year_range_html <- ifelse(
@@ -699,10 +612,10 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
     assessment_df %>%
       mutate(
         comp_num = "0",
-        meta_sale_document_num = "",
-        meta_sale_date = "",
-        meta_sale_price = "",
-        meta_sale_price_per_sq_ft = "",
+        meta_sale_document_num = NA_character_,
+        sale_date = as.Date(NA),
+        meta_sale_price = NA_real_,
+        meta_sale_price_per_sq_ft = NA_real_
       ) %>%
       select(
         # If you change any chars in this list, make sure to double-check
@@ -711,7 +624,7 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
         comp_num,
         "Sale Price" = meta_sale_price,
         "Sale $/sqft" = meta_sale_price_per_sq_ft,
-        "Sale Date" = meta_sale_date,
+        "Sale Date" = sale_date,
         "Sale Doc. Num." = meta_sale_document_num,
         "Address" = property_address,
         "PIN" = pretty_pin,
@@ -930,6 +843,7 @@ if (parcel_is_multicard) {
 
 # Render the list of HTML tags
 tagList(html_tags)
+toc()
 ```
 
 ## Final model estimate
