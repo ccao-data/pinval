@@ -118,7 +118,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Load final model run date for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
   # not the same as the final model run
-  #TODO: Potentially add this into another table for speed up?
+  # TODO: Potentially add this into another table for speed up?
   final_model_run_date <- dbGetQuery(
     conn = athena_conn,
     # As above, the LIMIT here is defensive
@@ -144,7 +144,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
         AND year = '{params$year}'
         AND run_id = '{params$run_id}'
     ")
-  ) %>% 
+  ) %>%
     mutate(
       township = ccao::town_convert(meta_township_code),
       # toTitleCase is nice here because it preserves lowercase for prepositions
@@ -154,7 +154,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       land_sf = scales::comma(char_land_sf),
       pretty_pin = ccao::pin_format_pretty(pin)
     )
-  
+
   subject_property_address <- assessment_df %>%
     pull(property_address)
 
@@ -172,21 +172,21 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     all_predictors = list(all_predictors)
   )
 
-    comp_df <- dbGetQuery(
-      conn = athena_conn,
-      glue::glue("
+  comp_df <- dbGetQuery(
+    conn = athena_conn,
+    glue::glue("
         SELECT * FROM z_ci_add_pinval_tables_default.pinval_comp
         WHERE pin = '{params$pin}'
           AND year = '{params$year}'
           AND run_id = '{params$run_id}'
       ")
-    )
-    
-    chars_to_recode <- comp_df %>%
+  )
+
+  chars_to_recode <- comp_df %>%
     select(starts_with("char_") & !char_apts) %>%
     names()
 
-    comp_df <- comp_df %>%
+  comp_df <- comp_df %>%
     # Translate coded vars to human readable values
     ccao::vars_recode(
       cols = chars_to_recode,
@@ -199,12 +199,12 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       sale_date = as.Date(sale_date) %>%
         format("%b %Y")
     )
-    
-    
-  #Write the assessment and comp data to the cache
-  #write_parquet(assessment_df, cache_files$assessment)
-  #write_parquet(comp_df, cache_files$comp)
-  #write_parquet(metadata_df, cache_files$metadata)
+
+
+  # Write the assessment and comp data to the cache
+  # write_parquet(assessment_df, cache_files$assessment)
+  # write_parquet(comp_df, cache_files$comp)
+  # write_parquet(metadata_df, cache_files$metadata)
 }
 ```
 
