@@ -200,9 +200,9 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 
 
   # Write the assessment and comp data to the cache
-  write_parquet(assessment_df, cache_files$assessment)
-  write_parquet(comp_df, cache_files$comp)
-  write_parquet(metadata_df, cache_files$metadata)
+  #write_parquet(assessment_df, cache_files$assessment)
+  #write_parquet(comp_df, cache_files$comp)
+  #write_parquet(metadata_df, cache_files$metadata)
 }
 ```
 
@@ -467,10 +467,10 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
 # a dataframe of comps
 avg_price_summary <- function(df) {
   # Compute the average price and the average price per square foot
-  avg_sale_price <- df$meta_sale_price %>%
+  avg_sale_price <- df$sale_price %>%
     mean() %>%
     scales::dollar()
-  avg_price_per_sqft <- (df$meta_sale_price / df$char_bldg_sf) %>%
+  avg_price_per_sqft <- (df$sale_price / df$char_bldg_sf) %>%
     mean() %>%
     scales::dollar(accuracy = 1)
 
