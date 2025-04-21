@@ -28,7 +28,6 @@ params:
   num_comps: 5
 ---
 
-
 ```{r}
 # This block loads data for the selected parcel, year, and model run.
 # Start by loading R dependencies
@@ -40,7 +39,6 @@ library(stringr)
 library(tibble)
 library(tidyr)
 library(tools)
-
 
 # Helper function to wrap a PIN in a link for display purposes
 link_pin <- function(pin, display_text) {
