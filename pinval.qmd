@@ -200,9 +200,9 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 
 
   # Write the assessment and comp data to the cache
-  #write_parquet(assessment_df, cache_files$assessment)
-  #write_parquet(comp_df, cache_files$comp)
-  #write_parquet(metadata_df, cache_files$metadata)
+  write_parquet(assessment_df, cache_files$assessment)
+  write_parquet(comp_df, cache_files$comp)
+  write_parquet(metadata_df, cache_files$metadata)
 }
 ```
 
