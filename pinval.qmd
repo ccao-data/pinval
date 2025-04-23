@@ -138,7 +138,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     conn = athena_conn,
     glue::glue("
       SELECT * FROM z_ci_add_pinval_tables_default.pinval_assessment_card
-      WHERE pin = '{params$pin}'
+      WHERE meta_pin = '{params$pin}'
         AND year = '{params$year}'
         AND run_id = '{params$run_id}'
     ")
@@ -150,7 +150,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       municipality = loc_tax_municipality_name %>% tolower() %>% tools::toTitleCase(),
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
-      pretty_pin = ccao::pin_format_pretty(pin)
+      pretty_pin = ccao::pin_format_pretty(meta_pin)
     )
 
   subject_property_address <- assessment_df %>%
@@ -169,7 +169,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       pull(pred_pin_final_fmv_round),
     all_predictors = list(all_predictors)
   )
-
+  
   comp_df <- dbGetQuery(
     conn = athena_conn,
     glue::glue("
@@ -177,9 +177,10 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
         WHERE pin = '{params$pin}'
           AND year = '{params$year}'
           AND run_id = '{params$run_id}'
+          ORDER BY comp_num ASC
       ")
   )
-
+  
   chars_to_recode <- comp_df %>%
     select(starts_with("char_") & !char_apts) %>%
     names()
@@ -194,15 +195,15 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       bldg_sf = scales::comma(char_bldg_sf),
       land_sf = scales::comma(char_land_sf),
       pretty_pin = ccao::pin_format_pretty(comp_pin),
-      sale_date = as.Date(sale_date) %>%
+      sale_date = as.Date(meta_sale_date) %>%
         format("%b %Y")
     )
 
 
   # Write the assessment and comp data to the cache
-  write_parquet(assessment_df, cache_files$assessment)
-  write_parquet(comp_df, cache_files$comp)
-  write_parquet(metadata_df, cache_files$metadata)
+  # write_parquet(assessment_df, cache_files$assessment)
+  # write_parquet(comp_df, cache_files$comp)
+  # write_parquet(metadata_df, cache_files$metadata)
 }
 ```
 
@@ -373,7 +374,7 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
         paste0(
           "<h5>", property_label, "</h5>",
           "<b>Address</b>: ", property_address,
-          "<br><b>PIN</b>: ", link_pin(pin),
+          "<br><b>PIN</b>: ", link_pin(meta_pin),
           "<br><b>Property class</b>: ", char_class,
           "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
           "<br><b>Year built</b>: ", char_yrblt,
@@ -477,7 +478,7 @@ avg_price_summary <- function(df) {
   # Compute the range of dates for the sales, and get a rich text HTML string
   # describing the range
   sale_years <- comp_df %>%
-    mutate(sale_year = substr(sale_date, 1, 4)) %>%
+    mutate(sale_year = substr(meta_sale_date, 1, 4)) %>%
     arrange(sale_year) %>%
     pull(sale_year)
   sale_year_range_html <- ifelse(
@@ -581,7 +582,7 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
       mutate(
         comp_num = "0",
         meta_sale_document_num = NA_character_,
-        sale_date = NA_character_,
+        meta_sale_date = NA_character_,
         meta_sale_price = NA_real_,
         meta_sale_price_per_sq_ft = NA_real_
       ) %>%
@@ -592,7 +593,7 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
         comp_num,
         "Sale Price" = meta_sale_price,
         "Sale $/sqft" = meta_sale_price_per_sq_ft,
-        "Sale Date" = sale_date,
+        "Sale Date" = meta_sale_date,
         "Sale Doc. Num." = meta_sale_document_num,
         "Address" = property_address,
         "PIN" = pretty_pin,
