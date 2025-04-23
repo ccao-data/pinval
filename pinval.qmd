@@ -169,7 +169,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       pull(pred_pin_final_fmv_round),
     all_predictors = list(all_predictors)
   )
-  
+
   comp_df <- dbGetQuery(
     conn = athena_conn,
     glue::glue("
@@ -180,7 +180,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
           ORDER BY comp_num ASC
       ")
   )
-  
+
   chars_to_recode <- comp_df %>%
     select(starts_with("char_") & !char_apts) %>%
     names()
