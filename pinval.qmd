@@ -112,28 +112,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       )
     )
 
-  # Load final model run date for the given year, which might be different
-  # from the run ID specified in the params object if the comps run was
-  # not the same as the final model run
-  # TODO: Potentially add this into another table for speed up?
-  
-  # Temp fix
-  final_model_run_date <- dbGetQuery(
-    conn = athena_conn,
-    # As above, the LIMIT here is defensive
-    glue::glue("
-      SELECT run_id
-      FROM model.final_model
-      WHERE year = '{str_sub(params$run_id, 1, 4)}'
-      AND type = 'res'
-      AND is_final
-      LIMIT 1
-    ")
-  ) %>%
-    pull(run_id) %>%
-    substr(1, 10) %>%
-    as.Date()
-
   # Load card-level assessment data to use as the base for joining all chars
   assessment_df <- dbGetQuery(
     conn = athena_conn,
@@ -158,6 +136,14 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
 
   pred_pin_final_fmv_round <- assessment_df %>%
     pull(pred_pin_final_fmv_round)
+
+  # Load final model run date for the given year, which might be different
+  # from the run ID specified in the params object if the comps run was
+  # not the same as the final model run
+  final_model_run_date <-
+    assessment_df %>%
+    pull(final_model_run_date) %>%
+    as.Date()
 
   # Save model metadata to a dedicated list for ease of access.
   # Prefer a list to a dataframe since not all of the attribute values
