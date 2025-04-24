@@ -19,7 +19,6 @@ knitr:
 editor: source
 params:
   run_id: "2025-02-11-charming-eric"
-  year: "2025"
   # Good PINs for testing:
   #   * Single card: 14051280390000
   #   * Multicard: 16251020210000
@@ -51,7 +50,7 @@ link_pin <- function(pin, display_text) {
 }
 
 # Check if this PIN/year combo is cached, and skip data loading if so
-base_cache_file_path <- glue::glue("cache/{params$run_id}_{params$pin}_{params$year}")
+base_cache_file_path <- glue::glue("cache/{params$run_id}_{params$pin}")
 cache_files <- list(
   assessment = glue::glue("{base_cache_file_path}_asmt.parquet"),
   comp = glue::glue("{base_cache_file_path}_comp.parquet"),
@@ -117,13 +116,15 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # from the run ID specified in the params object if the comps run was
   # not the same as the final model run
   # TODO: Potentially add this into another table for speed up?
+  
+  # Temp fix
   final_model_run_date <- dbGetQuery(
     conn = athena_conn,
     # As above, the LIMIT here is defensive
     glue::glue("
       SELECT run_id
       FROM model.final_model
-      WHERE year = '{params$year}'
+      WHERE year = '{str_sub(params$run_id, 1, 4)}'
       AND type = 'res'
       AND is_final
       LIMIT 1
@@ -139,7 +140,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     glue::glue("
       SELECT * FROM z_ci_add_pinval_tables_default.pinval_assessment_card
       WHERE meta_pin = '{params$pin}'
-        AND year = '{params$year}'
         AND run_id = '{params$run_id}'
     ")
   ) %>%
@@ -175,7 +175,6 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     glue::glue("
         SELECT * FROM z_ci_add_pinval_tables_default.pinval_comp
         WHERE pin = '{params$pin}'
-          AND year = '{params$year}'
           AND run_id = '{params$run_id}'
           ORDER BY comp_num ASC
       ")
@@ -433,7 +432,7 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
         "<br><b>PIN</b>: ", link_pin(comp_pin),
         "<br><b>Property class</b>: ", char_class,
         "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
-        "<br><b>Sale price</b>: ", sale_price,
+        "<br><b>Sale price</b>: ", meta_sale_price,
         "<br><b>Sale $/sqft</b>: ", sale_price_per_sq_ft,
         "<br><b>Sale date</b>: ", sale_date,
         "<br><b>Sale doc. num.</b>: ", comp_document_num,
@@ -468,10 +467,10 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
 # a dataframe of comps
 avg_price_summary <- function(df) {
   # Compute the average price and the average price per square foot
-  avg_sale_price <- df$sale_price %>%
+  avg_sale_price <- df$meta_sale_price %>%
     mean() %>%
     scales::dollar()
-  avg_price_per_sqft <- (df$sale_price / df$char_bldg_sf) %>%
+  avg_price_per_sqft <- (df$meta_sale_price / df$char_bldg_sf) %>%
     mean() %>%
     scales::dollar(accuracy = 1)
 
@@ -615,7 +614,7 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
           ) %>%
           select(
             comp_num,
-            "Sale Price" = sale_price,
+            "Sale Price" = meta_sale_price,
             "Sale $/sqft" = sale_price_per_sq_ft,
             "Sale Date" = sale_date,
             "Sale Doc. Num." = comp_document_num,
