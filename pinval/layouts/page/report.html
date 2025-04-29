@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
+    <title>{{ .Title }}</title>
+  </head>
+  <body>
+    <header>
+      <div class="jumbotron jumbotron-fluid">
+        <div class="container">
+          <h1 class="display-5 fw-bold">{{ .Title }}</h1>
+          <p class="lead">
+            <strong>PIN:</strong>
+            <a
+              target="_blank"
+              href="https://www.cookcountyassessor.com/pin/{{ .Params.target.meta_pin }}"
+            >
+              {{ .Params.target.meta_pin_pretty }}
+            </a>
+          </p>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="container">
+        <p>
+          The goal of this experimental report is to explain how the Cook County
+          Assessor’s statistical model estimated a subject home’s value. The
+          2025 model ran on
+          <strong>{{ .Params.target.final_model_run_date }}</strong>,
+          and it used characteristics and sales available at that time to learn
+          about the real estate market and estimate what the subject home would
+          sell for if it sold on
+          <strong>January 1, {{ .Params.target.year }}</strong>.
+        </p>
+        <div class="callout callout-style-default callout-tip callout-titled">
+          <div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+            <div class="callout-icon-container">
+              <i class="callout-icon"></i>
+            </div>
+            <div class="callout-title-container flex-fill">
+              Click to read more about this report
+            </div>
+            <div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+          </div>
+          <div id="callout-1" class="callout-1-contents callout-collapse collapse">
+            <div class="callout-body-container callout-body">
+              <p>This report attempts to explain the Assessor’s model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s estimated value for this property, which is based on the characteristics and sales input to the model.</p>
+              <p>The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the <a href="https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf">Real Estate Transfer Declaration form</a>.</p>
+              <p>For more details on how the experimental sales comp algorithm works, see <a href="https://ccao-data.github.io/lightsnip/articles/finding-comps.html">Finding comparables with LightGBM</a>.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
+  </body>
+</html>

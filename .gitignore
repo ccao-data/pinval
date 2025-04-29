@@ -22,6 +22,7 @@ cache/
 *.xlsx
 *.xlsm
 *.html
+!pinval/layouts/**/*.html
 *.rmarkdown
 
 # Ignore scratch documents
