@@ -1,61 +1,629 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7" crossorigin="anonymous">
-    <title>{{ .Title }}</title>
-  </head>
-  <body>
-    <header>
-      <div class="jumbotron jumbotron-fluid">
-        <div class="container">
-          <h1 class="display-5 fw-bold">{{ .Title }}</h1>
-          <p class="lead">
-            <strong>PIN:</strong>
-            <a
-              target="_blank"
-              href="https://www.cookcountyassessor.com/pin/{{ .Params.target.meta_pin }}"
-            >
-              {{ .Params.target.meta_pin_pretty }}
+<head>
+  <meta charset="utf-8">
+
+  <!-- Boilerplate for mobile responsiveness -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>{{ .Title }}</title>
+
+  <!-- Load Bootstrap CSS -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7"
+    crossorigin="anonymous"
+  >
+  
+  <!-- Load Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <!-- Load Reactable equivalent (DataTables) CSS -->
+  <link href="https://cdn.datatables.net/2.3.0/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+
+  <!-- Custom styles -->
+  <style>
+    body {
+      font-size: 12pt;
+    }
+    
+    .card-body {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    .banner {
+      background-color: #294298;
+      color: white;
+      padding: 2rem 0;
+      margin-bottom: 2rem;
+    }
+    
+    .banner h1 {
+      margin-bottom: 0.5rem;
+    }
+    
+    .banner a {
+      color: white;
+      text-decoration: underline;
+    }
+    
+    .map-container {
+      height: 500px;
+      margin-bottom: 1.5rem;
+    }
+    
+    .info-box {
+      margin: 20px 0;
+      background-color: #294298;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .info-header {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .info-icon {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+    }
+    
+    .frozen-row {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    .frozen-row-bottom-border {
+      border-bottom: 1px solid rgb(182, 182, 182);
+    }
+    
+    .char-name {
+      font-weight: 600;
+    }
+    
+    .tab-pane {
+      padding-top: 1.5rem;
+    }
+  </style>
+
+  <!-- SVG symbols -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+    <symbol id="info-fill" fill="currentColor" viewBox="0 0 16 16">
+      <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+    </symbol>
+  </svg>
+</head>
+<body>
+  <!-- Top-level banner -->
+  <div class="banner">
+    <div class="container">
+      <div class="card-body">
+        <h2>{{ .Title }}</h2>
+        <div class="subtitle">
+          <b>
+            PIN:
+            <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
+              {{ .Params.pin_pretty }}
             </a>
-          </p>
+          </b>
         </div>
       </div>
-    </header>
-    <main>
-      <div class="container">
-        <p>
-          The goal of this experimental report is to explain how the Cook County
-          Assessor’s statistical model estimated a subject home’s value. The
-          2025 model ran on
-          <strong>{{ .Params.target.final_model_run_date }}</strong>,
-          and it used characteristics and sales available at that time to learn
-          about the real estate market and estimate what the subject home would
-          sell for if it sold on
-          <strong>January 1, {{ .Params.target.year }}</strong>.
-        </p>
-        <div class="callout callout-style-default callout-tip callout-titled">
-          <div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
-            <div class="callout-icon-container">
-              <i class="callout-icon"></i>
-            </div>
-            <div class="callout-title-container flex-fill">
-              Click to read more about this report
-            </div>
-            <div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
-          </div>
-          <div id="callout-1" class="callout-1-contents callout-collapse collapse">
-            <div class="callout-body-container callout-body">
-              <p>This report attempts to explain the Assessor’s model by explaining important inputs to the model: first, the subject home’s characteristics, and second, the top 5 experimental “sale comps.” These sale comps were identified by an experimental algorithm we built to answer the question “what sales did the model use to estimate my home’s value?” The end of the report shows the model’s estimated value for this property, which is based on the characteristics and sales input to the model.</p>
-              <p>The sales that the model used for estimation are reported by the Illinois Department of Revenue, which records sales using the <a href="https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf">Real Estate Transfer Declaration form</a>.</p>
-              <p>For more details on how the experimental sales comp algorithm works, see <a href="https://ccao-data.github.io/lightsnip/articles/finding-comps.html">Finding comparables with LightGBM</a>.</p>
-            </div>
+    </div>
+  </div>
+  
+  <!-- Body of the report -->
+  <div class="container">
+    <div class="card-body">
+
+      <!-- Contextual information -->
+      <p>
+        The goal of this experimental report is to explain how the Cook County Assessor's
+        statistical model estimated a subject home's value. The {{ .Params.assessment_year }}
+        model ran on <strong>{{ .Params.final_model_run_date }}</strong>, and it used characteristics
+        and sales available at that time to learn about the real estate market and estimate
+        what the subject home would sell for if it sold on
+        <strong>January 1, {{ .Params.assessment_year }}</strong>.
+      </p>
+      <div class="info-box border">
+        <div
+          class="info-header text-white p-3 d-flex"
+          data-bs-toggle="collapse" 
+          data-bs-target="#info-content" 
+          aria-expanded="true" 
+          aria-controls="info-content"
+        >
+          <span class="info-icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </span>
+          <h5 class="mb-0 mx-2">Click to read more about this report</h5>
+        </div>
+        <div class="collapse" id="info-content">
+          <div class="p-3 bg-light">
+            <p>
+              This report attempts to explain the Assessor’s model by explaining important
+              inputs to the model: first, the subject home’s characteristics, and second,
+              the top 5 experimental “sale comps.” These sale comps were identified by an
+              experimental algorithm we built to answer the question “what sales did the
+              model use to estimate my home’s value?” The end of the report shows the
+              model’s estimated value for this property, which is based on the characteristics
+              and sales input to the model.
+            </p>
+            <p>
+              The sales that the model used for estimation are reported by the Illinois
+              Department of Revenue, which records sales using the
+              <a
+                href="https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf"
+                target="_blank"
+              >
+                Real Estate Transfer Declaration form
+              </a>.
+            </p>
+            <p>
+              For more details on how the experimental sales comp algorithm works, see
+              <a href="https://ccao-data.github.io/lightsnip/articles/finding-comps.html" target="_blank">
+                Finding comparables with LightGBM
+              </a>.
+            </p>
           </div>
         </div>
       </div>
-    </main>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq" crossorigin="anonymous"></script>
-  </body>
+
+      {{ $is_multicard := gt (len .Params.cards) 1 }}
+      {{ if $is_multicard }}
+      <p>
+        This property has multiple "cards", which is an assessment term for a building or an improvement
+        on a property. Each card on a property can have different characteristics, so the Assessor's
+        model estimates different values for each card. Toggle between the tabs below to view
+        characteristics and comparable sales for each card.
+      </p>
+      {{ end }}
+
+      <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
+      {{ if $is_multicard }}
+        <!-- Multicard: Create a tab for each card to show its comps -->
+        <ul class="nav nav-tabs" id="propertyCardTabs" role="tablist">
+          {{ range $index, $card := .Params.cards }}
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link {{ if eq $index 0 }}active{{ end }}" 
+              id="card-{{ $index }}-tab" 
+              data-bs-toggle="tab" 
+              data-bs-target="#card-{{ $index }}" 
+              type="button" 
+              role="tab" 
+              aria-controls="card-{{ $index }}" 
+              aria-selected="{{ if eq $index 0 }}true{{ else }}false{{ end }}"
+            >
+              Card {{ $card.card_num }}
+            </button>
+          </li>
+          {{ end }}
+        </ul>
+                
+        <div class="tab-content" id="propertyCardTabContent">
+          {{ range $index, $card := .Params.cards }}
+          <div
+            class="tab-pane fade {{ if eq $index 0 }}show active{{ end }}" 
+            id="card-{{ $index }}" 
+            role="tabpanel" 
+            aria-labelledby="card-{{ $index }}-tab"
+          >
+            {{ template "card-content" (dict "card" $card "is_multicard" true) }}
+          </div>
+          {{ end }}
+        </div>
+
+      {{ else }}
+        <!-- Single-card: No tabs required -->
+        {{ $card := index .Params.cards 0 }}
+        {{ template "card-content" (dict "card" $card "is_multicard" false) }}
+      {{ end }}
+
+      <h2>Final model estimate</h2>
+      <p>
+        After rounding and other processing, the model's final estimate for the value of this property
+        on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
+        <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
+      </p>
+      <p>
+        The model's estimated value for this property is not necessarily the final valuation during a
+        reassessment. Analysts at the Assessor's Office can review the model's estimate and make
+        adjustments. To see this property's most recent valuation, visit the
+        <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">Assessor's website</a>.
+      </p>
+
+    </div>
+  </div>
+
+  <!-- Define a template for card content -->
+  {{ define "card-content" }}
+  <h2 class="mb-3">Location</h2>
+  <div class="table-responsive mb-4">
+    <table class="table table-bordered location-table">
+      <tbody>
+        <tr>
+          <td><strong>Address</strong></td>
+          <td>{{ .card.location.property_address }}</td>
+        </tr>
+        <tr>
+          <td><strong>Municipality</strong></td>
+          <td>{{ .card.location.municipality }}</td>
+        </tr>
+        <tr>
+          <td><strong>Assessor Township</strong></td>
+          <td>{{ .card.location.township }}</td>
+        </tr>
+        <tr>
+          <td><strong>Assessor Neighborhood</strong></td>
+          <td>{{ .card.location.meta_nbhd_code }}</td>
+        </tr>
+        <tr>
+          <td><strong>Elementary School District</strong></td>
+          <td>{{ .card.location.loc_school_elementary_district_name }}</td>
+        </tr>
+        <tr>
+          <td><strong>High School District</strong></td>
+          <td>{{ .card.location.loc_school_secondary_district_name }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="mb-3">Characteristics</h2>
+  <div class="table-responsive mb-4">
+    <table class="table table-bordered characteristic-table">
+      <tbody>
+        <tr>
+          <td><strong>Class</strong></td>
+          <td>{{ .card.chars.char_class }}</td>
+        </tr>
+        <tr>
+          <td><strong>Year Built</strong></td>
+          <td>{{ .card.chars.char_yrblt }}</td>
+        </tr>
+        <tr>
+          <td><strong>Bldg. S.F.</strong></td>
+          <td>{{ .card.chars.char_bldg_sf }}</td>
+        </tr>
+        <tr>
+          <td><strong>Land S.F.</strong></td>
+          <td>{{ .card.chars.char_land_sf }}</td>
+        </tr>
+        <tr>
+          <td><strong>Beds</strong></td>
+          <td>{{ .card.chars.char_beds }}</td>
+        </tr>
+        <tr>
+          <td><strong>Full Baths</strong></td>
+          <td>{{ .card.chars.char_fbath }}</td>
+        </tr>
+        <tr>
+          <td><strong>Half Baths</strong></td>
+          <td>{{ .card.chars.char_hbath }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Comp map -->
+  <h2 class="mb-3">Top 5 comparable sales</h2>
+  <div
+    id="map-{{ if .is_multicard }}{{ .card.card_num }}{{ else }}main{{ end }}"
+    class="map-container"
+  >
+  </div>
+
+  <!-- Comp chars -->
+  <div class="table-responsive mb-4">
+    <table
+      class="table table-striped table-bordered characteristic-comparison-table"
+      id="comp-table-{{ if .is_multicard }}{{ .card.card_num }}{{ else }}main{{ end }}"
+    >
+      <thead>
+        <tr>
+          <th>Characteristic</th>
+          <th>{{ if .is_multicard }}Subject card{{ else }}Subject prop.{{ end }}</th>
+          {{ range $index, $comp := .card.comps }}
+          <th>Comp {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}*{{ end }}</th>
+          {{ end }}
+        </tr>
+      </thead>
+      <tbody>
+        <!-- These rows will be frozen at the top -->
+        <tr class="frozen-row">
+          <td class="char-name">Sale Price</td>
+          <td>-</td>
+          {{ range $index, $comp := .card.comps }}
+          <td>{{ $comp.sale_price }}</td>
+          {{ end }}
+        </tr>
+        <tr class="frozen-row">
+          <td class="char-name">Sale $/sqft</td>
+          <td>-</td>
+          {{ range $index, $comp := .card.comps }}
+          <td>{{ $comp.sale_price_per_sq_ft }}</td>
+          {{ end }}
+        </tr>
+        <tr class="frozen-row frozen-row-bottom-border">
+          <td class="char-name">Sale Date</td>
+          <td>-</td>
+          {{ range $index, $comp := .card.comps }}
+          <td>{{ $comp.sale_date }}</td>
+          {{ end }}
+        </tr>
+        <!-- Regular rows -->
+        {{ range $char := .card.predictors }}
+        <tr>
+          <td class="char-name">{{ $char }}</td>
+          <td>{{ index $.card.chars $char }}</td>
+          {{ range $index, $comp := $.card.comps }}
+          <td>{{ index $comp $char }}</td>
+          {{ end }}
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+
+  {{ if .card.has_subject_pin_sale }}
+  <p>
+    <strong>*</strong> This comparable is a sale of the subject
+    {{ if .is_multicard }}card{{ else }}property{{ end }}. The model typically weights these sales
+    highly, even if they are older than other comparable sales.
+  </p>
+  {{ end }}
+
+  <h2 class="mb-3">Summary of comparable sales</h2>
+  <p>
+    The top 5 comparable sales took place
+    {{ .card.comp_summary.sale_year_range_prefix }}
+    <strong>{{ .card.comp_summary.sale_year_range }}</strong>. 
+    The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong> 
+    at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
+  </p>
+
+  <h2 class="mb-3">Initial model estimate</h2>
+  <p>
+    Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
+    initially estimated that the value of this {{ if .is_multicard }}card{{ else }}property{{ end }}
+    as of lien date <strong>January 1, {{ .Params.assessment_year }}</strong> should be
+    <strong>{{ .card.pred_card_initial_fmv }}</strong> at
+    <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
+  </p>
+  {{ end }}
+
+  <!-- Load Bootstrap JS -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq"
+    crossorigin="anonymous"
+  > </script>
+  
+  <!-- Load Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Load DataTables JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+  <script src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"></script>
+  
+  <script>
+    // Initialize maps once the DOM is loaded
+    document.addEventListener("DOMContentLoaded", function() {
+      {{ if $is_multicard }}
+        {{ range $index, $card := .Params.cards }}
+          initializeMap("map-{{ $card.card_num }}", {{ $index }});
+          initializeTable("comp-table-{{ $card.card_num }}");
+        {{ end }}
+      {{ else }}
+        initializeMap("map-main", 0);
+        initializeTable("comp-table-main");
+      {{ end }}
+    });
+    
+    // Initialize map for a specific card
+    function initializeMap(mapId, cardIndex) {
+      const mapData = {{ .Params.cards }};
+      const cardData = mapData[cardIndex];
+      
+      // Create map centered on subject property
+      const map = L.map(mapId).setView(
+        [cardData.location.loc_latitude, cardData.location.loc_longitude], 
+        14
+      );
+      
+      // Add tile layer
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 19
+        }
+      ).addTo(map);
+      
+      // Add subject property marker
+      const subjectMarker = L.circleMarker(
+        [cardData.location.loc_latitude, cardData.location.loc_longitude],
+        {
+            radius: 5,
+            color: "black",
+            weight: 2,
+            fill: false,
+            fillOpacity: 0
+        }
+      ).addTo(map);
+      
+      // Prepare bounds to fit all markers
+      const bounds = L.latLngBounds();
+      bounds.extend([cardData.location.loc_latitude, cardData.location.loc_longitude]);
+      
+      // Add subject property label and popup
+      let hasSubjectSale = false;
+      
+      // Check if subject property is also a comp
+      cardData.comps.forEach(comp => {
+        if (comp.is_subject_pin_sale) {
+          hasSubjectSale = true;
+        }
+      });
+      
+      if (!hasSubjectSale) {
+        const propertyLabel = cardData.is_multicard ? "Subject card" : "Subject property";
+        subjectMarker.bindTooltip(
+          propertyLabel,
+          {
+            permanent: true,
+            direction: "top",
+            offset: [0, -4],
+            className: "subject-tooltip"
+          }
+        );
+        
+        // Create popup content
+        const subjectPopupContent = `
+          <h5>${propertyLabel}</h5>
+          <b>Address</b>: ${cardData.location.property_address}
+          <br><b>PIN</b>: <a href="https://www.cookcountyassessor.com/pin/${cardData.pin}" target="_blank">${cardData.displayPin}</a>
+          <br><b>Property class</b>: ${cardData.chars.char_class}
+          <br><b>Assessor neighborhood</b>: ${cardData.location.meta_nbhd_code}
+          <br><b>Year built</b>: ${cardData.chars.char_yrblt}
+          <br><b>Bldg S.F.</b>: ${cardData.chars.char_bldg_sf}
+          <br><b>Land S.F.</b>: ${cardData.chars.char_land_sf}
+          <br><b>Beds</b>: ${cardData.chars.char_beds}
+          <br><b>Full baths</b>: ${cardData.chars.char_fbath}
+          <br><b>Half baths</b>: ${cardData.chars.char_hbath}
+        `;
+        
+        subjectMarker.bindPopup(subjectPopupContent);
+      }
+      
+      // Add comp markers
+      cardData.comps.forEach(comp => {
+        const compMarker = L.circleMarker(
+          [comp.loc_latitude, comp.loc_longitude],
+          {
+            radius: 4,
+            color: "#00cc00",
+            fillOpacity: 1,
+            opacity: comp.is_subject_pin_sale ? 0 : 1 // Hide the marker if it's a subject PIN sale
+          }
+        ).addTo(map);
+        
+        // Add tooltip
+        const tooltipText = comp.is_subject_pin_sale 
+          ? `${cardData.is_multicard ? "Subject card" : "Subject property"} [${comp.sale_price_short} (${comp.sale_date})]` 
+          : `${comp.sale_price_short} (${comp.sale_date})`;
+            
+        compMarker.bindTooltip(
+          tooltipText,
+          {
+            permanent: true,
+            direction: "top",
+            offset: [0, -4],
+            className: "comp-tooltip"
+          }
+        );
+        
+        // Create popup content
+        const compPopupContent = `
+          <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Comp " + comp.comp_num}</h5>
+          <b>Address</b>: ${comp.property_address}
+          <br><b>PIN</b>: <a href="https://www.cookcountyassessor.com/pin/${comp.pin}" target="_blank">${comp.displayPin}</a>
+          <br><b>Property class</b>: ${comp.char_class}
+          <br><b>Assessor neighborhood</b>: ${comp.meta_nbhd_code}
+          <br><b>Sale price</b>: ${comp.sale_price}
+          <br><b>Sale $/sqft</b>: ${comp.sale_price_per_sq_ft}
+          <br><b>Sale date</b>: ${comp.sale_date}
+          <br><b>Sale doc. num.</b>: ${comp.document_num}
+          <br><b>Year built</b>: ${comp.char_yrblt}
+          <br><b>Bldg S.F.</b>: ${comp.char_bldg_sf}
+          <br><b>Land S.F.</b>: ${comp.char_land_sf}
+          <br><b>Beds</b>: ${comp.char_beds}
+          <br><b>Full baths</b>: ${comp.char_fbath}
+          <br><b>Half baths</b>: ${comp.char_hbath}
+        `;
+        
+        compMarker.bindPopup(compPopupContent);
+        
+        // Add to bounds
+        bounds.extend([comp.loc_latitude, comp.loc_longitude]);
+      });
+      
+      // Add legend
+      const legend = L.control({ position: "bottomright" });
+      legend.onAdd = function() {
+        const div = L.DomUtil.create("div", "info legend");
+        div.innerHTML = `
+          <div style="background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);">
+            <div style="margin-bottom: 5px;">
+              <span style="display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid black; margin-right: 5px;"></span>
+              ${cardData.is_multicard ? "Subject card" : "Subject property"}
+            </div>
+            <div>
+              <span style="display: inline-block; width: 13px; height: 13px; border-radius: 50%; background-color: #00cc00; margin-right: 5px;"></span>
+              Comparable sale
+            </div>
+          </div>
+        `;
+        return div;
+      };
+      legend.addTo(map);
+      
+      // Add note control
+      const noteControl = L.control({ position: "topright" });
+      noteControl.onAdd = function() {
+        const div = L.DomUtil.create("div", "info note");
+        div.innerHTML = `
+          <div style="background-color: white; padding: 5px 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);">
+            Tap or click on a dot for more details
+          </div>
+        `;
+        return div;
+      };
+      noteControl.addTo(map);
+      
+      // Fit bounds with a small buffer
+      const boundsPadding = 0.001;
+      bounds._southWest.lat -= boundsPadding;
+      bounds._southWest.lng -= boundsPadding;
+      bounds._northEast.lat += boundsPadding;
+      bounds._northEast.lng += boundsPadding;
+      
+      map.fitBounds(bounds);
+    }
+    
+    // Initialize the DataTables for the characteristic comparison table
+    function initializeTable(tableId) {
+      $(`#${tableId}`).DataTable({
+        paging: true,
+        searching: true,
+        info: false,
+        pageLength: 10,
+        ordering: false,
+        lengthChange: false,
+        language: {
+          search: "Filter characteristics:"
+        }
+      });
+    }
+  </script>
+</body>
 </html>
