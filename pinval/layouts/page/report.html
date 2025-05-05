@@ -15,10 +15,10 @@
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7"
     crossorigin="anonymous"
   >
-  
+
   <!-- Load Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  
+
   <!-- Load Reactable equivalent (DataTables) CSS -->
   <link href="https://cdn.datatables.net/2.3.0/css/dataTables.bootstrap5.min.css" rel="stylesheet">
 
@@ -27,32 +27,32 @@
     body {
       font-size: 12pt;
     }
-    
+
     .card-body {
       max-width: 1000px;
       margin: 0 auto;
     }
-    
+
     .banner {
       background-color: #294298;
       color: white;
       padding: 2rem 0;
       margin-bottom: 2rem;
     }
-    
+
     .banner h1 {
       margin-bottom: 0.5rem;
     }
-    
+
     .banner a {
       color: white;
       text-decoration: underline;
     }
-    
+
     .map-container {
       height: 500px;
     }
-    
+
     .info-box {
       margin: 20px 0;
       background-color: #294298;
@@ -71,25 +71,45 @@
       width: 24px;
       height: 24px;
     }
-    
+
     .frozen-row {
       background: rgba(0, 0, 0, 0.05);
     }
-    
+
     .frozen-row-bottom-border {
       border-bottom: 1px solid rgb(182, 182, 182);
     }
-    
+
     .char-name {
       font-weight: 600;
     }
-    
+
     .tab-pane {
       padding-top: 1.5rem;
     }
 
+    .tab-content {
+      border-left: 1px solid #ddd;
+      border-right: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+      padding: 10px;
+    }
+
+    .nav-tabs {
+      margin-bottom: 0;
+    }
+
     .asterisk {
       color: red;
+    }
+
+    .page-link {
+      color: #294298;
+    }
+
+    .active > .page-link {
+      background-color: #294298;
+      border-color: #294298;
     }
   </style>
 
@@ -117,7 +137,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Body of the report -->
   <div class="container">
     <div class="card-body">
@@ -134,9 +154,9 @@
       <div class="info-box border">
         <div
           class="info-header text-white p-3 d-flex"
-          data-bs-toggle="collapse" 
-          data-bs-target="#info-content" 
-          aria-expanded="true" 
+          data-bs-toggle="collapse"
+          data-bs-target="#info-content"
+          aria-expanded="true"
           aria-controls="info-content"
         >
           <span class="info-icon">
@@ -206,13 +226,13 @@
           {{ range $index, $card := .Params.cards }}
           <li class="nav-item" role="presentation">
             <button
-              class="nav-link {{ if eq $index 0 }}active{{ end }}" 
-              id="card-{{ $index }}-tab" 
-              data-bs-toggle="tab" 
-              data-bs-target="#card-{{ $index }}" 
-              type="button" 
-              role="tab" 
-              aria-controls="card-{{ $index }}" 
+              class="nav-link {{ if eq $index 0 }}active{{ end }}"
+              id="card-{{ $index }}-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#card-{{ $index }}"
+              type="button"
+              role="tab"
+              aria-controls="card-{{ $index }}"
               aria-selected="{{ if eq $index 0 }}true{{ else }}false{{ end }}"
             >
               Card {{ $card.card_num }}
@@ -220,13 +240,13 @@
           </li>
           {{ end }}
         </ul>
-                
-        <div class="tab-content" id="propertyCardTabContent">
+
+        <div class="tab-content mb-3" id="propertyCardTabContent">
           {{ range $index, $card := .Params.cards }}
           <div
-            class="tab-pane fade {{ if eq $index 0 }}show active{{ end }}" 
-            id="card-{{ $index }}" 
-            role="tabpanel" 
+            class="tab-pane fade {{ if eq $index 0 }}show active{{ end }}"
+            id="card-{{ $index }}"
+            role="tabpanel"
             aria-labelledby="card-{{ $index }}-tab"
           >
             {{ template "card-content" (dict "card" $card "is_multicard" true) }}
@@ -401,8 +421,8 @@
   <p>
     The top 5 comparable sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
-    <strong>{{ .card.comp_summary.sale_year_range }}</strong>. 
-    The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong> 
+    <strong>{{ .card.comp_summary.sale_year_range }}</strong>.
+    The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong>
     at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
   </p>
 
@@ -422,16 +442,22 @@
     integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq"
     crossorigin="anonymous"
   > </script>
-  
+
   <!-- Load Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  
+
   <!-- Load DataTables JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
   <script src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"></script>
   <script src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"></script>
-  
+
   <script>
+    // Initialize an object to track map render metadata. This is important
+    // because some elements of the maps, such as zoom level, need to be
+    // set only once the map is displayed to the user, such as through
+    // a tab selection
+    const mapRegistry = {}; // cardIndex -> { map: ..., bounds: ..., fitDone: false }
+
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
       {{ if $is_multicard }}
@@ -439,25 +465,50 @@
           initializeMap("map-{{ $card.card_num }}", {{ $index }});
           initializeTable("comp-table-{{ $card.card_num }}");
         {{ end }}
+        renderMapsOnDisplay(mapRegistry);
       {{ else }}
         initializeMap("map-main", 0);
         initializeTable("comp-table-main");
       {{ end }}
     });
-    
+
+    // Fit map bounds only once they are visible. This is important because
+    // the Leaflet fitBounds() call will only work if the map is visible,
+    // but multi-card reports can have maps that are hidden until the
+    // nav tab corresponding to their card is active
+    function renderMapsOnDisplay(mapRegistry) {
+      // Trigger a map fitBounds() call when a new card tab is shown.
+      // Note that this means that any zooming a user does will be reset
+      // any time they switch card tabs, which may not be desirable
+      $('#propertyCardTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+        const tabId = $(e.target).attr('id');
+        const entry = mapRegistry[tabId];
+
+        if (entry) {
+          entry.map.invalidateSize();
+          entry.map.fitBounds(entry.bounds);
+        } else {
+          // Print some debugging info if the map metadata does not exist
+          console.log(`No map registry entry for ${tabId}`);
+          console.log(`Map registry object:`);
+          console.log(mapRegistry);
+        }
+      });
+    }
+
     // Initialize map for a specific card
     function initializeMap(mapId, cardIndex) {
       const pin = {{ .Params.pin }};
       const pinPretty = {{ .Params.pin_pretty }};
       const mapData = {{ .Params.cards }};
       const cardData = mapData[cardIndex];
-      
+
       // Create map centered on subject property
       const map = L.map(mapId).setView(
-        [cardData.location.loc_latitude, cardData.location.loc_longitude], 
+        [cardData.location.loc_latitude, cardData.location.loc_longitude],
         14
       );
-      
+
       // Add tile layer
       L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
@@ -466,7 +517,7 @@
           maxZoom: 19
         }
       ).addTo(map);
-      
+
       // Add subject property marker
       const subjectMarker = L.circleMarker(
         [cardData.location.loc_latitude, cardData.location.loc_longitude],
@@ -478,21 +529,21 @@
           fillOpacity: 0
         }
       ).addTo(map);
-      
+
       // Prepare bounds to fit all markers
       const bounds = L.latLngBounds();
       bounds.extend([cardData.location.loc_latitude, cardData.location.loc_longitude]);
-      
+
       // Add subject property label and popup
       let hasSubjectSale = false;
-      
+
       // Check if subject property is also a comp
       cardData.comps.forEach(comp => {
         if (comp.is_subject_pin_sale) {
           hasSubjectSale = true;
         }
       });
-      
+
       if (!hasSubjectSale) {
         const propertyLabel = cardData.is_multicard ? "Subject card" : "Subject property";
         subjectMarker.bindTooltip(
@@ -504,7 +555,7 @@
             className: "subject-tooltip"
           }
         );
-        
+
         // Create popup content
         const subjectPopupContent = `
           <h5>${propertyLabel}</h5>
@@ -519,10 +570,10 @@
           <br><b>Full baths</b>: ${cardData.chars.char_fbath}
           <br><b>Half baths</b>: ${cardData.chars.char_hbath}
         `;
-        
+
         subjectMarker.bindPopup(subjectPopupContent);
       }
-      
+
       // Add comp markers
       cardData.comps.forEach(comp => {
         const compMarker = L.circleMarker(
@@ -534,12 +585,12 @@
             opacity: comp.is_subject_pin_sale ? 0 : 1 // Hide the marker if it's a subject PIN sale
           }
         ).addTo(map);
-        
+
         // Add tooltip
-        const tooltipText = comp.is_subject_pin_sale 
-          ? `${cardData.is_multicard ? "Subject card" : "Subject property"} [${comp.sale_price_short} (${comp.sale_date})]` 
+        const tooltipText = comp.is_subject_pin_sale
+          ? `${cardData.is_multicard ? "Subject card" : "Subject property"} [${comp.sale_price_short} (${comp.sale_date})]`
           : `${comp.sale_price_short} (${comp.sale_date})`;
-            
+
         compMarker.bindTooltip(
           tooltipText,
           {
@@ -549,7 +600,7 @@
             className: "comp-tooltip"
           }
         );
-        
+
         // Create popup content
         const compPopupContent = `
           <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Comp " + comp.comp_num}</h5>
@@ -568,13 +619,13 @@
           <br><b>Full baths</b>: ${comp.char_fbath}
           <br><b>Half baths</b>: ${comp.char_hbath}
         `;
-        
+
         compMarker.bindPopup(compPopupContent);
-        
+
         // Add to bounds
         bounds.extend([comp.loc_latitude, comp.loc_longitude]);
       });
-      
+
       // Add legend
       const legend = L.control({ position: "bottomright" });
       legend.onAdd = function() {
@@ -594,7 +645,7 @@
         return div;
       };
       legend.addTo(map);
-      
+
       // Add note control
       const noteControl = L.control({ position: "topright" });
       noteControl.onAdd = function() {
@@ -607,17 +658,28 @@
         return div;
       };
       noteControl.addTo(map);
-      
+
       // Fit bounds with a small buffer
       const boundsPadding = 0.001;
       bounds._southWest.lat -= boundsPadding;
       bounds._southWest.lng -= boundsPadding;
       bounds._northEast.lat += boundsPadding;
       bounds._northEast.lng += boundsPadding;
-      
+
+      // Update the map registry with metadata about this map
+      mapRegistry[`card-${cardIndex}-tab`] = {
+        map: map,
+        bounds: bounds,
+      };
+
+      // In the multicard case, fitting the bounds will only work for the first
+      // card, which is the only one that will be visible in the page at
+      // the time of initialization. That's fine because our `shown.bs.tab`
+      // event handler defined in the `renderMapsOnDisplay` function will fit
+      // the bounds for all subsequent cards when the user selects their tab
       map.fitBounds(bounds);
     }
-    
+
     // Initialize the characteristic comparison table
     function initializeTable(tableId) {
       // Extract and store frozen rows
