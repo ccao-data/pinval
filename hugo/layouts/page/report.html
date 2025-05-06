@@ -14,13 +14,33 @@
     rel="stylesheet"
     integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7"
     crossorigin="anonymous"
-  >
+  />
 
   <!-- Load Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    rel="stylesheet"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin="anonymous"
+  />
 
   <!-- Load Reactable equivalent (DataTables) CSS -->
-  <link href="https://cdn.datatables.net/2.3.0/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link
+    href="https://cdn.datatables.net/2.3.0/css/dataTables.bootstrap5.min.css"
+    rel="stylesheet"
+    integrity="sha384-xkQqWcEusZ1bIXoKJoItkNbJJ1LG5QwR5InghOwFLsCoEkGcNLYjE0O83wWruaK9"
+    crossorigin="anonymous"
+  />
+
+  <!-- Load CCAO favicons -->
+  <link rel="shortcut icon" href="/favicon/favicon.ico">
+  <link rel="icon" sizes="16x16 32x32 64x64" href="/favicon/favicon.ico">
+  <link rel="icon" type="image/png" sizes="196x196" href="/favicon/favicon-192.png">
+  <link rel="icon" type="image/png" sizes="160x160" href="/favicon/favicon-160.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="/favicon/favicon-64.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16.png">
 
   <!-- Custom styles -->
   <style>
@@ -112,13 +132,6 @@
       border-color: #294298;
     }
   </style>
-
-  <!-- SVG symbols -->
-  <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
-    <symbol id="info-fill" fill="currentColor" viewBox="0 0 16 16">
-      <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
-    </symbol>
-  </svg>
 </head>
 <body>
   <!-- Top-level banner -->
@@ -441,16 +454,36 @@
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq"
     crossorigin="anonymous"
-  > </script>
+  ></script>
 
   <!-- Load Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin="anonymous"
+  ></script>
 
   <!-- Load DataTables JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-  <script src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"></script>
-  <script src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"></script>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+    integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"
+    integrity="sha384-ehaRe3xJ0fffAlDr3p72vNw3wWV01C1/Z19X6s//i6hiF8hee+c+rabqObq8YlOk"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"
+    integrity="sha384-G85lmdZCo2WkHaZ8U1ZceHekzKcg37sFrs4St2+u/r2UtfvSDQmQrkMsEx4Cgv/W"
+    crossorigin="anonymous"
+  ></script>
 
+  <!-- Main script logic. -->
+  <!-- There are two primary steps here: -->
+  <!--   1. Initialize Leaflet maps and define interaction logic -->
+  <!--   2. Initialize DataTables and define interaction logic -->
   <script>
     // Initialize an object to track map render metadata. This is important
     // because some elements of the maps, such as zoom level, need to be
