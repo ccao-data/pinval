@@ -59,10 +59,10 @@ installed on your machine.
 > the first password you ever set on your laptop, if you haven't changed it).
 
 1. Ensure that Hugo is installed correctly by running `hugo version`.
-2. Navigate to the `pinval/` subdirectory and run the development server:
+2. Navigate to the `hugo/` subdirectory and run the development server:
 
 ```
-cd pinval
+cd hugo
 hugo serve
 ```
 
