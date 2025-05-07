@@ -615,7 +615,7 @@ datatable(
 
 ### Sale History
 
-Each sale is marked with a checkmark if the model considers it to be a comp for the other PIN. 
+Each sale is marked with a checkmark if the model considers it to be a comp for the other PIN.
 
 ```{r sales}
 sales <- sales %>%
