@@ -121,15 +121,20 @@ if (all(map_lgl(cache_files, file.exists))) {
     )[[1]]
   )
 
-  char <- open_dataset(
-    paste0(
-      "s3://ccao-data-dvc-us-east-1/files/md5/",
-      substr(metadata$dvc_md5_assessment_data, 1, 2), "/",
-      substr(metadata$dvc_md5_assessment_data, 3, 32)
+  char <- dbGetQuery(
+    conn,
+    glue_sql(
+      "
+        SELECT *
+        FROM model.training_data
+        WHERE run_id = {run_id}
+          AND meta_pin IN ({pin_ids*})
+        ",
+      run_id = run_id,
+      pin_ids = pin_labels$meta_pin,
+      .con = conn
     )
   ) %>%
-    filter(meta_pin %in% pin_labels$meta_pin) %>%
-    collect() %>%
     select(
       meta_pin,
       meta_card_num,
