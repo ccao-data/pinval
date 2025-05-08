@@ -126,7 +126,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     glue_sql(
       "
         SELECT *
-        FROM model.training_data
+        FROM model.assessment_card
         WHERE run_id = {run_id}
           AND meta_pin IN ({pin_ids*})
         ",
