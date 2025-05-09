@@ -1,7 +1,7 @@
 ---
 title: "PIN Comparison Doc"
 params:
-  run_id: "2025-02-11-charming-eric"
+  run_id: "2025-04-25-fancy-free-billy"
   pin1: "01011100120000"
   pin_1_card_num:
   pin2: "01011250100000"
@@ -149,11 +149,20 @@ if (all(map_lgl(cache_files, file.exists))) {
       by = "meta_pin"
     )
 
-  if (nrow(pin_labels %>%
-    filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
-    stop("Error: For PINs with <= 3 cards,
+  if (year >= 2025 &&
+    nrow(pin_labels %>%
+      filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
+    stop("Error: For PINs with <= 3 cards and 2025 or later,
          the `pin_{x}_card_num` param must be empty.")
   }
+
+  if (year <= 2024 &&
+    nrow(pin_labels %>%
+      filter(total_cards %in% c(2, 3) & is.na(primary_card))) > 0) {
+    stop("Error: For PINs with <= 3 cards and 2024 or before,
+         the `pin_{x}_card_num` param must be present.")
+  }
+
   if (nrow(pin_labels %>%
     filter(total_cards >= 4 & is.na(primary_card))) > 0) {
     stop("Error: For PINs with >= 4 cards,
@@ -173,7 +182,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
       target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
-      is_target = total_cards %in% c(2, 3) &
+      is_target = total_cards %in% c(2, 3) & year >= 2025 &
         (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
       primary_card = if_else(is_target,
         meta_card_num, as.character(primary_card)
@@ -561,7 +570,8 @@ datatable(
 ### Feature Differences Between the Two PINs
 
 
-`r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE)) "If a PIN has 2 or 3 cards, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
+`r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE) && any(value$year >= 2025, na.rm = TRUE)) "If a PIN has 2 or 3 cards, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
+
 
 `r if (any(value$total_cards > 3, na.rm = TRUE)) "If a PIN has 4 or more cards, we use features from the target card."`
 
