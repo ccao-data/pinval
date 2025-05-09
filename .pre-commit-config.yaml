@@ -16,6 +16,8 @@ repos:
       args: ['--maxkb=200']
     - id: mixed-line-ending
       args: ['--fix=no']
+    - id: trailing-whitespace
+      exclude: activate.R
 - repo: local
   hooks:
     - id: forbid-to-commit
