@@ -11,6 +11,11 @@ single-family home or multifamily home with six or fewer units.
 
 ## Developing
 
+We currently support two ways of generating PINVAL reports: With
+[Quarto](#quarto) or with [Hugo](#hugo).
+
+### Quarto
+
 This project expects that you have R and the [Quarto
 CLI](https://quarto.org/docs/get-started/) installed on your machine.
 A working installation of RStudio is recommended, but not required.
@@ -40,3 +45,27 @@ renv::restore()
 ```
 quarto render pinval.qmd --to html -o pinval.html
 ```
+
+### Hugo
+
+This project expects that you have the [Hugo CLI](https://gohugo.io/installation/)
+installed on your machine.
+
+> [!INFO]
+> While the Data team often does work on the server, you should do Hugo
+> development on your laptop in order to run the development site. Hugo
+> installation is easiest using WSL, where you can install it by running
+> `sudo snap install hugo` and entering your WSL user password (most likely
+> the first password you ever set on your laptop, if you haven't changed it).
+
+1. Ensure that Hugo is installed correctly by running `hugo version`.
+2. Navigate to the `hugo/` subdirectory and run the development server:
+
+```
+cd hugo
+hugo serve
+```
+
+3. For a quick sample report, see the examples:
+  - http://localhost:1313/example-single-card
+  - http://localhost:1313/example-multi-card
