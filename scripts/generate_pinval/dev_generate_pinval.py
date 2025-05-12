@@ -60,7 +60,7 @@ df_comps = as_pandas(cursor)
 cursor.execute(TARGET_PIN_QUERY)
 df_target_pin = as_pandas(cursor)
 
-
+vars_dict = pd.read_csv("vars_dict.csv")
 
 
 
@@ -231,7 +231,52 @@ def convert_to_builtin_types(obj):
         return obj.item()
     return obj
 
+
+
+def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
+    """
+    Rename machine‑readable field names to pretty labels everywhere **except**
+    for the latitude / longitude columns, which stay unchanged so the
+    Leaflet map and other code can still find them.
+    """
+    key_map = dict(zip(vars_dict["var_name_model"], vars_dict["var_name_pretty"]))
+
+    # keys that should **never** be renamed
+    preserve_keys = {
+        "loc_latitude", "loc_longitude",
+        "Latitude", "Longitude",
+    }
+
+    def rename_dict_keys(d: dict) -> dict:
+        return {
+            k if k in preserve_keys else key_map.get(k, k): v
+            for k, v in d.items()
+        }
+
+    def rename_list_values(values: list[str]) -> list[str]:
+        return [
+            v if v in preserve_keys else key_map.get(v, v)
+            for v in values
+        ]
+
+    for card in front_dict.get("cards", []):
+        # rename keys inside "location"
+        if "location" in card:
+            card["location"] = rename_dict_keys(card["location"])
+
+        # rename keys inside each comp
+        if "comps" in card:
+            card["comps"] = [rename_dict_keys(comp) for comp in card["comps"]]
+
+        # rename predictor names (list of strings)
+        if "predictors" in card:
+            card["predictors"] = rename_list_values(card["predictors"])
+
+    return front_dict
+
+
 # ---------- dump to markdown ------------------------------------------------
+
 
 def write_md(front_dict: dict, outfile: str | Path) -> None:
     # Convert all numpy types to built-in Python types
@@ -246,4 +291,5 @@ def write_md(front_dict: dict, outfile: str | Path) -> None:
 
 # ------------------ USAGE EXAMPLE ------------------------------------------
 front = build_front_matter(df_target_pin, df_comps)
+front = make_human_readable(front, vars_dict)
 write_md(front, "report.md")
