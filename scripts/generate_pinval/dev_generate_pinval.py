@@ -75,6 +75,22 @@ def pin_pretty(raw_pin: str) -> str:
 
 
 
+
+def _clean_predictors(raw) -> list[str]:
+    """
+    Take the value that comes out of model_predictor_all_name (often a
+    stringified Python list) and return a clean list of column names.
+    """
+    if pd.isna(raw):
+        return []
+
+    # Otherwise treat it as a string representation of a list
+    txt = str(raw).strip()
+    if txt.startswith("[") and txt.endswith("]"):
+        txt = txt[1:-1]                  # remove leading/trailing brackets
+    return [p.strip() for p in txt.split(",") if p.strip()]
+
+
 # ---------- core builder ----------------------------------------------------
 def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> dict:
     """
@@ -83,6 +99,8 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
     """
     # Assume exactly one PIN row in df_target_pin
     tp = df_target_pin.iloc[0]
+
+    
 
     front = {
         "layout": "report",
@@ -108,33 +126,41 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
         )
 
         # ------------- comps list -------------------------------------------
+
+        predictors = _clean_predictors(card_df["model_predictor_all_name"])
+
         comps_list = []
         for _, comp in comps_df.iterrows():
-            comps_list.append(
-                {
-                    "comp_num": int(comp["comp_num"]),
-                    "pin": comp["comp_pin"],
-                    "pin_pretty": pin_pretty(comp["comp_pin"]),
-                    "is_subject_pin_sale": bool(comp["is_subject_pin_sale"]),
-                    "sale_price": comp["meta_sale_price"],
-                    "sale_price_short": comp["sale_price_short"],
-                    "sale_price_per_sq_ft": comp["sale_price_per_sq_ft"],
-                    "sale_date": comp["sale_month_year"],
-                    "document_num": comp["comp_document_num"],
-                    "property_address": comp["property_address"],
-                    # main physical characteristics -------------
-                    "char_class": comp["char_class"],
-                    "char_yrblt": int(comp["char_yrblt"]),
-                    "char_bldg_sf": comp["char_bldg_sf"],
-                    "char_land_sf": comp["char_land_sf"],
-                    "char_beds": int(comp["char_beds"]),
-                    "char_fbath": int(comp["char_fbath"]),
-                    "char_hbath": int(comp["char_hbath"]),
-                    "meta_nbhd_code": comp["meta_nbhd_code"],
-                    "loc_latitude": float(comp["loc_latitude"]),
-                    "loc_longitude": float(comp["loc_longitude"]),
-                }
-            )
+            comp_dict = {
+                "comp_num": int(comp["comp_num"]),
+                "pin": comp["comp_pin"],
+                "pin_pretty": pin_pretty(comp["comp_pin"]),
+                "is_subject_pin_sale": bool(comp["is_subject_pin_sale"]),
+                "sale_price": comp["meta_sale_price"],
+                "sale_price_short": comp["sale_price_short"],
+                "sale_price_per_sq_ft": comp["sale_price_per_sq_ft"],
+                "sale_date": comp["sale_month_year"],
+                "document_num": comp["comp_document_num"],
+                "property_address": comp["property_address"],
+                # main physical characteristics -------------
+                "char_class": comp["char_class"],
+                "char_yrblt": int(comp["char_yrblt"]),
+                "char_bldg_sf": comp["char_bldg_sf"],
+                "char_land_sf": comp["char_land_sf"],
+                "char_beds": int(comp["char_beds"]),
+                "char_fbath": int(comp["char_fbath"]),
+                "char_hbath": int(comp["char_hbath"]),
+                "meta_nbhd_code": comp["meta_nbhd_code"],
+                "loc_latitude": float(comp["loc_latitude"]),
+                "loc_longitude": float(comp["loc_longitude"]),
+            }
+
+            for pred in predictors:
+                # don't clobber the keys we already put in
+                if pred not in comp_dict and pred in comp:
+                    comp_dict[pred] = comp[pred]
+
+            comps_list.append(comp_dict)
 
         # ------------- comp‑summary block ----------------------------------
         # Use only those comps with a valid numeric sale_price
@@ -147,14 +173,6 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             "avg_sale_price": sale_prices.mean(),
             "avg_price_per_sqft": sqft_prices.mean(),
         }
-
-        # ------------- the predictors list ----------------------------------
-        predictors_raw = card_df["model_predictor_all_name"]
-        print(predictors_raw)
-        predictors = [p.strip() for p in str(predictors_raw).split(",")]
-        #predictors = (
-        #    ast.literal_eval(predictors_raw) if isinstance(predictors_raw, str) else list(predictors_raw)
-        #)
 
         # ------------- build the full card dict -----------------------------
         front["cards"].append(
