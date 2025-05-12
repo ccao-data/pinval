@@ -245,6 +245,7 @@ def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
     preserve_keys = {
         "loc_latitude", "loc_longitude",
         "Latitude", "Longitude",
+        "meta_nbhd_code",
     }
 
     def rename_dict_keys(d: dict) -> dict:
