@@ -18,13 +18,12 @@ knitr:
     out.width: "100%"
 editor: source
 params:
-  run_id: "2024-06-18-calm-nathan"
-  year: "2024"
+  year: "2025"
   # Good PINs for testing:
   #   * Single card: 14051280390000
   #   * Multicard: 16251020210000
   #   * Past sale is a comp: 14331000240000
-  pin: "14331000240000"
+  pin: "05274160070000"
   num_comps: 5
 ---
 
@@ -50,8 +49,17 @@ link_pin <- function(pin, display_text) {
   )
 }
 
+# Parse run IDs for comps based on year
+stopifnot(
+  "year param must be one of 2024 or 2025" = params$year %in% c("2024", "2025")
+)
+run_id <- case_when(
+  params$year == "2024" ~ "2024-06-18-calm-nathan",
+  params$year == "2025" ~ "2025-04-25-fancy-free-billy"
+)
+
 # Check if this PIN/year combo is cached, and skip data loading if so
-base_cache_file_path <- glue::glue("cache/{params$run_id}_{params$pin}_{params$year}")
+base_cache_file_path <- glue::glue("cache/{run_id}_{params$pin}_{params$year}")
 cache_files <- list(
   assessment = glue::glue("{base_cache_file_path}_asmt.parquet"),
   comp = glue::glue("{base_cache_file_path}_comp.parquet"),
@@ -90,7 +98,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
     glue::glue(
       "SELECT assessment_data_year, model_predictor_all_name
       FROM model.metadata
-      WHERE run_id = '{params$run_id}'
+      WHERE run_id = '{run_id}'
       LIMIT 1"
     )
   )
@@ -113,10 +121,10 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       )
     )
 
-  # Load final model run date for the given year, which might be different
+  # Load final model run for the given year, which might be different
   # from the run ID specified in the params object if the comps run was
   # not the same as the final model run
-  final_model_run_date <- dbGetQuery(
+  final_model_run_id <- dbGetQuery(
     conn = athena_conn,
     # As above, the LIMIT here is defensive
     glue::glue("
@@ -128,14 +136,16 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       LIMIT 1
     ")
   ) %>%
-    pull(run_id) %>%
+    pull(run_id)
+
+  final_model_run_date <- final_model_run_id %>%
     substr(1, 10) %>%
     as.Date()
 
   # Load chars that are stored in the PIN-level assessment data
   assessment_pin_df <- open_dataset(
     glue::glue(
-      "{base_model_results_url}/assessment_pin/year={params$year}/run_id={params$run_id}"
+      "{base_model_results_url}/assessment_pin/year={params$year}/run_id={final_model_run_id}"
     )
   ) %>%
     filter(
@@ -166,7 +176,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Load card-level assessment data to use as the base for joining all chars
   assessment_df <- open_dataset(
     glue::glue(
-      "{base_model_results_url}/assessment_card/year={params$year}/run_id={params$run_id}"
+      "{base_model_results_url}/assessment_card/year={params$year}/run_id={final_model_run_id}"
     )
   ) %>%
     filter(
@@ -194,7 +204,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
       FROM model.comp
       WHERE pin = '{params$pin}'
         AND year = '{params$year}'
-        AND run_id = '{params$run_id}'
+        AND run_id = '{run_id}'
     ")
   ) %>%
     select(-year, -run_id) %>%
@@ -232,7 +242,7 @@ if (cache_files %>% sapply(file.exists) %>% all()) {
   # Load training data from the DVC cache to grab characteristics for comps
   dvc_md5_hash <- read_parquet(
     glue::glue(
-      "{base_model_results_url}/metadata/year={params$year}/{params$run_id}.parquet"
+      "{base_model_results_url}/metadata/year={params$year}/{run_id}.parquet"
     )
   ) %>%
     pull(dvc_md5_training_data)
