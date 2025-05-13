@@ -36,7 +36,12 @@ cursor = connect(
 ).cursor()
 
 RUN_ID = "2025-02-11-charming-eric"
-PIN = "01011000040000"
+
+BUILD_MODE = "pin" # pin or triad
+
+
+PIN = "01011000040000" # single card
+PIN = "10112040080000" # multi -card
 
 COMPS_QUERY = f"""
 SELECT *
@@ -60,13 +65,10 @@ df_comps = as_pandas(cursor)
 cursor.execute(TARGET_PIN_QUERY)
 df_target_pin = as_pandas(cursor)
 
+# Temp solution to make names human readable
 vars_dict = pd.read_csv("vars_dict.csv")
 
-
-
-# - - - - - - - - - 
-# TESTING MAIN LOGIC
-# - - - - - - - - - 
+# ---------- helper functions -----------------------------------------------
 def pin_pretty(raw_pin: str) -> str:
     """
     Convert a 14-digit Cook County PIN such as 14331000240000 → 14-33-100-024-0000
@@ -105,7 +107,6 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
     front = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
-        # Assessment year is usually meta_year + 1
         "assessment_year": str(int(tp["meta_year"]) + 1),
         "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime("%B %d, %Y"),
         "pin": tp["meta_pin"],
@@ -114,21 +115,21 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
         "cards": [],
     }
 
-    # --- iterate through each card number present in df_target_pin ----------
+    # Iterate through each card number present in df_target_pin 
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
         card_df = card_df.iloc[0]  # there is only one physical row per card
 
-        # pull matching comps for this card – keep display order
+        # Pull matching comps for this card – keep display order
         comps_df = (
             df_comps[df_comps["card"] == card_num]
             .sort_values("comp_num")
             .reset_index(drop=True)
         )
 
-        # ------------- comps list -------------------------------------------
-
+        # Make columns human readable
         predictors = _clean_predictors(card_df["model_predictor_all_name"])
 
+        # Comps List
         comps_list = []
         for _, comp in comps_df.iterrows():
             comp_dict = {
@@ -142,7 +143,6 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
                 "sale_date": comp["sale_month_year"],
                 "document_num": comp["comp_document_num"],
                 "property_address": comp["property_address"],
-                # main physical characteristics -------------
                 "char_class": comp["char_class"],
                 "char_yrblt": int(comp["char_yrblt"]),
                 "char_bldg_sf": comp["char_bldg_sf"],
@@ -156,14 +156,13 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             }
 
             for pred in predictors:
-                # don't clobber the keys we already put in
+                # Keep preds unique
                 if pred not in comp_dict and pred in comp:
                     comp_dict[pred] = comp[pred]
 
             comps_list.append(comp_dict)
 
-        # ------------- comp‑summary block ----------------------------------
-        # Use only those comps with a valid numeric sale_price
+        # Comp summary information, could potentially refactor this into dbt model
         sale_prices = comps_df["meta_sale_price"].dropna()
         sqft_prices = comps_df["sale_price_per_sq_ft"].dropna()
 
@@ -174,7 +173,7 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             "avg_price_per_sqft": sqft_prices.mean(),
         }
 
-        # ------------- build the full card dict -----------------------------
+        # Build card dict
         front["cards"].append(
             {
                 "card_num": int(card_num),
@@ -219,7 +218,8 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
 def convert_to_builtin_types(obj):
     """
     Recursively convert numpy types to native Python types in a nested structure.
-    This is so the frontmatter doesn't through data type errors.
+    This is so the frontmatter doesn't through data type errors when being passed
+    to the hugo template.
     """
     if isinstance(obj, dict):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
@@ -235,16 +235,16 @@ def convert_to_builtin_types(obj):
 
 def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
     """
-    Rename machine‑readable field names to pretty labels everywhere **except**
-    for the latitude / longitude columns, which stay unchanged so the
-    Leaflet map and other code can still find them.
+    Rename machine‑readable field names to pretty labels
     """
     key_map = dict(zip(vars_dict["var_name_model"], vars_dict["var_name_pretty"]))
 
-    # keys that should **never** be renamed
+    # Keys that should not be renamed
     preserve_keys = {
+        # loc_fields are called by the Leaflet map, could change the ref there or here
         "loc_latitude", "loc_longitude",
         "Latitude", "Longitude",
+        #TODO: Figure out why this doesn't render in html if we remove it
         "meta_nbhd_code",
     }
 
@@ -276,10 +276,11 @@ def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
     return front_dict
 
 
-# ---------- dump to markdown ------------------------------------------------
-
-
 def write_md(front_dict: dict, outfile: str | Path) -> None:
+    """
+    Writes the front matter to a markdown file.
+    """
+    
     # Convert all numpy types to built-in Python types
     front_dict = convert_to_builtin_types(front_dict)
 
