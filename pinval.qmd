@@ -24,7 +24,7 @@ params:
   #   * Single card: 14051280390000
   #   * Multicard: 16251020210000
   #   * Past sale is a comp: 14331000240000
-  pin: "14331000240000"
+  pin: "16251020210000"
   num_comps: 5
 ---
 
@@ -340,10 +340,29 @@ For more details on how the experimental sales comp algorithm works, see [Findin
 ```{r}
 library(htmltools)
 
-parcel_is_multicard <- nrow(assessment_df) > 1
-if (parcel_is_multicard) {
-  multicard_msg <- "This property has multiple \"cards\", which is an assessment term for a building or an improvement on a property. Each card on a property can have different characteristics, so the Assessor's model estimates different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
-  tags$p(multicard_msg)
+# Show a message explaining how multicards work if this PIN has multiple cards.
+# This message is slightly different depending on whether this PIN is subject
+# to our new small multicard handling or not
+parcel_num_cards <- nrow(assessment_df)
+parcel_is_post_2025_small_multicard <- (
+  parcel_num_cards %in% c(2, 3) && params$year >= "2025"
+)
+parcel_is_pre_2025_or_large_multicard <- (
+  (parcel_num_cards > 1 && params$year <= "2024") || parcel_num_cards > 3
+)
+multicard_msg <- "This property has multiple \"cards\", which is an assessment term for a building or an improvement on a property."
+if (parcel_is_post_2025_small_multicard) {
+  tags$p(
+    glue::glue(
+    "{multicard_msg} Since this property has {parcel_num_cards} cards, we estimate its value using a slightly different method than other properties. We use the characteristics of the largest card for estimation, but we adjust the building square footage of that card to reflect the combined building square footage of all cards on the property. The characteristics below reflect this difference."
+    )
+  )
+} else if (parcel_is_pre_2025_or_large_multicard) {
+   tags$p(
+     glue::glue(
+       "{multicard_msg} Each card on a property can have different characteristics, so the Assessor's model estimates different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
+     )
+   )
 }
 ```
 
@@ -849,12 +868,13 @@ subject_pin_sale_warning <- function(comp_df, parcel_is_multicard) {
   }
 }
 
-if (parcel_is_multicard) {
-  # In case of a multicard PIN, split the report out into tabsets, with one
-  # tabset for each card. We have to do this in raw bootstrap because Quarto
-  # tabsets aren't supported by htmltools::tagList, and we need tagList in order
-  # to render the leaflet map, which can't otherwise be rendered in the context
-  # of a `for` loop.
+if (parcel_is_pre_2025_or_large_multicard) {
+  # In case of a large (>3) multicard PIN, or a multi-card PIN valued before we
+  # changed our small (2-3) multicard handling in 2025, split the report out
+  # into tabsets, with one tabset for each card. We have to do this in raw
+  # Bootstrap because Quarto tabsets aren't supported by htmltools::tagList,
+  # and we need tagList in order to render the Leaflet map, which can't
+  # otherwise be rendered in the context of a `for` loop.
 
   # This list will store the nav elements that control the tab contents
   nav_tabs <- list()
@@ -923,6 +943,16 @@ if (parcel_is_multicard) {
       )
     )
   )
+} else if (parcel_is_post_2025_small_multicard) {
+  # Handle small (2-3) multicard PINs slightly differently if they were valued
+  # during or after 2025, to account for the way we changed small multicard
+  # valuation in that year to use the largest card in the PIN with a composite
+  # building square footage.
+  html_tags <- assessment_df %>%
+    arrange(desc(char_bldg_sf), meta_card_num) %>%
+    mutate(char_bldg_sf = sum(char_bldg_sf)) %>%
+    first() %>%
+    html_tags_for_report(comp_df, FALSE)
 } else {
   # For single-card PINs, skip the tablist
   html_tags <- html_tags_for_report(assessment_df, comp_df, FALSE)
