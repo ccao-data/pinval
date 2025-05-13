@@ -10,11 +10,8 @@ to add packages to config
 
 import argparse
 import subprocess as sp
-import sys
 import os
 from pathlib import Path
-import pyarrow
-import ast
 import pandas as pd
 import numpy as np
 import yaml
@@ -74,8 +71,6 @@ def pin_pretty(raw_pin: str) -> str:
     Convert a 14-digit Cook County PIN such as 14331000240000 → 14-33-100-024-0000
     """
     return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
-
-
 
 
 def _clean_predictors(raw) -> list[str]:
@@ -280,7 +275,7 @@ def write_md(front_dict: dict, outfile: str | Path) -> None:
     """
     Writes the front matter to a markdown file.
     """
-    
+
     # Convert all numpy types to built-in Python types
     front_dict = convert_to_builtin_types(front_dict)
 
