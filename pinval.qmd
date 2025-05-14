@@ -24,9 +24,6 @@ params:
   #   * Multicard: 16251020210000
   #   * Past sale is a comp: 14331000240000
   pin: "05274160070000"
-  #
-  # Good 2025 PINs for testing:
-  #   * Single card: 05274160070000
   num_comps: 5
 ---
 
