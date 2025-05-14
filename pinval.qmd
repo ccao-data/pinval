@@ -19,11 +19,14 @@ knitr:
 editor: source
 params:
   year: "2025"
-  # Good PINs for testing:
+  # Good 2024 PINs for testing:
   #   * Single card: 14051280390000
   #   * Multicard: 16251020210000
   #   * Past sale is a comp: 14331000240000
   pin: "05274160070000"
+  #
+  # Good 2025 PINs for testing:
+  #   * Single card: 05274160070000
   num_comps: 5
 ---
 
