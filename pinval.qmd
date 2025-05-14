@@ -354,15 +354,15 @@ multicard_msg <- "This property has multiple \"cards\", which is an assessment t
 if (parcel_is_post_2025_small_multicard) {
   tags$p(
     glue::glue(
-    "{multicard_msg} Since this property has {parcel_num_cards} cards, we estimate its value using a slightly different method than other properties. We use the characteristics of the largest card for estimation, but we adjust the building square footage of that card to reflect the combined building square footage of all cards on the property. The characteristics below reflect this difference."
+      "{multicard_msg} Since this property has {parcel_num_cards} cards, we estimate its value using a slightly different method than other properties. We use the characteristics of the largest card for estimation, but we adjust the building square footage of that card to reflect the combined building square footage of all cards on the property. The characteristics below reflect this difference."
     )
   )
 } else if (parcel_is_pre_2025_or_large_multicard) {
-   tags$p(
-     glue::glue(
-       "{multicard_msg} Each card on a property can have different characteristics, so the Assessor's model estimates different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
-     )
-   )
+  tags$p(
+    glue::glue(
+      "{multicard_msg} Each card on a property can have different characteristics, so the Assessor's model estimates different values for each card. Toggle between the tabs below to view characteristics and comparable sales for each card."
+    )
+  )
 }
 ```
 
@@ -384,19 +384,20 @@ library(reactable)
 # @param assessment_df Dataframe representing the chars for the subject parcel
 # @param comp_df Dataframe representing chars for the comps
 # @param parcel_is_multicard Boolean indicating a multicard property
+# @param bldg_sf_is_combined Boolean indicating combined building SF for small multicards
 # @return Returns a list of htmltools elements that can be rendered using `tagList()`
-html_tags_for_report <- function(assessment_df, comp_df, parcel_is_multicard) {
+html_tags_for_report <- function(assessment_df, comp_df, parcel_is_multicard, bldg_sf_is_combined) {
   return(
     withTags(
       list(
         h2("Location"),
         location_char_table(assessment_df),
         h2("Characteristics"),
-        property_char_table(assessment_df),
+        property_char_table(assessment_df, bldg_sf_is_combined),
         h2("Top 5 comparable sales"),
-        comps_map(assessment_df, comp_df, parcel_is_multicard),
+        comps_map(assessment_df, comp_df, parcel_is_multicard, bldg_sf_is_combined),
         br(),
-        combined_char_table(assessment_df, comp_df, parcel_is_multicard),
+        combined_char_table(assessment_df, comp_df, parcel_is_multicard, bldg_sf_is_combined),
         subject_pin_sale_warning(comp_df, parcel_is_multicard),
         h2("Summary of comparable sales"),
         avg_price_summary(comp_df),
@@ -428,13 +429,14 @@ location_char_table <- function(df) {
 
 # Helper function for generating a table with property characteristics for
 # the subject property
-property_char_table <- function(df) {
+property_char_table <- function(df, bldg_sf_is_combined) {
+  bldg_sf_var_name <- ifelse(bldg_sf_is_combined, "Combined Bldg. S.F.", "Bldg. S.F.")
   return(
     df %>%
       select(
         "Class" = char_class,
         "Year Built" = char_yrblt,
-        "Bldg. S.F." = bldg_sf,
+        !!bldg_sf_var_name := bldg_sf,
         "Land S.F." = land_sf,
         Beds = char_beds,
         "Full Baths" = char_fbath,
@@ -451,7 +453,7 @@ property_char_table <- function(df) {
 }
 
 # Helper function for generating a leaflet map of comparable sales
-comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
+comps_map <- function(assessment_df, comp_df, parcel_is_multicard, bldg_sf_is_combined) {
   # Set the label of the subject property differently if it's multicard
   property_label <- glue::glue("Subject {ifelse(parcel_is_multicard, 'card', 'property')}")
   # Define legend attributes for the comps
@@ -465,6 +467,9 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
     glue::glue("white; {circle_marker_styles}; border: 2px solid black"),
     glue::glue("{comp_color}; {circle_marker_styles}")
   )
+
+  # Set the name of the building SF var differently when it's combined
+  bldg_sf_var_name <- ifelse(bldg_sf_is_combined, "Combined Bldg. S.F.", "Bldg. S.F.")
 
   # Set a small buffer around the map bounds so that no parcel is clipped
   # when computing the bounds for the map based on parcel locations
@@ -515,7 +520,7 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
           "<br><b>Property class</b>: ", char_class,
           "<br><b>Assessor neighborhood</b>: ", meta_nbhd_code,
           "<br><b>Year built</b>: ", char_yrblt,
-          "<br><b>Bldg S.F.</b>: ", bldg_sf,
+          "<br><b>", bldg_sf_var_name, "</b>: ", bldg_sf,
           "<br><b>Land S.F.</b>: ", land_sf,
           "<br><b>Beds</b>: ", char_beds,
           "<br><b>Full baths</b>: ", char_fbath,
@@ -575,7 +580,9 @@ comps_map <- function(assessment_df, comp_df, parcel_is_multicard) {
         "<br><b>Sale date</b>: ", sale_date,
         "<br><b>Sale doc. num.</b>: ", comp_document_num,
         "<br><b>Year built</b>: ", char_yrblt,
-        "<br><b>Bldg S.F.</b>: ", bldg_sf,
+        "<br><b>",
+        ifelse(is_subject_pin_sale, bldg_sf_var_name, "Bldg. S.F."),
+        "</b>: ", bldg_sf,
         "<br><b>Land S.F.</b>: ", land_sf,
         "<br><b>Beds</b>: ", char_beds,
         "<br><b>Full baths</b>: ", char_fbath,
@@ -703,7 +710,7 @@ freeze_first_n_rows <- function(df, n = 2, rows_per_page = 10) {
 
 # Helper function for generating a table for comparing chars between the subject
 # property and its comps
-combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
+combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard, bldg_sf_is_combined) {
   # Define a list of the most important characteristics to be displayed
   # first in the table
   top_chars <- c(
@@ -713,6 +720,9 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
   # Freeze this many of the top rows in the table
   num_frozen_rows <- 3
   rows_per_page <- 10
+
+  # Set the name of the building SF var differently when it's combined
+  bldg_sf_var_name <- ifelse(bldg_sf_is_combined, "Combined Building S.F.", "Building Square Feet")
 
   return(
     assessment_df %>%
@@ -797,6 +807,7 @@ combined_char_table <- function(assessment_df, comp_df, parcel_is_multicard) {
       # Rename characteristic columns to their pretty format
       ccao::vars_rename(names_from = "model", names_to = "pretty") %>%
       rename("Number of Days Since First Recorded Sale" = "Sale Day") %>%
+      rename(!!bldg_sf_var_name := "Building Square Feet") %>%
       # Pivot the dataframe longer so that we can use pagination to navigate
       # through multiple pages of full characteristic values.
       # Start by casting all columns to char ahead of pivot, since otherwise we
@@ -881,7 +892,12 @@ if (parcel_is_pre_2025_or_large_multicard) {
   # This list will store the tab contents
   tab_contents <- list()
 
-  for (card_num in assessment_df$meta_card_num) {
+  # Order cards so that they appear in ascending order in the report
+  card_nums <- assessment_df %>%
+    arrange(as.integer(meta_card_num)) %>%
+    pull(meta_card_num)
+
+  for (card_num in card_nums) {
     # Filter the df for just the row representing the card at hand
     assessment_card_df <- assessment_df %>% filter(meta_card_num == card_num)
     # Filter for only this card's comps
@@ -920,7 +936,12 @@ if (parcel_is_pre_2025_or_large_multicard) {
             class = ifelse(card_num == 1, "tab-pane active", "tab-pane"),
             role = "tabpanel",
             "aria-labelledby" = glue::glue("tabset-1-{card_num}-tab"),
-            html_tags_for_report(assessment_card_df, comp_card_df, TRUE)
+            html_tags_for_report(
+              assessment_card_df,
+              comp_card_df,
+              parcel_is_multicard = TRUE,
+              bldg_sf_is_combined = FALSE
+            )
           )
         )
       )
@@ -948,14 +969,28 @@ if (parcel_is_pre_2025_or_large_multicard) {
   # during or after 2025, to account for the way we changed small multicard
   # valuation in that year to use the largest card in the PIN with a composite
   # building square footage.
-  html_tags <- assessment_df %>%
+  assessment_frankencard_df <- assessment_df %>%
     arrange(desc(char_bldg_sf), meta_card_num) %>%
     mutate(char_bldg_sf = sum(char_bldg_sf)) %>%
-    first() %>%
-    html_tags_for_report(comp_df, FALSE)
+    first()
+
+  comp_frankencard_df <- comp_df %>%
+    filter(card == pull(assessment_frankencard_df, meta_card_num))
+
+  html_tags <- html_tags_for_report(
+    assessment_frankencard_df,
+    comp_frankencard_df,
+    parcel_is_multicard = FALSE,
+    bldg_sf_is_combined = TRUE
+  )
 } else {
   # For single-card PINs, skip the tablist
-  html_tags <- html_tags_for_report(assessment_df, comp_df, FALSE)
+  html_tags <- html_tags_for_report(
+    assessment_df,
+    comp_df,
+    parcel_is_multicard = FALSE,
+    bldg_sf_is_combined = FALSE
+  )
 }
 
 # Render the list of HTML tags
