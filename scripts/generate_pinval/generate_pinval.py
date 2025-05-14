@@ -17,22 +17,6 @@ Generate every PIN in the city triad:
           --run-id 2025-02-11-charming-eric \
           --triad city
 
-# 01013190060000
-
-mutate(across(starts_with("acs5_percent"), scales::label_percent()))
-
-mutate(across(where(is.numeric), ~ round(., 2))) %>%
-
-      mutate(
-        across(
-          c(
-            "acs5_median_household_renter_occupied_gross_rent",
-            starts_with("acs5_median_income")
-          ),
-          scales::label_dollar()
-        )
-      ) %>%
-
 # Notes
 to add packages to config
 - uv pip install
