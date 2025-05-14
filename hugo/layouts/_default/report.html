@@ -334,27 +334,27 @@
           <tbody>
             <tr>
               <td><strong>Class</strong></td>
-              <td>{{ .card.chars.char_class }}</td>
+              <td>{{ index .card.chars "Property Class" }}</td>
             </tr>
             <tr>
               <td><strong>Year Built</strong></td>
-              <td>{{ .card.chars.char_yrblt }}</td>
+              <td>{{ index .card.chars "Year Built" }}</td>
             </tr>
             <tr>
               <td><strong>Bldg. S.F.</strong></td>
-              <td>{{ .card.chars.char_bldg_sf }}</td>
+              <td>{{ index .card.chars "Building Square Feet" }}</td>
             </tr>
             <tr>
               <td><strong>Land S.F.</strong></td>
-              <td>{{ .card.chars.char_land_sf }}</td>
+              <td>{{ index .card.chars "Land Square Feet" }}</td>
             </tr>
             <tr>
               <td><strong>Beds</strong></td>
-              <td>{{ .card.chars.char_beds }}</td>
+              <td>{{ index .card.chars "Bedrooms" }}</td>
             </tr>
             <tr>
               <td><strong>Full Baths</strong></td>
-              <td>{{ .card.chars.char_fbath }}</td>
+              <td>{{ index .card.chars "Full Baths" }}</td>
             </tr>
           </tbody>
         </table>
@@ -531,8 +531,8 @@
 
     // Initialize map for a specific card
     function initializeMap(mapId, cardIndex) {
-      const pin = {{ .Params.pin }};
-      const pinPretty = {{ .Params.pin_pretty }};
+      const pin       = {{ .Params.pin        | jsonify }};
+      const pinPretty = {{ .Params.pin_pretty | jsonify }};
       const mapData = {{ .Params.cards }};
       const cardData = mapData[cardIndex];
 
@@ -726,7 +726,7 @@
         paging: true,
         searching: true,
         info: false,
-        pageLength: 2,
+        pageLength: 4,
         ordering: true,
         lengthChange: false,
         language: {

@@ -19,6 +19,20 @@ Generate every PIN in the city triad:
 
 # 01013190060000
 
+mutate(across(starts_with("acs5_percent"), scales::label_percent()))
+
+mutate(across(where(is.numeric), ~ round(., 2))) %>%
+
+      mutate(
+        across(
+          c(
+            "acs5_median_household_renter_occupied_gross_rent",
+            starts_with("acs5_median_income")
+          ),
+          scales::label_dollar()
+        )
+      ) %>%
+
 # Notes
 to add packages to config
 - uv pip install
@@ -198,8 +212,8 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             "sale_year_range_prefix": "between" if " and " in comps_df["sale_year_range"].iloc[0] else "in",
             "sale_year_range": comps_df["sale_year_range"].iloc[0],
             #TODO: Factor out these means into sql view
-            "avg_sale_price": sale_prices.mean(),
-            "avg_price_per_sqft": sqft_prices.mean(),
+            "avg_sale_price": "${:,.2f}".format(sale_prices.mean()),
+            "avg_price_per_sqft": "${:,.2f}".format(sqft_prices.mean()),
         }
 
         # Build card dict
@@ -231,10 +245,12 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
                 },
                 "chars": subject_chars,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
-                "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
-                "pred_card_initial_fmv_per_sqft": card_df.get(
-                    "pred_card_initial_fmv_per_sqft",
-                    card_df["pred_card_initial_fmv"] / card_df["char_bldg_sf"]
+                "pred_card_initial_fmv": "${:,.2f}".format(card_df["pred_card_initial_fmv"]),
+                "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
+                    card_df.get(
+                        "pred_card_initial_fmv_per_sqft",
+                        card_df["pred_card_initial_fmv"] / card_df["char_bldg_sf"]
+                    )
                 ),
                 "comps": comps_list,
                 "comp_summary": comp_summary,
@@ -322,6 +338,45 @@ def write_md(front_dict: dict, outfile: str | Path) -> None:
 
     Path(outfile).write_text(md_text, encoding="utf8")
 
+def label_percent(s: pd.Series) -> pd.Series:
+    """0.123 → '12%' (handles NaNs)."""
+    return s.mul(100).round(0).astype('Int64').astype(str).str.replace('<NA>', 'NA') + '%'
+
+def label_dollar(s: pd.Series) -> pd.Series:
+    """45000 → '$45,000' (handles NaNs)."""
+    return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "NA")
+
+def format_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Re‑creates the dplyr pipeline:
+      1. Percent‑format cols that start with 'acs5_percent'
+      2. Round every remaining numeric col to 2 decimals
+      3. Dollar‑format renter‑gross‑rent and all median‑income cols
+    Returns a *new* DataFrame; original is untouched.
+    """
+
+    return (
+        df
+        # 1 ─ percent columns ----------------------------------------------------
+        .pipe(lambda d: d.assign(**{
+            c: label_percent(d[c])
+            for c in d.filter(regex=r'^acs5_percent').columns
+        }))
+        # 2 ─ round remaining numerics ------------------------------------------
+        .pipe(lambda d: d.assign(**{
+            c: d[c].round(2)
+            for c in d.select_dtypes(include='number').columns
+            if c not in {"loc_latitude", "loc_longitude"}   # skip the two geo cols
+        }))
+        # 3 ─ dollar columns -----------------------------------------------------
+        .pipe(lambda d: d.assign(**{
+            c: label_dollar(d[c])
+            for c in (
+                ['acs5_median_household_renter_occupied_gross_rent'] +
+                [c for c in d.columns if c.startswith('acs5_median_income')]
+            )
+        }))
+    )
 
 def main() -> None:
     args = parse_args()
@@ -360,6 +415,8 @@ def main() -> None:
     cursor.execute(assessment_sql)
     df_assessment_all = as_pandas(cursor)
 
+    df_assessment_all = format_df(df_assessment_all)
+
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
@@ -380,6 +437,8 @@ def main() -> None:
 
     cursor.execute(comps_sql)
     df_comps_all = as_pandas(cursor)
+
+    df_comps_all = format_df(df_comps_all)
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
