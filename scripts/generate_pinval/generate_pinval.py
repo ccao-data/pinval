@@ -152,24 +152,11 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
         # Comps List
         comps_list = []
 
-        # Build subject‑property characteristic dictionary
         subject_chars = {
-            "char_class": card_df["char_class"],
-            "char_yrblt": int(card_df["char_yrblt"]),
-            "char_bldg_sf": card_df["char_bldg_sf"],
-            "char_land_sf": card_df["char_land_sf"],
-            "char_beds": int(card_df["char_beds"]),
-            "char_fbath": int(card_df["char_fbath"]),
-            "char_hbath": int(card_df["char_hbath"]),
+            pred: card_df[pred]
+            for pred in predictors
+            if pred in card_df
         }
-
-        # Copy every predictor that exists in the assessment row so it
-        # can be displayed for the subject property
-        for pred in predictors:
-            print("pred", pred)
-            if pred not in subject_chars and pred in card_df:
-                subject_chars[pred] = card_df[pred]
-        
         print("subject_chars", subject_chars)
 
         for _, comp in comps_df.iterrows():
