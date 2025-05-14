@@ -25,7 +25,7 @@ params:
   #   * Past sale is a comp: 14331000240000
   #
   # Good 2025 PINs for testing:
-  #   * Single card: 05333030320000
+  #   * Single card: 05274160070000
   #   * Small multicard: 05344260050000
   #   * Large multicard: 05343210140000
   #   * Past sale is a comp: 05333030300000
