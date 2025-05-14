@@ -429,10 +429,7 @@ def main() -> None:
         sys.exit("No comps rows returned for the given parameters — aborting.")
 
     # Temp solution for human-readable transformation
-    vars_dict_path = project_root / "vars_dict.csv"
-    if not vars_dict_path.exists():
-        sys.exit("vars_dict.csv not found — cannot continue.")
-    vars_dict = pd.read_csv(vars_dict_path)
+    vars_dict = pd.read_csv(project_root / "vars_dict.csv")
 
     # Declare outputs paths
     md_outdir = project_root / "content" / "pinval-reports"
