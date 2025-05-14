@@ -17,6 +17,8 @@ Generate every PIN in the city triad:
           --run-id 2025-02-11-charming-eric \
           --triad city
 
+# 01013190060000
+
 # Notes
 to add packages to config
 - uv pip install
@@ -149,6 +151,27 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
 
         # Comps List
         comps_list = []
+
+        # Build subject‑property characteristic dictionary
+        subject_chars = {
+            "char_class": card_df["char_class"],
+            "char_yrblt": int(card_df["char_yrblt"]),
+            "char_bldg_sf": card_df["char_bldg_sf"],
+            "char_land_sf": card_df["char_land_sf"],
+            "char_beds": int(card_df["char_beds"]),
+            "char_fbath": int(card_df["char_fbath"]),
+            "char_hbath": int(card_df["char_hbath"]),
+        }
+
+        # Copy every predictor that exists in the assessment row so it
+        # can be displayed for the subject property
+        for pred in predictors:
+            print("pred", pred)
+            if pred not in subject_chars and pred in card_df:
+                subject_chars[pred] = card_df[pred]
+        
+        print("subject_chars", subject_chars)
+
         for _, comp in comps_df.iterrows():
             comp_dict = {
                 "comp_num": int(comp["comp_num"]),
@@ -219,6 +242,7 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
                     "char_fbath": int(card_df["char_fbath"]),
                     "char_hbath": int(card_df["char_hbath"]),
                 },
+                "chars": subject_chars,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
                 "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
                 "pred_card_initial_fmv_per_sqft": card_df.get(
@@ -286,6 +310,10 @@ def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
         # rename keys inside each comp
         if "comps" in card:
             card["comps"] = [rename_dict_keys(comp) for comp in card["comps"]]
+
+        # rename keys inside the subject‑property characteristics
+        if "chars" in card:
+            card["chars"] = rename_dict_keys(card["chars"])
 
         # rename predictor names (list of strings)
         if "predictors" in card:
