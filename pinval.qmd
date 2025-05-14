@@ -24,7 +24,7 @@ params:
   #   * Single card: 14051280390000
   #   * Multicard: 16251020210000
   #   * Past sale is a comp: 14331000240000
-  pin: "16251020210000"
+  pin: "14331000240000"
   num_comps: 5
 ---
 
