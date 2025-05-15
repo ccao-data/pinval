@@ -155,32 +155,22 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             for pred in predictors
             if pred in card_df
         }
-        print("subject_chars", subject_chars)
+
 
         for _, comp in comps_df.iterrows():
             comp_dict = {
-                "comp_num": int(comp["comp_num"]),
+                "comp_num": comp["comp_num"],
                 "pin": comp["comp_pin"],
                 "pin_pretty": pin_pretty(comp["comp_pin"]),
-                "is_subject_pin_sale": bool(comp["is_subject_pin_sale"]),
+                "is_subject_pin_sale": comp["is_subject_pin_sale"],
                 "sale_price": comp["meta_sale_price"],
                 "sale_price_short": comp["sale_price_short"],
                 "sale_price_per_sq_ft": comp["sale_price_per_sq_ft"],
                 "sale_date": comp["sale_month_year"],
                 "document_num": comp["comp_document_num"],
                 "property_address": comp["property_address"],
-                "char_class": comp["char_class"],
-                "char_yrblt": int(comp["char_yrblt"]),
-                "char_bldg_sf": comp["char_bldg_sf"],
-                "char_land_sf": comp["char_land_sf"],
-                "char_beds": int(comp["char_beds"]),
-                "char_fbath": int(comp["char_fbath"]),
-                "char_hbath": int(comp["char_hbath"]),
                 "meta_nbhd_code": comp["meta_nbhd_code"],
-                "loc_latitude": float(comp["loc_latitude"]),
-                "loc_longitude": float(comp["loc_longitude"]),
             }
-
             for pred in predictors:
                 # Keep preds unique
                 if pred not in comp_dict and pred in comp:
@@ -242,6 +232,7 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             }
         )
 
+
     return front
 
 
@@ -260,6 +251,31 @@ def convert_to_builtin_types(obj):
     elif isinstance(obj, np.generic):
         return obj.item()
     return obj
+
+
+def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cast expected columns in df to appropriate dtypes before building dicts.
+    This avoids manual casting during dict construction later.
+    """
+
+    # Define conversions
+    dtype_conversions = {
+        "comp_num": "Int64",
+        "char_yrblt": "Int64",
+        "char_beds": "Int64",
+        "char_fbath": "Int64",
+        "char_hbath": "Int64",
+        "loc_latitude": "float",
+        "loc_longitude": "float",
+        "is_subject_pin_sale": "boolean",
+    }
+
+    for col, dtype in dtype_conversions.items():
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype(dtype)
+
+    return df
 
 
 def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
@@ -308,19 +324,24 @@ def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
 
     return front_dict
 
-
 def write_md(front_dict: dict, outfile: str | Path) -> None:
-    """
-    Writes the front matter to a markdown file.
-    """
+    
+    #Writes the front matter to a markdown file.
+    
+    # ✅ Use C-accelerated YAML dumper if available
+    try:
+        dumper = yaml.CSafeDumper
+    except AttributeError:
+        dumper = yaml.SafeDumper  # fallback if C bindings not available
 
-    # Convert all numpy types to built-in Python types
     front_dict = convert_to_builtin_types(front_dict)
 
-    yaml_block = yaml.safe_dump(front_dict, sort_keys=False, width=100)
+    yaml_block = yaml.dump(front_dict, Dumper=dumper, sort_keys=False, allow_unicode=False)
+
     md_text = f"---\n{yaml_block}---\n"
 
     Path(outfile).write_text(md_text, encoding="utf8")
+
 
 def label_percent(s: pd.Series) -> pd.Series:
     """0.123 → '12%' (handles NaNs)."""
@@ -393,12 +414,11 @@ def main() -> None:
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
-        LIMIT 100
+        LIMIT 1000
     """
 
     cursor.execute(assessment_sql)
     df_assessment_all = as_pandas(cursor)
-
     df_assessment_all = format_df(df_assessment_all)
 
     print("Shape of df_assessment_all:", df_assessment_all.shape)
@@ -409,8 +429,9 @@ def main() -> None:
     all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
 
     # Get the comps for all the pins
+    #TODO: This probably needs a refactor since a 500k list filter operation
+    # might break athena
     pins_quoted_for_comps = ",".join(f"'{p}'" for p in all_pins)
-    print(f"pins_quoted_for_comps: {pins_quoted_for_comps}")
     comps_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
@@ -421,8 +442,8 @@ def main() -> None:
 
     cursor.execute(comps_sql)
     df_comps_all = as_pandas(cursor)
-
     df_comps_all = format_df(df_comps_all)
+    df_comps_all = convert_dtypes(df_comps_all)
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
@@ -451,9 +472,10 @@ def main() -> None:
 
         front = build_front_matter(df_target, df_comps)
         front = make_human_readable(front, vars_dict)
+
         write_md(front, md_path)
     elapsed_time = time.time() - start_time  # End timer        
-    print(f"✓ Completed generating frontmatter for {len(all_pins)} PINs in {elapsed_time:.2f} seconds.")
+    print(f"✓ Completed generating frontmatter for {len(all_pins)} PINs in {elapsed_time:.4f} seconds.")
 
     # ------------------------------------------------------------------
     # Optional Hugo build
