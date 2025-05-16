@@ -20,6 +20,8 @@ Generate every PIN in the city triad:
 # Notes
 to add packages to config
 - uv pip install
+
+to get a proper env in ipython: python -m IPython
 """
 
 from __future__ import annotations
@@ -33,6 +35,7 @@ import sys
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
+import ccao
 import numpy as np
 import pandas as pd
 import yaml
@@ -156,12 +159,13 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
             if pred in card_df
         }
 
-
+        
         for _, comp in comps_df.iterrows():
+            # TODO: Probably a way to collapse this all, but also need to re-order this
             comp_dict = {
                 "comp_num": comp["comp_num"],
                 "pin": comp["comp_pin"],
-                "pin_pretty": pin_pretty(comp["comp_pin"]),
+                "pin_pretty": comp["comp_pin"],
                 "is_subject_pin_sale": comp["is_subject_pin_sale"],
                 "sale_price": comp["meta_sale_price"],
                 "sale_price_short": comp["sale_price_short"],
@@ -208,15 +212,6 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
                     "loc_latitude": float(card_df["loc_latitude"]),
                     "loc_longitude": float(card_df["loc_longitude"]),
                 },
-                #"chars": {
-                #    "char_class": card_df["char_class"],
-                #    "char_yrblt": int(card_df["char_yrblt"]),
-                #    "char_bldg_sf": card_df["char_bldg_sf"],
-                #    "char_land_sf": card_df["char_land_sf"],
-                #    "char_beds": int(card_df["char_beds"]),
-                #    "char_fbath": int(card_df["char_fbath"]),
-                #    "char_hbath": int(card_df["char_hbath"]),
-                #},
                 "chars": subject_chars,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
                 "pred_card_initial_fmv": "${:,.2f}".format(card_df["pred_card_initial_fmv"]),
@@ -324,11 +319,11 @@ def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
 
     return front_dict
 
+
 def write_md(front_dict: dict, outfile: str | Path) -> None:
-    
     #Writes the front matter to a markdown file.
     
-    # ✅ Use C-accelerated YAML dumper if available
+    # Use C-accelerated YAML dumper if available
     try:
         dumper = yaml.CSafeDumper
     except AttributeError:
@@ -383,6 +378,12 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
         }))
     )
 
+
+def run_athena_query(cursor, sql: str) -> pd.DataFrame:
+    cursor.execute(sql)
+    return as_pandas(cursor)
+
+
 def main() -> None:
     args = parse_args()
 
@@ -417,10 +418,7 @@ def main() -> None:
         LIMIT 1000
     """
 
-    cursor.execute(assessment_sql)
-    df_assessment_all = as_pandas(cursor)
-    df_assessment_all = format_df(df_assessment_all)
-
+    df_assessment_all = format_df(run_athena_query(cursor, assessment_sql))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
@@ -440,17 +438,16 @@ def main() -> None:
     # WHERE run_id = '{args.run_id}' AND pin IN ({pins_quoted_for_comps})
     # WHERE run_id =  AND pin IN ({pins_quoted_for_comps})
 
-    cursor.execute(comps_sql)
-    df_comps_all = as_pandas(cursor)
-    df_comps_all = format_df(df_comps_all)
-    df_comps_all = convert_dtypes(df_comps_all)
+    df_comps_all = run_athena_query(cursor, comps_sql)
+    df_comps_all["pin_pretty"] = df_comps_all["pin"].apply(pin_pretty)
+    df_comps_all = format_df(convert_dtypes(df_comps_all))
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
         sys.exit("No comps rows returned for the given parameters — aborting.")
 
     # Temp solution for human-readable transformation
-    vars_dict = pd.read_csv(project_root / "vars_dict.csv")
+    vars_dict = ccao.vars_dict
 
     # Declare outputs paths
     md_outdir = project_root / "content" / "pinval-reports"
