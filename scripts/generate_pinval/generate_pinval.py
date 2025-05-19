@@ -29,7 +29,7 @@ from __future__ import annotations
 import argparse
 import time
 import os
-import shutil
+import orjson
 import subprocess as sp
 import sys
 from pathlib import Path
@@ -320,23 +320,14 @@ def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
     return front_dict
 
 
-def write_md(front_dict: dict, outfile: str | Path) -> None:
-    #Writes the front matter to a markdown file.
-    
-    # Use C-accelerated YAML dumper if available
-    try:
-        dumper = yaml.CSafeDumper
-    except AttributeError:
-        dumper = yaml.SafeDumper  # fallback if C bindings not available
-
+def write_json(front_dict: dict, outfile: str | Path) -> None:
     front_dict = convert_to_builtin_types(front_dict)
 
-    yaml_block = yaml.dump(front_dict, Dumper=dumper, sort_keys=False, allow_unicode=False)
-
-    md_text = f"---\n{yaml_block}---\n"
-
-    Path(outfile).write_text(md_text, encoding="utf8")
-
+    json_bytes: bytes = orjson.dumps(
+        front_dict,
+        option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS,
+    )
+    Path(outfile).write_text(json_bytes.decode("utf-8") + "\n", encoding="utf-8")
 
 def label_percent(s: pd.Series) -> pd.Series:
     """0.123 → '12%' (handles NaNs)."""
@@ -380,8 +371,19 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run_athena_query(cursor, sql: str) -> pd.DataFrame:
+    print("Starting Athena query execution...")
+    start_exec = time.time()
     cursor.execute(sql)
-    return as_pandas(cursor)
+    end_exec = time.time()
+    print(f"cursor.execute() took {end_exec - start_exec:.2f} seconds")
+
+    print("Starting as_pandas conversion...")
+    start_pandas = time.time()
+    df = as_pandas(cursor)
+    end_pandas = time.time()
+    print(f"as_pandas(cursor) took {end_pandas - start_pandas:.2f} seconds")
+
+    return df
 
 
 def main() -> None:
@@ -399,6 +401,7 @@ def main() -> None:
         s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR") + "/",
         region_name=os.getenv("AWS_REGION"),
         cursor_class=PandasCursor,
+        unload=True
         #TODO: figure out why unload=true is not working, might be bc it is view and not a table
     ).cursor()
 
@@ -425,11 +428,11 @@ def main() -> None:
         sys.exit("No assessment rows returned for the given parameters — aborting.")
 
     all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
+    pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
 
     # Get the comps for all the pins
     #TODO: This probably needs a refactor since a 500k list filter operation
     # might break athena
-    pins_quoted_for_comps = ",".join(f"'{p}'" for p in all_pins)
     comps_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
@@ -460,7 +463,10 @@ def main() -> None:
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
-    for pin in all_pins:
+    for i, pin in enumerate(all_pins):
+        if i >= 1000:
+            break  # Stop loop after 1000 iterations, for dev purposes
+
         run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{run_id_pin_id}.md"
 
@@ -470,7 +476,8 @@ def main() -> None:
         front = build_front_matter(df_target, df_comps)
         front = make_human_readable(front, vars_dict)
 
-        write_md(front, md_path)
+        write_json(front, md_path)
+
     elapsed_time = time.time() - start_time  # End timer        
     print(f"✓ Completed generating frontmatter for {len(all_pins)} PINs in {elapsed_time:.4f} seconds.")
 
