@@ -319,10 +319,7 @@ def label_dollar(s: pd.Series) -> pd.Series:
 
 def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Re‑creates the dplyr pipeline:
-      1. Percent‑format cols that start with 'acs5_percent'
-      2. Round every remaining numeric col to 2 decimals
-      3. Dollar‑format renter‑gross‑rent and all median‑income cols
+    Format the DataFrame for frontmatter output.
     """
 
     return (
@@ -435,7 +432,7 @@ def main() -> None:
     md_outdir.mkdir(parents=True, exist_ok=True)
 
     start_time_dict_groupby = time.time()
-    
+
     # Group dfs by PIN in dict for theoretically faster access
     df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("meta_pin")))
     df_comps_by_pin = dict(tuple(df_comps_all.groupby("pin")))
