@@ -61,7 +61,6 @@ def parse_args() -> argparse.Namespace:  # noqa: D401  (We *return* Namespace)
     )
 
     parser.add_argument(
-        # TODO: Resolve this mismatch: https://github.com/ccao-data/data-architecture/pull/814#event-17638024529
         "--triad",
         choices=TRIAD_CHOICES,
         help="Generate reports for all PINs in this triad (mutually‑exclusive with --pin)",
