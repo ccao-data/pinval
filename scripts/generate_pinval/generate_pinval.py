@@ -21,19 +21,20 @@ Generate every PIN in the city triad:
 from __future__ import annotations
 
 import argparse
-import time
 import os
-import orjson
 import subprocess as sp
 import sys
+import time
 from pathlib import Path
 
-import ccao
 import numpy as np
 import pandas as pd
+import orjson
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
 from pyathena.pandas.util import as_pandas
+
+import ccao
 
 # Argparse interface
 # ────────────────────────────────────────────────────────────────────────────
@@ -148,7 +149,7 @@ def build_front_matter(
         ).strftime("%B %d, %Y"),
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
-        "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
+        "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
     }
 
@@ -181,9 +182,9 @@ def build_front_matter(
                 "pin": comp["comp_pin"],
                 "pin_pretty": comp["comp_pin"],
                 "is_subject_pin_sale": comp["is_subject_pin_sale"],
-                "sale_price": comp["meta_sale_price"],
-                "sale_price_short": comp["sale_price_short"],
-                "sale_price_per_sq_ft": comp["sale_price_per_sq_ft"],
+                "sale_price": f"${float(comp['meta_sale_price']):,.0f}",
+                "sale_price_short": comp['sale_price_short'],
+                "sale_price_per_sq_ft": f"${float(comp['sale_price_per_sq_ft']):,.0f}",
                 "sale_date": comp["sale_month_year"],
                 "document_num": comp["comp_document_num"],
                 "property_address": comp["property_address"],
@@ -231,7 +232,7 @@ def build_front_matter(
                 "has_subject_pin_sale": bool(
                     comps_df["is_subject_pin_sale"].any()
                 ),
-                "pred_card_initial_fmv": "${:,.2f}".format(
+                "pred_card_initial_fmv": "${:,.0f}".format(
                     card_df["pred_card_initial_fmv"]
                 ),
                 "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
