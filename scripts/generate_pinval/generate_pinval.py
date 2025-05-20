@@ -18,10 +18,8 @@ Generate every PIN in the city triad:
           --triad city
 
 # Notes
-to add packages to config
 - uv pip install
-
-to get a proper env in ipython: python -m IPython
+- to get a proper env in ipython: python -m IPython
 """
 
 from __future__ import annotations
@@ -33,12 +31,10 @@ import orjson
 import subprocess as sp
 import sys
 from pathlib import Path
-from typing import Iterable, List, Sequence
 
 import ccao
 import numpy as np
 import pandas as pd
-import yaml
 from pyathena import connect
 from pyathena.arrow.cursor import ArrowCursor
 from pyathena.pandas.util import as_pandas
@@ -79,7 +75,7 @@ def parse_args() -> argparse.Namespace:  # noqa: D401  (We *return* Namespace)
     parser.add_argument(
         "--skip-html",
         action="store_true",
-        help="Generate only markdown files; skip running the Hugo build step",
+        help="Generate only frontmatter files; skip running the Hugo build step",
     )
 
     args = parser.parse_args()
@@ -104,19 +100,18 @@ def pin_pretty(raw_pin: str) -> str:
 
 def _clean_predictors(raw) -> list[str]:
     """
-    Return a *clean* list of raw predictor column names (no prettifying).
+    Return a *clean* list of raw predictor column names.
     """
 
     # Parse numpy arrays and Arrow lists into plain Python lists
     if isinstance(raw, np.ndarray):
         raw = raw.tolist()
 
+    # Clean up existing lists
     if isinstance(raw, list):
         return [str(x).strip() for x in raw if str(x).strip()]
 
-    if pd.isna(raw):
-        return []
-
+    # Fix list parsing
     txt = str(raw).strip()
     if txt.startswith("[") and txt.endswith("]"):
         txt = txt[1:-1]
@@ -139,11 +134,10 @@ def build_front_matter(
         All comp rows for this PIN (across cards).
     pretty_fn : Callable[[str], str]
         Function that converts a raw model column name → human-readable label.
-        (Typically ⟨lambda k: k if k in PRESERVE else key_map.get(k, k)⟩.)
     """
 
-    # ── header -------------------------------------------------------------
-    tp = df_target_pin.iloc[0]                           # one row per PIN
+    # Header
+    tp = df_target_pin.iloc[0]  # one row per pin
     front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
@@ -157,29 +151,28 @@ def build_front_matter(
         "cards": [],
     }
 
-    # ── per card -----------------------------------------------------------
+    # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
-        card_df = card_df.iloc[0]                        # one row per card
+        card_df = card_df.iloc[0]
 
-        # comps for this card, already sorted in SQL; keep display order
         comps_df = (
             df_comps[df_comps["card"] == card_num]
             .sort_values("comp_num")
             .reset_index(drop=True)
         )
 
-        # predictor names ---------------------------------------------------
+        # Clean predictor names
         preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
         preds_pretty = [pretty_fn(p) for p in preds_raw]
 
-        # subject-property characteristics ----------------------------------
+        # Add all of the feature columns to the card
         subject_chars = {
             pretty_fn(pred): card_df[pred]
             for pred in preds_raw
             if pred in card_df
         }
 
-        # comps -------------------------------------------------------------
+        # Comps
         comps_list = []
         for _, comp in comps_df.iterrows():
             comp_dict = {
@@ -196,14 +189,14 @@ def build_front_matter(
                 "meta_nbhd_code": comp["meta_nbhd_code"],
             }
 
-            # bring predictor fields across, with pretty keys
+            # Make preds human-readable
             for pred_raw, pred_pretty in zip(preds_raw, preds_pretty):
                 if pred_pretty not in comp_dict and pred_raw in comp:
                     comp_dict[pred_pretty] = comp[pred_raw]
 
             comps_list.append(comp_dict)
 
-        # comp summary ------------------------------------------------------
+        # Comp summary
         sale_prices = comps_df["meta_sale_price"].dropna()
         sqft_prices = comps_df["sale_price_per_sq_ft"].dropna()
 
@@ -218,7 +211,7 @@ def build_front_matter(
             "avg_price_per_sqft": "${:,.2f}".format(sqft_prices.mean()),
         }
 
-        # add card to front --------------------------------------------------
+        # Complete the card
         front["cards"].append(
             {
                 "card_num": int(card_num),
@@ -262,12 +255,14 @@ def convert_to_builtin_types(obj):
     This is so the frontmatter doesn't through data type errors when being passed
     to the hugo template.
     """
+
     if isinstance(obj, dict):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_builtin_types(v) for v in obj]
+    # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
-        return "nan"  # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
+        return "nan"
     elif isinstance(obj, np.generic):
         return obj.item()
     return obj
@@ -299,6 +294,7 @@ def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def write_json(front_dict: dict, outfile: str | Path) -> None:
+    """Write the frontmatter dict to a JSON file."""
     front_dict = convert_to_builtin_types(front_dict)
 
     json_bytes: bytes = orjson.dumps(
@@ -309,7 +305,7 @@ def write_json(front_dict: dict, outfile: str | Path) -> None:
 
 def label_percent(s: pd.Series) -> pd.Series:
     """0.123 → '12%' (handles NaNs)."""
-    return s.mul(100).round(0).astype('Int64').astype(str).str.replace('<NA>', 'NA') + '%'
+    return s.mul(100).round(0).astype("Int64").astype(str).str.replace("<NA>", "NA") + "%"
 
 def label_dollar(s: pd.Series) -> pd.Series:
     """45000 → '$45,000' (handles NaNs)."""
@@ -321,23 +317,22 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
       1. Percent‑format cols that start with 'acs5_percent'
       2. Round every remaining numeric col to 2 decimals
       3. Dollar‑format renter‑gross‑rent and all median‑income cols
-    Returns a *new* DataFrame; original is untouched.
     """
 
     return (
         df
-        # 1 ─ percent columns ----------------------------------------------------
+        # Formate percentage columns
         .pipe(lambda d: d.assign(**{
             c: label_percent(d[c])
             for c in d.filter(regex=r'^acs5_percent').columns
         }))
-        # 2 ─ round remaining numerics ------------------------------------------
+        # Round up all numeric columns except for geo cols needed for mapping
         .pipe(lambda d: d.assign(**{
             c: d[c].round(2)
             for c in d.select_dtypes(include='number').columns
-            if c not in {"loc_latitude", "loc_longitude"}   # skip the two geo cols
+            if c not in {"loc_latitude", "loc_longitude"}
         }))
-        # 3 ─ dollar columns -----------------------------------------------------
+        # Format $ columns
         .pipe(lambda d: d.assign(**{
             c: label_dollar(d[c])
             for c in (
@@ -405,8 +400,6 @@ def main() -> None:
     pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
 
     # Get the comps for all the pins
-    #TODO: This probably needs a refactor since a 500k list filter operation
-    # might break athena
     comps_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
@@ -454,7 +447,7 @@ def main() -> None:
     start_time = time.time()
     for i, pin in enumerate(all_pins):
         if i >= 10000:
-            break  # Stop loop after 1000 iterations, for dev purposes
+            break  # Stop loop for dev purposes
 
         run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{run_id_pin_id}.md"
