@@ -16,10 +16,6 @@ Generate every PIN in the city triad:
     $ ./scripts/generate_pinval.py \
           --run-id 2025-02-11-charming-eric \
           --triad city
-
-# Notes
-- uv pip install
-- to get a proper env in ipython: python -m IPython
 """
 
 from __future__ import annotations
@@ -36,7 +32,7 @@ import ccao
 import numpy as np
 import pandas as pd
 from pyathena import connect
-from pyathena.arrow.cursor import ArrowCursor
+from pyathena.pandas.cursor import PandasCursor
 from pyathena.pandas.util import as_pandas
 
 # Argparse interface
@@ -348,7 +344,7 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def run_athena_query(cursor, sql: str) -> pd.DataFrame:
     cursor.execute(sql)
-    df = cursor.as_arrow().to_pandas()
+    df = cursor.as_pandas()
 
     return df
 
@@ -365,10 +361,11 @@ def main() -> None:
     cursor = connect(
         # We add '+ "/"' to the end of the line below because enabling unload
         # requires that the staging directory end with a slash
-        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR"),#.rstrip("/") + "/",
+        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR") + "/",
         region_name=os.getenv("AWS_REGION"),
-        cursor_class=ArrowCursor,
+        cursor_class=PandasCursor,
     ).cursor(unload=True)
+    print(os.getenv("AWS_ATHENA_S3_STAGING_DIR"))
 
     if args.triad:
         where_assessment = f"run_id = '{args.run_id}' AND assessment_triad = '{args.triad.lower()}'"
