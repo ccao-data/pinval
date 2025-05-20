@@ -43,6 +43,11 @@ from pyathena.pandas.util import as_pandas
 # ────────────────────────────────────────────────────────────────────────────
 TRIAD_CHOICES: tuple[str, ...] = ("city", "north", "south")
 
+# Temporary solution for run_id mapping, a problem that occurs when the model run_id
+# differs between the model values and the comps
+RUN_ID_MAP = {
+    "2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"
+}
 
 def parse_args() -> argparse.Namespace:  # noqa: D401  (We *return* Namespace)
     """Parse command‑line arguments and perform basic validation."""
@@ -55,6 +60,7 @@ def parse_args() -> argparse.Namespace:  # noqa: D401  (We *return* Namespace)
     parser.add_argument(
         "--run-id",
         required=True,
+        choices=list(RUN_ID_MAP.keys()), # Temporarily limits run_ids to those in the map
         help="Model run‑ID used by the Athena PINVAL tables (e.g. 2025-02-11-charming-eric)",
     )
 
@@ -344,17 +350,8 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run_athena_query(cursor, sql: str) -> pd.DataFrame:
-    print("Starting Athena query execution...")
-    start_exec = time.time()
     cursor.execute(sql)
-    end_exec = time.time()
-    print(f"cursor.execute() took {end_exec - start_exec:.2f} seconds")
-
-    print("Starting as_pandas conversion...")
-    start_pandas = time.time()
     df = cursor.as_arrow().to_pandas()
-    end_pandas = time.time()
-    print(f"as_pandas(cursor) took {end_pandas - start_pandas:.2f} seconds")
 
     return df
 
@@ -388,8 +385,7 @@ def main() -> None:
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
-    print(assessment_sql)
-
+    print("Querying data from athena ...")
     df_assessment_all = format_df(run_athena_query(cursor, assessment_sql))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
@@ -400,30 +396,33 @@ def main() -> None:
     pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
 
     # Get the comps for all the pins
-    comps_sql = f"""
-        SELECT *
-        FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-        WHERE run_id = '2025-04-25-fancy-free-billy' AND assessment_triad = '{args.triad.lower()}'
-    """
-    print(comps_sql)
-    # WHERE run_id = '{args.run_id}' AND pin IN ({pins_quoted_for_comps})
-    # WHERE run_id =  AND pin IN ({pins_quoted_for_comps})
+    comps_run_id = RUN_ID_MAP[args.run_id]
 
+    if args.triad:
+        comps_sql = f"""
+            SELECT *
+            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
+            WHERE run_id = '{comps_run_id}' AND assessment_triad = '{args.triad.lower()}'
+        """
+    else:
+        pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
+        comps_sql = f"""
+            SELECT *
+            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
+            WHERE run_id = '{comps_run_id}' AND pin IN ({pins_quoted_for_comps})
+        """
 
     df_comps_all = run_athena_query(cursor, comps_sql)
-    start_time_comps_format = time.time()
+
     df_comps_all["pin_pretty"] = df_comps_all["pin"].apply(pin_pretty)
     df_comps_all = format_df(convert_dtypes(df_comps_all))
-    end_time_comps_format = time.time()
-    print(f"Comps formatting took {end_time_comps_format - start_time_comps_format:.2f} seconds")
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
         sys.exit("No comps rows returned for the given parameters — aborting.")
 
-    # Temp solution for human-readable transformation
+    # Crosswalk for making column names human-readable
     vars_dict = ccao.vars_dict
-
     key_map: dict[str, str] = dict(zip(vars_dict["var_name_model"],
                                    vars_dict["var_name_pretty"]))
 
@@ -436,6 +435,7 @@ def main() -> None:
     md_outdir.mkdir(parents=True, exist_ok=True)
 
     start_time_dict_groupby = time.time()
+    
     # Group dfs by PIN in dict for theoretically faster access
     df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("meta_pin")))
     df_comps_by_pin = dict(tuple(df_comps_all.groupby("pin")))
@@ -448,7 +448,8 @@ def main() -> None:
     for i, pin in enumerate(all_pins):
         if i >= 10000:
             break  # Stop loop for dev purposes
-
+        if i % 5000 == 0:
+            print(f"Processing PIN {i + 1} of {len(all_pins)}")
         run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{run_id_pin_id}.md"
 
