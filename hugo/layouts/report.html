@@ -1,20 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  {{ partial "head/boilerplate.html" . }}
 
-  <!-- Boilerplate for mobile responsiveness -->
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <title>{{ .Title }}</title>
-
-  <!-- Load Bootstrap CSS -->
-  <link
-    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css"
-    rel="stylesheet"
-    integrity="sha384-SgOJa3DmI69IUzQ2PVdRZhwQ+dy64/BUtbMJw1MZ8t5HZApcHrRKUc4W0kG879m7"
-    crossorigin="anonymous"
-  />
+  {{ partial "head/css-link-bootstrap.html" . }}
 
   <!-- Load Leaflet CSS -->
   <link
@@ -32,124 +21,12 @@
     crossorigin="anonymous"
   />
 
-  <!-- Load CCAO favicons -->
-  <link rel="shortcut icon" href="/favicon/favicon.ico">
-  <link rel="icon" sizes="16x16 32x32 64x64" href="/favicon/favicon.ico">
-  <link rel="icon" type="image/png" sizes="196x196" href="/favicon/favicon-192.png">
-  <link rel="icon" type="image/png" sizes="160x160" href="/favicon/favicon-160.png">
-  <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96.png">
-  <link rel="icon" type="image/png" sizes="64x64" href="/favicon/favicon-64.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16.png">
+  {{ partial "head/favicons.html" . }}
 
-  <!-- Custom styles -->
-  <style>
-    body {
-      font-size: 12pt;
-    }
-
-    .card-body {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
-
-    .banner {
-      background-color: #294298;
-      color: white;
-      padding: 2rem 0;
-      margin-bottom: 2rem;
-    }
-
-    .banner h1 {
-      margin-bottom: 0.5rem;
-    }
-
-    .banner a {
-      color: white;
-      text-decoration: underline;
-    }
-
-    .map-container {
-      height: 500px;
-    }
-
-    .info-box {
-      margin: 20px 0;
-      background-color: #294298;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-
-    .info-header {
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .info-icon {
-      display: inline-block;
-      width: 24px;
-      height: 24px;
-    }
-
-    .frozen-row {
-      background: rgba(0, 0, 0, 0.05);
-    }
-
-    .frozen-row-bottom-border {
-      border-bottom: 1px solid rgb(182, 182, 182);
-    }
-
-    .char-name {
-      font-weight: 600;
-    }
-
-    .tab-pane {
-      padding-top: 1.5rem;
-    }
-
-    .tab-content {
-      border-left: 1px solid #ddd;
-      border-right: 1px solid #ddd;
-      border-bottom: 1px solid #ddd;
-      padding: 10px;
-    }
-
-    .nav-tabs {
-      margin-bottom: 0;
-    }
-
-    .asterisk {
-      color: red;
-    }
-
-    .page-link {
-      color: #294298;
-    }
-
-    .active > .page-link {
-      background-color: #294298;
-      border-color: #294298;
-    }
-  </style>
+  {{ partial "head/styles.html" . }}
 </head>
 <body>
-  <!-- Top-level banner -->
-  <div class="banner">
-    <div class="container">
-      <div class="card-body">
-        <h2>{{ .Title }}</h2>
-        <div class="subtitle">
-          <b>
-            PIN:
-            <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
-              {{ .Params.pin_pretty }}
-            </a>
-          </b>
-        </div>
-      </div>
-    </div>
-  </div>
+  {{ partial "banner/banner.html" . }}
 
   <!-- Body of the report -->
   <div class="container">

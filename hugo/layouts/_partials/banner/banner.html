@@ -1,0 +1,20 @@
+<!-- Top-level banner -->
+<div class="banner">
+  <div class="container">
+    <div class="card-body">
+      <h2>{{ .Title }}</h2>
+      <div class="subtitle">
+        <b>
+          {{ if ne .Params.pin "99999999999999" }}
+          PIN:
+          <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
+            {{ .Params.pin_pretty }}
+          </a>
+          {{ else }}
+          Stub report
+          {{ end }}
+        </b>
+      </div>
+    </div>
+  </div>
+</div>
