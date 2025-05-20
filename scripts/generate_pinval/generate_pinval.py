@@ -102,29 +102,26 @@ def pin_pretty(raw_pin: str) -> str:
     return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
 
 
-def _clean_predictors(raw, pretty_fn=lambda x: x) -> list[str]:
+def _clean_predictors(raw) -> list[str]:
     """
-    Return a *clean* list of predictor column names.
-    If `pretty_fn` is supplied, each name is passed through it on the way out.
+    Return a *clean* list of raw predictor column names (no prettifying).
     """
 
-    # ─────────────────────────── existing parsing logic ───────────────────────────
-    if isinstance(raw, np.ndarray):        # unloaded Arrow lists → numpy arrays
-        raw = raw.tolist()                 # convert to plain Python list
+    # Parse numpy arrays and Arrow lists into plain Python lists
+    if isinstance(raw, np.ndarray):
+        raw = raw.tolist()
 
-    if isinstance(raw, list):              # already a list
-        base = [str(x).strip() for x in raw if str(x).strip()]
-    else:
-        if pd.isna(raw):                   # NaN → empty list
-            return []
-        txt = str(raw).strip()             # "[a, b]"  or  "a,b"
-        if txt.startswith("[") and txt.endswith("]"):
-            txt = txt[1:-1]
-        base = [p.strip() for p in txt.split(",") if p.strip()]
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
 
-    # ─────────────────────────── pretty-fying step ───────────────────────────────
-    return [pretty_fn(name) for name in base]
+    if pd.isna(raw):
+        return []
 
+    txt = str(raw).strip()
+    if txt.startswith("[") and txt.endswith("]"):
+        txt = txt[1:-1]
+
+    return [p.strip() for p in txt.split(",") if p.strip()]
 
 def build_front_matter(
     df_target_pin: pd.DataFrame,
