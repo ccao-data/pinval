@@ -209,8 +209,8 @@ def build_front_matter(
                 else "in"
             ),
             "sale_year_range": comps_df["sale_year_range"].iloc[0],
-            "avg_sale_price": "${:,.2f}".format(sale_prices.mean()),
-            "avg_price_per_sqft": "${:,.2f}".format(sqft_prices.mean()),
+            "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
+            "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
         }
 
         # Complete the card
