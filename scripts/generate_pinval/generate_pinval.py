@@ -40,7 +40,7 @@ import numpy as np
 import pandas as pd
 import yaml
 from pyathena import connect
-from pyathena.pandas.cursor import PandasCursor
+from pyathena.arrow.cursor import ArrowCursor
 from pyathena.pandas.util import as_pandas
 
 # Argparse interface
@@ -104,12 +104,17 @@ def pin_pretty(raw_pin: str) -> str:
 
 def _clean_predictors(raw) -> list[str]:
     """Return clean list of predictor column names from *raw* (string / list)."""
-
-    if pd.isna(raw):
-        return []
+    
+    # Given our use of unload and pyarrow, we may get numpy types,
+    # this conversion make a numpy list conversion to a python list
+    if isinstance(raw, np.ndarray):
+        raw = raw.tolist()  # Convert to plain Python list
 
     if isinstance(raw, list):
         return [str(x).strip() for x in raw if str(x).strip()]
+
+    if pd.isna(raw):
+        return []
 
     txt = str(raw).strip()
     if txt.startswith("[") and txt.endswith("]"):
@@ -379,7 +384,7 @@ def run_athena_query(cursor, sql: str) -> pd.DataFrame:
 
     print("Starting as_pandas conversion...")
     start_pandas = time.time()
-    df = as_pandas(cursor)
+    df = cursor.as_arrow().to_pandas()
     end_pandas = time.time()
     print(f"as_pandas(cursor) took {end_pandas - start_pandas:.2f} seconds")
 
@@ -398,12 +403,10 @@ def main() -> None:
     cursor = connect(
         # We add '+ "/"' to the end of the line below because enabling unload
         # requires that the staging directory end with a slash
-        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR") + "/",
+        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR"),#.rstrip("/") + "/",
         region_name=os.getenv("AWS_REGION"),
-        cursor_class=PandasCursor,
-        unload=True
-        #TODO: figure out why unload=true is not working, might be bc it is view and not a table
-    ).cursor()
+        cursor_class=ArrowCursor,
+    ).cursor(unload=True)
 
     if args.triad:
         where_assessment = f"run_id = '{args.run_id}' AND assessment_triad = '{args.triad.lower()}'"
@@ -411,15 +414,13 @@ def main() -> None:
         pins: list[str] = list(dict.fromkeys(args.pin))  # de‑dupe
         pins_quoted = ",".join(f"'{p}'" for p in pins)
         where_assessment = f"run_id = '{args.run_id}' AND meta_pin IN ({pins_quoted})"
-
-    print("querying data from athena")
-
+    
     assessment_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
-        LIMIT 1000
     """
+    print(assessment_sql)
 
     df_assessment_all = format_df(run_athena_query(cursor, assessment_sql))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
@@ -436,14 +437,19 @@ def main() -> None:
     comps_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-        WHERE run_id = '2025-04-25-fancy-free-billy' AND pin IN ({pins_quoted_for_comps})
+        WHERE run_id = '2025-04-25-fancy-free-billy' AND assessment_triad = '{args.triad.lower()}'
     """
+    print(comps_sql)
     # WHERE run_id = '{args.run_id}' AND pin IN ({pins_quoted_for_comps})
     # WHERE run_id =  AND pin IN ({pins_quoted_for_comps})
 
+
     df_comps_all = run_athena_query(cursor, comps_sql)
+    start_time_comps_format = time.time()
     df_comps_all["pin_pretty"] = df_comps_all["pin"].apply(pin_pretty)
     df_comps_all = format_df(convert_dtypes(df_comps_all))
+    end_time_comps_format = time.time()
+    print(f"Comps formatting took {end_time_comps_format - start_time_comps_format:.2f} seconds")
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
