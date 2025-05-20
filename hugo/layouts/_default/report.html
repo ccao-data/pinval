@@ -531,8 +531,8 @@
 
     // Initialize map for a specific card
     function initializeMap(mapId, cardIndex) {
-      const pin       = {{ .Params.pin        | jsonify }};
-      const pinPretty = {{ .Params.pin_pretty | jsonify }};
+      const pin = {{ .Params.pin }};
+      const pinPretty = {{ .Params.pin_pretty }};
       const mapData = {{ .Params.cards }};
       const cardData = mapData[cardIndex];
 
