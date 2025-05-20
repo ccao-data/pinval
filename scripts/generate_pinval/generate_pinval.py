@@ -102,71 +102,89 @@ def pin_pretty(raw_pin: str) -> str:
     return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
 
 
-def _clean_predictors(raw) -> list[str]:
-    """Return clean list of predictor column names from *raw* (string / list)."""
-    
-    # Given our use of unload and pyarrow, we may get numpy types,
-    # this conversion make a numpy list conversion to a python list
-    if isinstance(raw, np.ndarray):
-        raw = raw.tolist()  # Convert to plain Python list
-
-    if isinstance(raw, list):
-        return [str(x).strip() for x in raw if str(x).strip()]
-
-    if pd.isna(raw):
-        return []
-
-    txt = str(raw).strip()
-    if txt.startswith("[") and txt.endswith("]"):
-        txt = txt[1:-1]
-    return [p.strip() for p in txt.split(",") if p.strip()]
-
-
-def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> dict:
+def _clean_predictors(raw, pretty_fn=lambda x: x) -> list[str]:
     """
-    Assemble the front‑matter structure for *every* card that exists in the
-    two data sets 
+    Return a *clean* list of predictor column names.
+    If `pretty_fn` is supplied, each name is passed through it on the way out.
     """
-    # Assume exactly one PIN row in df_target_pin
-    tp = df_target_pin.iloc[0]
 
-    front = {
+    # ─────────────────────────── existing parsing logic ───────────────────────────
+    if isinstance(raw, np.ndarray):        # unloaded Arrow lists → numpy arrays
+        raw = raw.tolist()                 # convert to plain Python list
+
+    if isinstance(raw, list):              # already a list
+        base = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        if pd.isna(raw):                   # NaN → empty list
+            return []
+        txt = str(raw).strip()             # "[a, b]"  or  "a,b"
+        if txt.startswith("[") and txt.endswith("]"):
+            txt = txt[1:-1]
+        base = [p.strip() for p in txt.split(",") if p.strip()]
+
+    # ─────────────────────────── pretty-fying step ───────────────────────────────
+    return [pretty_fn(name) for name in base]
+
+
+def build_front_matter(
+    df_target_pin: pd.DataFrame,
+    df_comps: pd.DataFrame,
+    pretty_fn: Callable[[str], str],
+) -> dict:
+    """
+    Assemble the front-matter dict for **one PIN**.
+
+    Parameters
+    ----------
+    df_target_pin : DataFrame
+        All assessment rows for this PIN (one per card).
+    df_comps : DataFrame
+        All comp rows for this PIN (across cards).
+    pretty_fn : Callable[[str], str]
+        Function that converts a raw model column name → human-readable label.
+        (Typically ⟨lambda k: k if k in PRESERVE else key_map.get(k, k)⟩.)
+    """
+
+    # ── header -------------------------------------------------------------
+    tp = df_target_pin.iloc[0]                           # one row per PIN
+    front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
         "assessment_year": str(int(tp["meta_year"]) + 1),
-        "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime("%B %d, %Y"),
+        "final_model_run_date": pd.to_datetime(
+            tp["final_model_run_date"]
+        ).strftime("%B %d, %Y"),
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
     }
 
-    # Iterate through each card number present in df_target_pin 
+    # ── per card -----------------------------------------------------------
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
-        card_df = card_df.iloc[0]
+        card_df = card_df.iloc[0]                        # one row per card
 
-        # Pull matching comps for this card – keep display order
+        # comps for this card, already sorted in SQL; keep display order
         comps_df = (
             df_comps[df_comps["card"] == card_num]
             .sort_values("comp_num")
             .reset_index(drop=True)
         )
 
-        # Make columns human readable
-        predictors = _clean_predictors(card_df["model_predictor_all_name"])
+        # predictor names ---------------------------------------------------
+        preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
+        preds_pretty = [pretty_fn(p) for p in preds_raw]
 
-        # Comps List
-        comps_list = []
-
+        # subject-property characteristics ----------------------------------
         subject_chars = {
-            pred: card_df[pred]
-            for pred in predictors
+            pretty_fn(pred): card_df[pred]
+            for pred in preds_raw
             if pred in card_df
         }
 
-        
+        # comps -------------------------------------------------------------
+        comps_list = []
         for _, comp in comps_df.iterrows():
-            # TODO: Probably a way to collapse this all, but also need to re-order this
             comp_dict = {
                 "comp_num": comp["comp_num"],
                 "pin": comp["comp_pin"],
@@ -180,58 +198,63 @@ def build_front_matter(df_target_pin: pd.DataFrame, df_comps: pd.DataFrame) -> d
                 "property_address": comp["property_address"],
                 "meta_nbhd_code": comp["meta_nbhd_code"],
             }
-            for pred in predictors:
-                # Keep preds unique
-                if pred not in comp_dict and pred in comp:
-                    comp_dict[pred] = comp[pred]
+
+            # bring predictor fields across, with pretty keys
+            for pred_raw, pred_pretty in zip(preds_raw, preds_pretty):
+                if pred_pretty not in comp_dict and pred_raw in comp:
+                    comp_dict[pred_pretty] = comp[pred_raw]
 
             comps_list.append(comp_dict)
 
-        # Comp summary information, could potentially refactor this into dbt model
+        # comp summary ------------------------------------------------------
         sale_prices = comps_df["meta_sale_price"].dropna()
         sqft_prices = comps_df["sale_price_per_sq_ft"].dropna()
 
         comp_summary = {
-            "sale_year_range_prefix": "between" if " and " in comps_df["sale_year_range"].iloc[0] else "in",
+            "sale_year_range_prefix": (
+                "between"
+                if " and " in comps_df["sale_year_range"].iloc[0]
+                else "in"
+            ),
             "sale_year_range": comps_df["sale_year_range"].iloc[0],
-            #TODO: Factor out these means into sql view
             "avg_sale_price": "${:,.2f}".format(sale_prices.mean()),
             "avg_price_per_sqft": "${:,.2f}".format(sqft_prices.mean()),
         }
 
-        # Build card dict
+        # add card to front --------------------------------------------------
         front["cards"].append(
             {
                 "card_num": int(card_num),
                 "location": {
-                    "property_address": card_df["property_address"],
-                    "municipality": card_df.get("meta_municipality", None),
-                    "township": card_df["meta_township_code"],
-                    "meta_nbhd_code": card_df["meta_nbhd_code"],
-                    "loc_school_elementary_district_name": card_df[
-                        "loc_school_elementary_district_name"
-                    ],
-                    "loc_school_secondary_district_name": card_df[
-                        "loc_school_secondary_district_name"
-                    ],
-                    "loc_latitude": float(card_df["loc_latitude"]),
-                    "loc_longitude": float(card_df["loc_longitude"]),
+                    pretty_fn(k): v
+                    for k, v in {
+                        "property_address": card_df["property_address"],
+                        "municipality": card_df.get("meta_municipality"),
+                        "township": card_df["meta_township_code"],
+                        "meta_nbhd_code": card_df["meta_nbhd_code"],
+                        "loc_latitude": float(card_df["loc_latitude"]),
+                        "loc_longitude": float(card_df["loc_longitude"]),
+                    }.items()
                 },
                 "chars": subject_chars,
-                "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
-                "pred_card_initial_fmv": "${:,.2f}".format(card_df["pred_card_initial_fmv"]),
+                "has_subject_pin_sale": bool(
+                    comps_df["is_subject_pin_sale"].any()
+                ),
+                "pred_card_initial_fmv": "${:,.2f}".format(
+                    card_df["pred_card_initial_fmv"]
+                ),
                 "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
                     card_df.get(
                         "pred_card_initial_fmv_per_sqft",
-                        card_df["pred_card_initial_fmv"] / card_df["char_bldg_sf"]
+                        card_df["pred_card_initial_fmv"]
+                        / card_df["char_bldg_sf"],
                     )
                 ),
                 "comps": comps_list,
                 "comp_summary": comp_summary,
-                "predictors": predictors,
+                "predictors": preds_pretty,
             }
         )
-
 
     return front
 
@@ -276,53 +299,6 @@ def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = pd.to_numeric(df[col], errors="coerce").astype(dtype)
 
     return df
-
-
-def make_human_readable(front_dict: dict, vars_dict: pd.DataFrame) -> dict:
-    """
-    Rename machine‑readable field names to pretty labels
-    """
-    key_map = dict(zip(vars_dict["var_name_model"], vars_dict["var_name_pretty"]))
-
-    # Keys that should not be renamed
-    preserve_keys = {
-        # loc_fields are called by the Leaflet map, could change the ref there or here
-        "loc_latitude", "loc_longitude",
-        "Latitude", "Longitude",
-        #TODO: Figure out why this doesn't render in html if we remove it
-        "meta_nbhd_code",
-    }
-
-    def rename_dict_keys(d: dict) -> dict:
-        return {
-            k if k in preserve_keys else key_map.get(k, k): v
-            for k, v in d.items()
-        }
-
-    def rename_list_values(values: list[str]) -> list[str]:
-        return [
-            v if v in preserve_keys else key_map.get(v, v)
-            for v in values
-        ]
-
-    for card in front_dict.get("cards", []):
-        # rename keys inside "location"
-        if "location" in card:
-            card["location"] = rename_dict_keys(card["location"])
-
-        # rename keys inside each comp
-        if "comps" in card:
-            card["comps"] = [rename_dict_keys(comp) for comp in card["comps"]]
-
-        # rename keys inside the subject‑property characteristics
-        if "chars" in card:
-            card["chars"] = rename_dict_keys(card["chars"])
-
-        # rename predictor names (list of strings)
-        if "predictors" in card:
-            card["predictors"] = rename_list_values(card["predictors"])
-
-    return front_dict
 
 
 def write_json(front_dict: dict, outfile: str | Path) -> None:
@@ -458,19 +434,29 @@ def main() -> None:
     # Temp solution for human-readable transformation
     vars_dict = ccao.vars_dict
 
+    key_map: dict[str, str] = dict(zip(vars_dict["var_name_model"],
+                                   vars_dict["var_name_pretty"]))
+
+    PRESERVE = {"loc_latitude", "loc_longitude", "meta_nbhd_code"}
+    def pretty(k: str) -> str:
+        return k if k in PRESERVE else key_map.get(k, k)
+
     # Declare outputs paths
     md_outdir = project_root / "content" / "pinval-reports"
     md_outdir.mkdir(parents=True, exist_ok=True)
 
+    start_time_dict_groupby = time.time()
     # Group dfs by PIN in dict for theoretically faster access
     df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("meta_pin")))
     df_comps_by_pin = dict(tuple(df_comps_all.groupby("pin")))
+    end_time_dict_groupby = time.time()
+    print(f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds")
 
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
     for i, pin in enumerate(all_pins):
-        if i >= 1000:
+        if i >= 10000:
             break  # Stop loop after 1000 iterations, for dev purposes
 
         run_id_pin_id = f"{args.run_id}__{pin}"
@@ -479,8 +465,7 @@ def main() -> None:
         df_target = df_assessments_by_pin.get(pin)
         df_comps = df_comps_by_pin.get(pin)
 
-        front = build_front_matter(df_target, df_comps)
-        front = make_human_readable(front, vars_dict)
+        front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
 
         write_json(front, md_path)
 
