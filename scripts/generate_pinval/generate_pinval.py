@@ -425,7 +425,7 @@ def main() -> None:
         return k if k in PRESERVE else key_map.get(k, k)
 
     # Declare outputs paths
-    md_outdir = project_root / "content" / "pinval-reports"
+    md_outdir = project_root / "hugo" / "content" / "pinval-reports"
     md_outdir.mkdir(parents=True, exist_ok=True)
 
     start_time_dict_groupby = time.time()
@@ -463,7 +463,7 @@ def main() -> None:
 
     if not args.skip_html:
         print("Running Hugo …")
-        proc = sp.run(["hugo", "--minify"], cwd=project_root, text=True)
+        proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
         if proc.returncode != 0:
             sys.exit("Hugo build failed.")
 
