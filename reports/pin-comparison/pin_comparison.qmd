@@ -337,7 +337,6 @@ if (all(map_lgl(cache_files, file.exists))) {
   )
 
   comps <- comps %>%
-    # bring in the primary_card label for each meta_pin
     left_join(
       pin_labels %>% select(meta_pin, primary_card),
       by = c("pin" = "meta_pin")
