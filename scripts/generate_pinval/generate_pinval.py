@@ -474,7 +474,6 @@ def main() -> None:
         print("✓ Hugo build complete — markdown cleaned up.")
 
 
-# Main function
 if __name__ == "__main__":
     try:
         main()
