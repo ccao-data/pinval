@@ -37,7 +37,8 @@ from pyathena.pandas.util import as_pandas
 import ccao
 
 # Argparse interface
-# ────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────
+# ───────────────────────────────────────────────────
 TRIAD_CHOICES: tuple[str, ...] = ("city", "north", "south")
 
 # Temporary solution for run_id mapping, a problem that occurs when the model run_id
@@ -373,7 +374,7 @@ def main() -> None:
         pins: list[str] = list(dict.fromkeys(args.pin))  # de‑dupe
         pins_quoted = ",".join(f"'{p}'" for p in pins)
         where_assessment = f"run_id = '{args.run_id}' AND meta_pin IN ({pins_quoted})"
-    
+
     assessment_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
@@ -454,7 +455,7 @@ def main() -> None:
 
         write_json(front, md_path)
 
-    elapsed_time = time.time() - start_time  # End timer        
+    elapsed_time = time.time() - start_time  
     print(f"✓ Completed generating frontmatter for {len(all_pins)} PINs in {elapsed_time:.4f} seconds.")
 
     # ------------------------------------------------------------------
