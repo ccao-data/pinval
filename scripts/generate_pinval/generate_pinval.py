@@ -366,7 +366,6 @@ def main() -> None:
         region_name=os.getenv("AWS_REGION"),
         cursor_class=PandasCursor,
     ).cursor(unload=True)
-    print(os.getenv("AWS_ATHENA_S3_STAGING_DIR"))
 
     if args.triad:
         where_assessment = f"run_id = '{args.run_id}' AND assessment_triad = '{args.triad.lower()}'"
