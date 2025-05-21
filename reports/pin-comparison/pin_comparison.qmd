@@ -2,8 +2,8 @@
 title: "PIN Comparison Doc"
 params:
   run_id: "2025-04-25-fancy-free-billy"
-  pin1: "01011100120000"
-  pin_1_card_num:
+  pin1: "12134090360000"
+  pin_1_card_num: 1
   pin2: "01011250100000"
   pin_2_card_num:
 execute:
@@ -160,7 +160,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     nrow(pin_labels %>%
       filter(total_cards %in% c(2, 3) & is.na(primary_card))) > 0) {
     stop("Error: For PINs with <= 3 cards and 2024 or before,
-         the `pin_{x}_card_num` param must be present.")
+         the `pin_{x}_card_num` param must have a value.")
   }
 
   if (nrow(pin_labels %>%
@@ -417,6 +417,8 @@ Comparison between PINs:
 <span style="color: red;"><b>`r params$pin1`</b></span> (card `r primary_card_1` of `r total_cards_1` card`r if (total_cards_1 > 1) "s" else ""`)
 
 <span style="color: blue;"><b>`r params$pin2`</b></span> (card `r primary_card_2` of `r total_cards_2` card`r if (total_cards_2 > 1) "s" else ""`)
+
+<b>run_id:</b> ``r params$run_id``
 
 ### Map of PINs
 
