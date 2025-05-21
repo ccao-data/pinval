@@ -15,7 +15,7 @@ Generate two specific PINs:
 Generate every PIN in the city triad:
     $ ./scripts/generate_pinval.py \
           --run-id 2025-02-11-charming-eric \
-          --triad city
+          --triad north
 """
 
 from __future__ import annotations
