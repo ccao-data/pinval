@@ -3,7 +3,7 @@ title: "PIN Comparison Doc"
 params:
   run_id: "2025-04-25-fancy-free-billy"
   pin1: "12134090360000"
-  pin_1_card_num: 1
+  pin_1_card_num:
   pin2: "01011250100000"
   pin_2_card_num:
 execute:
