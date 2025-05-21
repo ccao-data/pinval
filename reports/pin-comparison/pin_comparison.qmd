@@ -335,7 +335,7 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
-  
+
   comps <- comps %>%
     # bring in the primary_card label for each meta_pin
     left_join(
