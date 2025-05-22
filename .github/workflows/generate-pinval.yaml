@@ -125,7 +125,7 @@ jobs:
           fi
 
           echo "Running generate_pinval.py for run-id $RUN_ID ..."
-          python3 scripts/generate_pinval.py \
+          python3 scripts/generate_pinval/generate_pinval.py \
             --run-id "$RUN_ID" \
             $EXTRA_ARGS
         env:
