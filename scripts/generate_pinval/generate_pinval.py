@@ -361,8 +361,9 @@ def main() -> None:
     # Athena connection (one per run)
     cursor = connect(
         # We add '+ "/"' to the end of the line below because enabling unload
-        # requires that the staging directory end with a slash
-        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR") + "/",
+        # requires that the staging directory end with a slash. Add rstrip because
+        # the missing '/' seems to depend on different environments
+        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR").rstrip("/") + "/",
         region_name=os.getenv("AWS_REGION"),
         cursor_class=PandasCursor,
     ).cursor(unload=True)
