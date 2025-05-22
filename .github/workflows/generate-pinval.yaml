@@ -9,4 +9,4 @@ jobs:
 
     steps:
       - name: Checkout repo code
-        uses: actions/checkout@v
+        uses: actions/checkout@v4
