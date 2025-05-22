@@ -94,7 +94,7 @@ jobs:
         id: validate
         run: |
           set -euo pipefail
-          source scripts/generate_pinval/.venv/bin/activate
+          source scripts/generate_pinval/venv/bin/activate
 
           # Convenience vars
           TRIAD="${{ inputs.triad_name }}"
