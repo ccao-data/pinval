@@ -67,6 +67,10 @@ jobs:
         with:
           python-version-file: scripts/generate_pinval/.python-version
 
+      - name: Create uv virtual environment
+        run: uv venv
+        working-directory: scripts/generate_pinval
+
       - name: Install Python requirements
         run: |
           ls
