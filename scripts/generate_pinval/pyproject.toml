@@ -9,7 +9,9 @@ dependencies = [
     "orjson>=3.10.18",
     "pandas>=2.2.3",
     "pyathena>=3.13.0",
-    "ccao @ git+https://github.com/ccao-data/ccao.git#subdirectory=python"
+    # TODO anchor this to a specific commit
+    "ccao @ git+https://github.com/ccao-data/ccao.git#subdirectory=python",
+    "pyarrow>=20.0.0",
 ]
 
 [build-system]
