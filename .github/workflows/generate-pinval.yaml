@@ -94,7 +94,6 @@ jobs:
         id: validate
         run: |
           set -euo pipefail
-          source scripts/generate_pinval/.venv/bin/activate
 
           # Convenience vars
           TRIAD="${{ inputs.triad_name }}"
@@ -117,6 +116,7 @@ jobs:
         id: gen
         run: |
           set -euo pipefail
+          source scripts/generate_pinval/.venv/bin/activate
 
           RUN_ID='${{ inputs.run_id }}'
 
