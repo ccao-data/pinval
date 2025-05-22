@@ -117,6 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           source scripts/generate_pinval/.venv/bin/activate
+          pip install "git+https://github.com/ccao-data/ccao.git#egg=ccao&subdirectory=python"
 
           RUN_ID='${{ inputs.run_id }}'
 
