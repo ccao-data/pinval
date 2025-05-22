@@ -12,16 +12,12 @@ on:
         required: true
 
       triad_name:
-        type: choice
+        type: string
         description: >
           Generate reports for every PIN in this triad (leave blank if you are
-          supplying explicit PINs instead).
+          supplying explicit PINs instead). Options: city, north, south.
         required: false
         default: ""
-        options:
-          - city
-          - north
-          - south
 
       pins:
         type: string
