@@ -73,7 +73,7 @@ jobs:
 
       - name: Install Python requirements
         run: uv pip install .
-        working-directory: ${{ env.WORKING_DIR }}
+        working-directory: scripts/generate_pinval
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
