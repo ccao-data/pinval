@@ -1,0 +1,165 @@
+# Workflow that can be manually dispatched to generate PINVAL reports
+name: generate-pinval
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        type: string
+        description: >
+          The run-ID of the model run whose comps should be used
+          (e.g. 2025-02-11-charming-eric)
+        required: true
+
+      triad_name:
+        type: choice
+        description: >
+          Generate reports for every PIN in this triad (leave blank if you are
+          supplying explicit PINs instead).
+        required: false
+        default: ""
+        options:
+          - city
+          - north
+          - south
+
+      pins:
+        type: string
+        description: >
+          One or more comma-separated Cook County PINs.  Leave blank if you are
+          supplying a triad instead.  Mutually-exclusive with triad_name.
+        required: false
+        default: ""
+
+      is_test:
+        type: boolean
+        description: >
+          If true, upload to the staging S3 bucket; otherwise upload to the
+          production bucket.
+        required: false
+        default: true
+
+env:
+  # Path where the Python script expects to be run
+  WORKING_DIR: .
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  generate-pinval:
+    runs-on: ubuntu-latest
+
+    # Needed for federated AWS authentication
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # ───────────────────────────────────────────────────────────────
+      # Setup
+      # ───────────────────────────────────────────────────────────────
+      - name: Checkout repo code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install Python requirements
+        run: uv pip install .
+        working-directory: ${{ env.WORKING_DIR }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
+          aws-region: us-east-1
+
+      # ───────────────────────────────────────────────────────────────
+      # 1. Validate mutually-exclusive inputs
+      # ───────────────────────────────────────────────────────────────
+      - name: Validate input parameters
+        id: validate
+        run: |
+          set -euo pipefail
+
+          # Convenience vars
+          TRIAD="${{ inputs.triad_name }}"
+          PINS="${{ inputs.pins }}"
+
+          if [[ -z "$TRIAD" && -z "$PINS" ]]; then
+            echo "Error: At least one of triad_name or pins must be supplied." >&2
+            exit 1
+          fi
+
+          if [[ -n "$TRIAD" && -n "$PINS" ]]; then
+            echo "Error: triad_name and pins are mutually-exclusive." >&2
+            exit 1
+          fi
+
+      # ───────────────────────────────────────────────────────────────
+      # 2. Run the report-generation script
+      # ───────────────────────────────────────────────────────────────
+      - name: Generate PINVAL reports
+        id: gen
+        run: |
+          set -euo pipefail
+
+          RUN_ID='${{ inputs.run_id }}'
+
+          # Build the CLI args
+          if [[ -n "${{ inputs.triad_name }}" ]]; then
+            EXTRA_ARGS="--triad '${{ inputs.triad_name }}'"
+          else
+            # Split comma-separated list → space-separated string after single --pin
+            IFS=',' read -ra PINS <<< "${{ inputs.pins }}"
+            EXTRA_ARGS="--pin ${PINS[*]}"
+          fi
+
+          echo "Running generate_pinval.py for run-id $RUN_ID ..."
+          python3 scripts/generate_pinval.py \
+            --run-id "$RUN_ID" \
+            $EXTRA_ARGS
+        env:
+          AWS_REGION: us-east-1
+          AWS_ATHENA_S3_STAGING_DIR: s3://ccao-athena-results-us-east-1/
+
+      # ───────────────────────────────────────────────────────────────
+      # 3. Decide which S3 bucket to use (test vs prod)
+      # ───────────────────────────────────────────────────────────────
+      - name: Resolve target S3 bucket
+        id: bucket
+        run: |
+          if [[ '${{ inputs.is_test }}' == 'true' ]]; then
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ───────────────────────────────────────────────────────────────
+      # 4. Upload the generated site
+      #    (the Hugo build ends up in hugo/public/)
+      # ───────────────────────────────────────────────────────────────
+      - name: Upload reports to S3
+        id: upload
+        run: |
+          set -euo pipefail
+
+          TARGET="${{ steps.bucket.outputs.bucket }}"
+          # Prefix reports by run-id to avoid collisions
+          DEST="${TARGET%/}/pinval/${{ inputs.run_id }}/"
+
+          echo "Syncing hugo/public → $DEST"
+          aws s3 sync hugo/public "$DEST" --delete
+
+          # Construct a basic web link for the SNS message
+          # Assuming the bucket is public or fronted by static-website hosting
+          BUCKET_NAME="$(echo "$TARGET" | sed -E 's#s3://([^/]+).*#\1#')"
+          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/$(echo "$DEST" | sed -E 's#s3://[^/]+/(.*)#\1#')"
+          echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
