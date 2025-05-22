@@ -72,7 +72,9 @@ jobs:
           python-version-file: scripts/generate_pinval/.python-version
 
       - name: Install Python requirements
-        run: uv pip install .
+        run: |
+          ls
+          uv pip install .
         working-directory: scripts/generate_pinval
 
       - name: Configure AWS credentials (OIDC)
