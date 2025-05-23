@@ -112,7 +112,12 @@ jobs:
             echo "Error: triad_name and pins are mutually-exclusive." >&2
             exit 1
           fi
-
+        # Add hugo
+      - name: Install Hugo
+        uses: peaceiris/actions-hugo@v2
+        with:
+          hugo-version: '0.147.5'  # Match the version your site needs
+          #extended: true
       # ───────────────────────────────────────────────────────────────
       # 2. Run the report-generation script
       # ───────────────────────────────────────────────────────────────
