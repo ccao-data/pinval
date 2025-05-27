@@ -308,11 +308,11 @@ def write_json(front_dict: dict, outfile: str | Path) -> None:
 
 def label_percent(s: pd.Series) -> pd.Series:
     """0.123 → '12%' (handles NaNs)."""
-    return s.mul(100).round(0).astype("Int64").astype(str).str.replace("<NA>", "NA") + "%"
+    return s.mul(100).round(0).astype("Int64").astype(str).str.replace("<NA>", "") + "%"
 
 def label_dollar(s: pd.Series) -> pd.Series:
     """45000 → '$45,000' (handles NaNs)."""
-    return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "NA")
+    return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
 
 def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
