@@ -343,11 +343,9 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def run_athena_query(cursor, sql: str) -> pd.DataFrame:
-    cursor.execute(sql)
-    df = cursor.as_pandas()
-
-    return df
+def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
+    cursor.execute(sql, parameters=params)
+    return cursor.as_pandas()
 
 
 def main() -> None:
@@ -368,19 +366,22 @@ def main() -> None:
     ).cursor(unload=True)
 
     if args.triad:
-        where_assessment = f"run_id = '{args.run_id}' AND assessment_triad = '{args.triad.lower()}'"
+        where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
+        params_assessment = {"run_id": args.run_id, "triad": args.triad.lower()}
     else:
-        pins: list[str] = list(dict.fromkeys(args.pin))  # de‑dupe
-        pins_quoted = ",".join(f"'{p}'" for p in pins)
-        where_assessment = f"run_id = '{args.run_id}' AND meta_pin IN ({pins_quoted})"
+        pins: list[str] = list(dict.fromkeys(args.pin))  # de-dupe
+        pins_quoted = ",".join(f"'{p}'" for p in pins)  # Still used for IN clause
+        where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
+        params_assessment = {"run_id": args.run_id}
+
 
     assessment_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
-    print("Querying data from athena ...")
-    df_assessment_all = format_df(run_athena_query(cursor, assessment_sql))
+    print("Querying data from Athena ...")
+    df_assessment_all = format_df(run_athena_query(cursor, assessment_sql, params_assessment))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
@@ -393,24 +394,25 @@ def main() -> None:
     comps_run_id = RUN_ID_MAP[args.run_id]
 
     if args.triad:
-        comps_sql = f"""
+        comps_sql = """
             SELECT *
             FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = '{comps_run_id}' AND assessment_triad = '{args.triad.lower()}'
+            WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s
         """
+        params_comps = {"run_id": comps_run_id, "triad": args.triad.lower()}
     else:
-        pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
         comps_sql = f"""
             SELECT *
             FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = '{comps_run_id}' AND pin IN ({pins_quoted_for_comps})
+            WHERE run_id = %(run_id)s AND pin IN ({pins_quoted_for_comps})
         """
+        params_comps = {"run_id": comps_run_id}
 
-    df_comps_all = run_athena_query(cursor, comps_sql)
+    df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
 
     df_comps_all["pin_pretty"] = df_comps_all["pin"].apply(pin_pretty)
     df_comps_all = format_df(convert_dtypes(df_comps_all))
-
+    
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
         sys.exit("No comps rows returned for the given parameters — aborting.")
