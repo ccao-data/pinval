@@ -265,7 +265,7 @@ def convert_to_builtin_types(obj):
         return [convert_to_builtin_types(v) for v in obj]
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
-        return "nan"
+        return ""
     elif isinstance(obj, np.generic):
         return obj.item()
     return obj
