@@ -185,7 +185,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
       target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
-      is_target = total_cards %in% c(2, 3) & year >= 2025 &
+      is_target = total_cards %in% c(2, 3) & !!year >= 2025 &
         (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
       primary_card = if_else(is_target,
         meta_card_num, as.character(primary_card)
