@@ -140,7 +140,7 @@ def build_front_matter(
     """
 
     # Header
-    tp = df_target_pin.iloc[0]  # one row per pin
+    tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
