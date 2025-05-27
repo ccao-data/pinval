@@ -476,8 +476,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Interrupted by user", file=sys.stderr)
-        sys.exit(130)
+    main()
