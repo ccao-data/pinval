@@ -385,7 +385,9 @@ def main() -> None:
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
-        sys.exit("No assessment rows returned for the given parameters — aborting.")
+        raise ValueError(
+            "No assessment rows returned for the given parameters"
+        )
 
     all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
     pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
