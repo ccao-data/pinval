@@ -162,7 +162,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   if (year <= 2024 &&
     nrow(pin_labels %>%
       filter(total_cards %in% c(2, 3) & is.na(primary_card))) > 0) {
-    stop("Error: For PINs with <= 3 cards and 2024 or before,
+    stop("Error: For PINs with 2-3 cards and 2024 or before,
          the `pin_{x}_card_num` param must have a value.")
   }
 
