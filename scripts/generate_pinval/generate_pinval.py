@@ -101,7 +101,7 @@ def pin_pretty(raw_pin: str) -> str:
     return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
 
 
-def _clean_predictors(raw) -> list[str]:
+def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
     """
     Return a *clean* list of raw predictor column names.
     """
