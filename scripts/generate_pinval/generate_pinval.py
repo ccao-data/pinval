@@ -417,7 +417,9 @@ def main() -> None:
     
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
-        sys.exit("No comps rows returned for the given parameters — aborting.")
+        raise ValueError(
+            "No comps rows returned for the given parameters — aborting."
+        )
 
     # Crosswalk for making column names human-readable
     vars_dict = ccao.vars_dict
@@ -469,7 +471,7 @@ def main() -> None:
         print("Running Hugo …")
         proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
         if proc.returncode != 0:
-            sys.exit("Hugo build failed.")
+            raise RuntimeError("Hugo build failed.")
 
         # Remove markdown files now that HTML is baked.
         for md_file in md_outdir.glob("*.md"):
