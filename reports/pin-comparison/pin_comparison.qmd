@@ -1,7 +1,7 @@
 ---
 title: "PIN Comparison Doc"
 params:
-  run_id: "2025-04-25-fancy-free-billy"
+  run_id: "2025-04-25-fancy-free-billy" 
   pin1: "01011260760000"
   pin_1_card_num:
   pin2: "01012150080000"
@@ -66,11 +66,12 @@ dir.create(base_cache_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Define file paths for the cache files inside the unique folder
 cache_files <- list(
-  char    = file.path(base_cache_dir, "char.parquet"),
-  value   = file.path(base_cache_dir, "value.parquet"),
-  shap    = file.path(base_cache_dir, "shap.parquet"),
+  char = file.path(base_cache_dir, "char.parquet"),
+  value = file.path(base_cache_dir, "value.parquet"),
+  shap = file.path(base_cache_dir, "shap.parquet"),
   address = file.path(base_cache_dir, "address.parquet"),
-  sales   = file.path(base_cache_dir, "sales.parquet")
+  sales = file.path(base_cache_dir, "sales.parquet"),
+  metadata = file.path(base_cache_dir, "metadata.parquet")
 )
 
 # Check if the unique folder already exists and if all cache files are present
@@ -82,6 +83,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   shap <- read_parquet(cache_files$shap)
   address <- read_parquet(cache_files$address)
   sales <- read_parquet(cache_files$sales)
+  metadata <- read_parquet(cache_files$metadata)
 } else {
   message("Some or all cache files are missing.
           Running queries and creating them...")
@@ -106,7 +108,8 @@ if (all(map_lgl(cache_files, file.exists))) {
     glue(
       "select
          dvc_md5_assessment_data,
-         model_predictor_all_name
+         model_predictor_all_name,
+         shap_enable
        from model.metadata
        where run_id = '{run_id}'
        limit 1"
@@ -336,6 +339,11 @@ if (all(map_lgl(cache_files, file.exists))) {
     )
   )
 
+  comp_flag <- comps %>%
+    mutate(comp_flag = if_all(starts_with("comp_document_num_"), is.na)) %>%
+    select(pin, comp_flag) %>%
+    distinct()
+
   comps <- comps %>%
     left_join(
       pin_labels %>% select(meta_pin, primary_card),
@@ -395,10 +403,12 @@ if (all(map_lgl(cache_files, file.exists))) {
   # This join will add the comp_number and its comp_score to the sale row.
   sales <- sales %>%
     left_join(comps, by = "doc_no") %>%
+    left_join(comp_flag, by = "pin") %>%
     arrange(desc(sale_date)) %>%
     select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
       other_pin_comp_number = comp_number,
-      other_pin_comp_score = comp_score
+      other_pin_comp_score = comp_score,
+      comp_flag
     )
 
   # Write the cache files into the unique folder
@@ -407,6 +417,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   write_parquet(shap, cache_files$shap)
   write_parquet(address, cache_files$address)
   write_parquet(sales, cache_files$sales)
+  write_parquet(metadata, cache_files$metadata)
 }
 
 card_values <- value %>%
@@ -640,6 +651,8 @@ datatable(
 
 ### Sale History
 
+`r if (any(sales$comp_flag)) "Comps were not enabled or not joined based on Document Number for this Run."`
+
 Each sale is marked with a checkmark if the model considers it to be a comp for the other PIN.
 
 ```{r sales}
@@ -663,7 +676,7 @@ pin_colors <- sapply(unique_pins, function(p) {
 })
 
 sales <- sales %>%
-  select(-color) %>%
+  select(-color, -comp_flag) %>%
   arrange(desc(sale_date))
 
 datatable(
@@ -689,55 +702,59 @@ datatable(
 
 ### $ Value
 
+`r if (!isTRUE(metadata$shap_enable)) "SHAPs were not enabled for this run"`
+
 ```{r SHAPs}
 #| column: screen-inset
-
-shap %>%
-  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
-  ggplot(aes(
-    y = `Feature Name`,
-    x = .data[[params$pin1]],
-    xend = .data[[params$pin2]]
-  )) +
-  geom_dumbbell(
-    size_x = 1,
-    size_xend = 1,
-    colour_x = "red",
-    colour_xend = "blue"
-  ) +
-  labs(
-    x = "SHAP Value",
-    y = "Feature Name"
-  ) +
-  scale_x_continuous(labels = scales::dollar_format()) +
-  theme_minimal(base_size = 5)
+if (isTRUE(metadata$shap_enable)) {
+  shap %>%
+    filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+    ggplot(aes(
+      y = `Feature Name`,
+      x = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "SHAP Value",
+      y = "Feature Name"
+    ) +
+    scale_x_continuous(labels = scales::dollar_format()) +
+    theme_minimal(base_size = 5)
+}
 ```
 ### SHAP as a % of Value
 Because SHAPs are positive and negative, percentages do not sum to 100%
 
 ```{r SHAPs percent}
 #| column: screen-inset
-
-shap %>%
-  mutate(across(where(is.numeric), ~ (. / sum(.)) * 100)) %>%
-  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
-  ggplot(aes(
-    y = `Feature Name`,
-    x = .data[[params$pin1]],
-    xend = .data[[params$pin2]]
-  )) +
-  geom_dumbbell(
-    size_x = 1,
-    size_xend = 1,
-    colour_x = "red",
-    colour_xend = "blue"
-  ) +
-  labs(
-    x = "SHAP Value as a % of FMV",
-    y = "Feature Name"
-  ) +
-  scale_x_continuous(labels = scales::percent_format(scale = 1)) +
-  theme_minimal(base_size = 5)
+if (isTRUE(metadata$shap_enable)) {
+  shap %>%
+    mutate(across(where(is.numeric), ~ (. / sum(.)) * 100)) %>%
+    filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+    ggplot(aes(
+      y = `Feature Name`,
+      x = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "SHAP Value as a % of FMV",
+      y = "Feature Name"
+    ) +
+    scale_x_continuous(labels = scales::percent_format(scale = 1)) +
+    theme_minimal(base_size = 5)
+}
 ```
 
 :::
