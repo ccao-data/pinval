@@ -729,7 +729,6 @@ if (isTRUE(metadata$shap_enable)) {
 }
 ```
 ### SHAP as a % of Value
-Because we remove the baseline value, SHAPs do not add up to 100%.
 ```{r SHAPs percent}
 #| column: screen-inset
 if (isTRUE(metadata$shap_enable)) {
