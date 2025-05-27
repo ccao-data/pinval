@@ -200,8 +200,8 @@ def build_front_matter(
             comps_list.append(comp_dict)
 
         # Comp summary
-        sale_prices = comps_df["meta_sale_price"].dropna()
-        sqft_prices = comps_df["sale_price_per_sq_ft"].dropna()
+        sale_prices = comps_df["meta_sale_price"]
+        sqft_prices = comps_df["sale_price_per_sq_ft"]
 
         comp_summary = {
             "sale_year_range_prefix": (
