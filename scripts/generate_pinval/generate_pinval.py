@@ -47,7 +47,7 @@ RUN_ID_MAP = {
     "2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"
 }
 
-def parse_args() -> argparse.Namespace:  # noqa: D401  (We *return* Namespace)
+def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation."""
 
     parser = argparse.ArgumentParser(
