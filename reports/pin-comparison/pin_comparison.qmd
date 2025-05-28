@@ -1,9 +1,9 @@
 ---
 title: "PIN Comparison Doc"
 params:
-  run_id: "2024-06-18-calm-nathan"
+  run_id: "2025-02-11-charming-eric"
   pin1: "01011260760000"
-  pin_1_card_num: 1
+  pin_1_card_num:
   pin2: "01012150080000"
   pin_2_card_num:
 execute:
