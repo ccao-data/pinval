@@ -343,7 +343,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   if (nrow(comps) == 0) {
     comp_flag <- pin_labels %>%
       distinct(meta_pin) %>%
-      transmute(pin = meta_pin, comp_flag = TRUE)
+      mutate(pin = meta_pin, comp_flag = TRUE, .keep = "none")
   } else {
     comp_flag <- comps %>%
       # TRUE when all comp_document_num_* columns are NA
