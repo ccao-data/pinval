@@ -1,9 +1,9 @@
 ---
 title: "PIN Comparison Doc"
 params:
-  run_id: "2025-04-25-fancy-free-billy"
+  run_id: "2024-06-18-calm-nathan"
   pin1: "01011260760000"
-  pin_1_card_num:
+  pin_1_card_num: 1
   pin2: "01012150080000"
   pin_2_card_num:
 execute:
@@ -385,15 +385,15 @@ if (all(map_lgl(cache_files, file.exists))) {
         # copy the corresponding doc_no value;
         # otherwise, set to NA.
         !!paste0("matched_doc_no_", comp_number) := if_else(
-          !is.na(.data[[col]]) &&
-            .data[[col]] != pin &&
+          !is.na(.data[[col]]) &
+            .data[[col]] != pin &
             .data[[col]] %in% pin_labels$meta_pin,
           as.character(.data[[doc_no_col]]),
           NA_character_
         ),
         !!paste0("matched_comp_score_", comp_number) := if_else(
-          !is.na(.data[[col]]) &&
-            .data[[col]] != pin &&
+          !is.na(.data[[col]]) &
+            .data[[col]] != pin &
             .data[[col]] %in% pin_labels$meta_pin,
           .data[[score_col]],
           NA_real_
