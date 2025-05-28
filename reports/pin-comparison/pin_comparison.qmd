@@ -774,7 +774,7 @@ if (isTRUE(metadata$shap_enable)) {
 
 ### SHAP as a % of Summed Absolute SHAP Values
 
-SHAPs do not add up to 100% due to the removal of the baseline value and the use of Absolute Values
+SHAPs do not add up to 100% due to the removal of the baseline value
 
 ```{r}
 #| column: screen-inset
