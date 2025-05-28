@@ -338,12 +338,21 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
+  # Build comp_flag: if comps is empty, mark every pin as TRUE;
+  # otherwise compute as before (TRUE when all document nums are NA)
+  if (nrow(comps) == 0) {
+    comp_flag <- pin_labels %>%
+      distinct(meta_pin) %>%
+      transmute(pin = meta_pin, comp_flag = TRUE)
+  } else {
+    comp_flag <- comps %>%
+      # TRUE when all comp_document_num_* columns are NA
+      mutate(comp_flag = if_all(starts_with("comp_document_num_"), is.na)) %>%
+      select(pin, comp_flag) %>%
+      distinct()
+  }
 
-  comp_flag <- comps %>%
-    mutate(comp_flag = if_all(starts_with("comp_document_num_"), is.na)) %>%
-    select(pin, comp_flag) %>%
-    distinct()
-
+  # Filter comps down to the primary card
   comps <- comps %>%
     left_join(
       pin_labels %>% select(meta_pin, primary_card),
@@ -352,22 +361,17 @@ if (all(map_lgl(cache_files, file.exists))) {
     # keep only the row whose meta_card_num matches the designated primary_card
     filter(card == primary_card)
 
-
   # Identify the appended comp_pin columns (e.g. "comp_pin_1", "comp_pin_2")
   comp_pin_cols <- grep("^comp_pin_", names(comps), value = TRUE)
-
   # For each appended comp_pin column, create new columns
   # for the document number and comp score
-  # if the comp_pin value matches a primary pin.
-  for (col in comp_pin_cols) {
-    # Extract the comp_number number from the column name
+  # if the comp_pin value matches a primary pin.  for (col in comp_pin_cols) {
+    # Extract the comp_number from the column name
     comp_number <- sub("comp_pin_", "", col)
-
-    # Build the corresponding column names for document number and comp score
+    # Build the corresponding column names for document number and comp score     
     doc_no_col <- paste0("comp_document_num_", comp_number)
     score_col <- paste0("comp_score_", comp_number)
 
-    # Create new columns with a prefix "matched_"
     comps <- comps %>%
       mutate(
         # If the comp_pin value is not NA, is different
@@ -376,21 +380,23 @@ if (all(map_lgl(cache_files, file.exists))) {
         # copy the corresponding doc_no value;
         # otherwise, set to NA.
         !!paste0("matched_doc_no_", comp_number) := if_else(
-          !is.na(.data[[col]]) & (.data[[col]] != pin) &
-            (.data[[col]] %in% pin_labels$meta_pin),
+          !is.na(.data[[col]]) &&
+            .data[[col]] != pin &&
+            .data[[col]] %in% pin_labels$meta_pin,
           as.character(.data[[doc_no_col]]),
           NA_character_
         ),
         !!paste0("matched_comp_score_", comp_number) := if_else(
-          !is.na(.data[[col]]) & (.data[[col]] != pin) &
-            (.data[[col]] %in% pin_labels$meta_pin),
+          !is.na(.data[[col]]) &&
+            .data[[col]] != pin &&
+            .data[[col]] %in% pin_labels$meta_pin,
           .data[[score_col]],
           NA_real_
         )
       )
   }
 
-  # Pivot the matched columns together using a names_pattern
+  # Pivot the matched columns into long form using a names_pattern
   comps <- comps %>%
     pivot_longer(
       cols = matches("^matched_(doc_no|comp_score)_"),
@@ -399,13 +405,15 @@ if (all(map_lgl(cache_files, file.exists))) {
     ) %>%
     select(-pin)
 
-  # Now merge with sales based on doc_no.
-  # This join will add the comp_number and its comp_score to the sale row.
+  # Merge the comps info into sales:
+  #  - joins on doc_no to bring in comp_number and comp_score
+  #  - then brings in comp_flag by pin
   sales <- sales %>%
     left_join(comps, by = "doc_no") %>%
     left_join(comp_flag, by = "pin") %>%
     arrange(desc(sale_date)) %>%
-    select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
+    select(
+      pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
       other_pin_comp_number = comp_number,
       other_pin_comp_score = comp_score,
       comp_flag
@@ -728,7 +736,9 @@ if (isTRUE(metadata$shap_enable)) {
     theme_minimal(base_size = 5)
 }
 ```
+
 ### SHAP as a % of Value
+
 ```{r SHAPs percent}
 #| column: screen-inset
 if (isTRUE(metadata$shap_enable)) {
@@ -748,6 +758,37 @@ if (isTRUE(metadata$shap_enable)) {
     ) +
     labs(
       x = "SHAP Value as a % of FMV",
+      y = "Feature Name"
+    ) +
+    scale_x_continuous(labels = scales::percent_format(scale = 1)) +
+    theme_minimal(base_size = 5)
+}
+```
+
+### SHAP as a % of Summed Absolute SHAP Values
+
+```{r}
+#| column: screen-inset
+if (isTRUE(metadata$shap_enable)) {
+  shap %>%
+    mutate(across(
+      where(is.numeric),
+      ~ (abs(.) / sum(abs(.))) * 100
+    )) %>%
+    filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+    ggplot(aes(
+      y    = `Feature Name`,
+      x    = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "Value as a % of Summed Absolute SHAP Values",
       y = "Feature Name"
     ) +
     scale_x_continuous(labels = scales::percent_format(scale = 1)) +
