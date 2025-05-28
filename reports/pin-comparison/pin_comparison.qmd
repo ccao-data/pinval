@@ -778,7 +778,7 @@ if (isTRUE(metadata$shap_enable)) {
   shap %>%
     mutate(across(
       where(is.numeric),
-      ~ (abs(.) / sum(abs(.))) * 100
+      ~ (. / sum(abs(.))) * 100
     )) %>%
     filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
     ggplot(aes(
