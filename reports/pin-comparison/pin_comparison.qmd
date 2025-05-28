@@ -346,7 +346,11 @@ if (all(map_lgl(cache_files, file.exists))) {
       mutate(pin = meta_pin, comp_flag = TRUE, .keep = "none")
   } else {
     comp_flag <- comps %>%
-      # TRUE when all comp_document_num_* columns are NA
+      # TRUE when all comp_document_num_* columns are NA. We expect this
+      # to be the case for comp runs prior to June 2024, when we switched
+      # from indexing comps based on PIN to indexing them based on doc no.
+      # Instead of handling joins for these runs differently, we just display 
+      # a warning to the user that comps will not be visible for this run
       mutate(comp_flag = if_all(starts_with("comp_document_num_"), is.na)) %>%
       select(pin, comp_flag) %>%
       distinct()
