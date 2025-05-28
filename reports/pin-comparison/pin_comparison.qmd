@@ -365,7 +365,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   comp_pin_cols <- grep("^comp_pin_", names(comps), value = TRUE)
   # For each appended comp_pin column, create new columns
   # for the document number and comp score
-  # if the comp_pin value matches a primary pin.  
+  # if the comp_pin value matches a primary pin.
   for (col in comp_pin_cols) {
     # Extract the comp_number from the column name
     comp_number <- sub("comp_pin_", "", col)
