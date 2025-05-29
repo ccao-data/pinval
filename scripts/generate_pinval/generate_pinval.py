@@ -369,7 +369,7 @@ def main() -> None:
         where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
         params_assessment = {"run_id": args.run_id, "triad": args.triad.lower()}
     else:
-        pins: list[str] = pins: list[str] = list(set(args.pin))  # de‑dupe
+        pins: list[str] = list(set(args.pin))  # de‑dupe
         pins_quoted = ",".join(f"'{p}'" for p in pins)  # Still used for IN clause
         where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
         params_assessment = {"run_id": args.run_id}
