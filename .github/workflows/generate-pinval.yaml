@@ -152,7 +152,7 @@ jobs:
       - name: Resolve target S3 bucket
         id: bucket
         run: |
-          if [[ '${{ inputs.is_test }}' == 'true' ]]; then
+          if [[ ${{ inputs.is_test }} == 'true' ]]; then
             echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
           else
             echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
