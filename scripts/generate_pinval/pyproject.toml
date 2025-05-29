@@ -10,4 +10,5 @@ dependencies = [
     "pandas>=2.2.3",
     "pyathena>=3.13.0",
     "ccao @ git+https://github.com/ccao-data/ccao@e97bab236d9cbf3035b3c06ec735d016a693cae2#subdirectory=python",
+    "pyarrow>=20.0.0",
 ]
