@@ -112,7 +112,7 @@ jobs:
             echo "Error: triad_name and pins are mutually-exclusive." >&2
             exit 1
           fi
-        # Add hugo
+      # Add hugo
       - name: Install Hugo
         uses: peaceiris/actions-hugo@v2
         with:
@@ -179,6 +179,33 @@ jobs:
           BUCKET_NAME="$(echo "$TARGET" | sed -E 's#s3://([^/]+).*#\1#')"
           HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/$(echo "$DEST" | sed -E 's#s3://[^/]+/(.*)#\1#')"
           echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
+
+      # ───────────────────────────────────────────────────────────────
+      # 5. Notify via SNS
+      # ───────────────────────────────────────────────────────────────
+      - name: Mask SNS topic ARN
+        run: echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
+
+      - name: Publish SNS notification
+        run: |
+          SUBJECT="PINVAL reports ready for run-id ${{ inputs.run_id }}"
+          MESSAGE=$(cat <<EOF
+          Your requested PINVAL reports have been generated.
+
+          Run-ID:     ${{ inputs.run_id }}
+          Triad:      ${{ inputs.triad_name }}
+          PIN list:   ${{ inputs.pins }}
+          Environment: $([[ '${{ inputs.is_test }}' == 'true' ]] && echo "TEST" || echo "PRODUCTION")
+
+          You can browse or download the reports here:
+          ${{ steps.upload.outputs.url }}
+          EOF
+          )
+
+          aws sns publish \
+            --topic-arn "${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}" \
+            --subject "$SUBJECT" \
+            --message "$MESSAGE"
 
 #TODO: Add SNS alert step
 #TODO: fix is_test toggle
