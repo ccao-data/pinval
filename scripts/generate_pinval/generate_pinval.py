@@ -462,7 +462,7 @@ def main() -> None:
         write_json(front, md_path)
 
     elapsed_time = time.time() - start_time
-    print(f"✓ Completed generating frontmatter for {len(all_pins)} PINs in {elapsed_time:.4f} seconds.")
+    print(f"✓ Completed generating frontmatter for {len(df_assessments_by_pin)} PINs in {elapsed_time:.4f} seconds.")
 
     # ------------------------------------------------------------------
     # Optional Hugo build
