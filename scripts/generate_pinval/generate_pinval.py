@@ -424,9 +424,17 @@ def main() -> None:
         )
 
     # Crosswalk for making column names human-readable
-    vars_dict = ccao.vars_dict
-    key_map: dict[str, str] = dict(zip(vars_dict["var_name_model"],
-                                   vars_dict["var_name_pretty"]))
+    model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
+
+    pretty_vars: list[str] = ccao.vars_rename(
+        data=model_vars,
+        names_from="model",
+        names_to="pretty",
+        output_type="vector",
+        dictionary=ccao.vars_dict
+    )
+
+    key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
 
     PRESERVE = {"loc_latitude", "loc_longitude", "meta_nbhd_code"}
     def pretty(k: str) -> str:
