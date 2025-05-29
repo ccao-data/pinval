@@ -172,7 +172,7 @@ jobs:
           DEST="${TARGET%/}/pinval/${{ inputs.run_id }}/"
 
           echo "Syncing hugo/public → $DEST"
-          aws s3 sync hugo/public "$DEST" --delete
+          aws s3 sync hugo/public/pinval-reports "$DEST" --delete
 
           # Construct a basic web link for the SNS message
           # Assuming the bucket is public or fronted by static-website hosting
