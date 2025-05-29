@@ -370,7 +370,7 @@ def main() -> None:
         params_assessment = {"run_id": args.run_id, "triad": args.triad.lower()}
     else:
         pins: list[str] = list(set(args.pin))  # de‑dupe
-        pins_quoted = ",".join(f"'{p}'" for p in pins)  # Still used for IN clause
+        pins_quoted = ",".join(f"'{p}'" for p in pins)
         where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
         params_assessment = {"run_id": args.run_id}
 
@@ -389,8 +389,8 @@ def main() -> None:
             "No assessment rows returned for the given parameters"
         )
 
-    all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
-    pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
+    #all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
+    #pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
 
     # Get the comps for all the pins
     comps_run_id = RUN_ID_MAP[args.run_id]
@@ -403,6 +403,8 @@ def main() -> None:
         """
         params_comps = {"run_id": comps_run_id, "triad": args.triad.lower()}
     else:
+        all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
+        pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
         comps_sql = f"""
             SELECT *
             FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
@@ -445,15 +447,14 @@ def main() -> None:
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
-    for i, pin in enumerate(all_pins):
+    for i, (pin, df_target) in enumerate(df_assessments_by_pin.items()):
         if i >= 10000:
             break  # Stop loop for dev purposes
         if i % 5000 == 0:
-            print(f"Processing PIN {i + 1} of {len(all_pins)}")
+            print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
         run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{run_id_pin_id}.md"
 
-        df_target = df_assessments_by_pin.get(pin)
         df_comps = df_comps_by_pin.get(pin)
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
