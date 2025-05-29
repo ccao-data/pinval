@@ -131,7 +131,7 @@ jobs:
 
           # Build the CLI args
           if [[ -n "${{ inputs.triad_name }}" ]]; then
-            EXTRA_ARGS="--triad '${{ inputs.triad_name }}'"
+            EXTRA_ARGS="--triad ${{ inputs.triad_name }}"
           else
             # Split comma-separated list → space-separated string after single --pin
             IFS=',' read -ra PINS <<< "${{ inputs.pins }}"
@@ -160,7 +160,6 @@ jobs:
 
       # ───────────────────────────────────────────────────────────────
       # 4. Upload the generated site
-      #    (the Hugo build ends up in hugo/public/)
       # ───────────────────────────────────────────────────────────────
       - name: Upload reports to S3
         id: upload
