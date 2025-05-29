@@ -144,7 +144,7 @@ def build_front_matter(
     front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
-        "assessment_year": str(int(tp["meta_year"]) + 1),
+        "assessment_year": tp["assessment_year"],
         "final_model_run_date": pd.to_datetime(
             tp["final_model_run_date"]
         ).strftime("%B %d, %Y"),
