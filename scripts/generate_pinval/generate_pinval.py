@@ -47,7 +47,7 @@ RUN_ID_MAP = {
     "2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"
 }
 
-def parse_args() -> argparse.Namespace:  # noqa: D401  (We *return* Namespace)
+def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation."""
 
     parser = argparse.ArgumentParser(
@@ -101,7 +101,7 @@ def pin_pretty(raw_pin: str) -> str:
     return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
 
 
-def _clean_predictors(raw) -> list[str]:
+def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
     """
     Return a *clean* list of raw predictor column names.
     """
@@ -140,11 +140,11 @@ def build_front_matter(
     """
 
     # Header
-    tp = df_target_pin.iloc[0]  # one row per pin
+    tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
-        "assessment_year": str(int(tp["meta_year"]) + 1),
+        "assessment_year": tp["assessment_year"],
         "final_model_run_date": pd.to_datetime(
             tp["final_model_run_date"]
         ).strftime("%B %d, %Y"),
@@ -200,8 +200,8 @@ def build_front_matter(
             comps_list.append(comp_dict)
 
         # Comp summary
-        sale_prices = comps_df["meta_sale_price"].dropna()
-        sqft_prices = comps_df["sale_price_per_sq_ft"].dropna()
+        sale_prices = comps_df["meta_sale_price"]
+        sqft_prices = comps_df["sale_price_per_sq_ft"]
 
         comp_summary = {
             "sale_year_range_prefix": (
@@ -265,7 +265,7 @@ def convert_to_builtin_types(obj):
         return [convert_to_builtin_types(v) for v in obj]
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
-        return "nan"
+        return ""
     elif isinstance(obj, np.generic):
         return obj.item()
     return obj
@@ -308,11 +308,11 @@ def write_json(front_dict: dict, outfile: str | Path) -> None:
 
 def label_percent(s: pd.Series) -> pd.Series:
     """0.123 → '12%' (handles NaNs)."""
-    return s.mul(100).round(0).astype("Int64").astype(str).str.replace("<NA>", "NA") + "%"
+    return s.mul(100).round(0).astype("Int64").astype(str).str.replace("<NA>", "") + "%"
 
 def label_dollar(s: pd.Series) -> pd.Series:
     """45000 → '$45,000' (handles NaNs)."""
-    return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "NA")
+    return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
 
 def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -343,11 +343,9 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def run_athena_query(cursor, sql: str) -> pd.DataFrame:
-    cursor.execute(sql)
-    df = cursor.as_pandas()
-
-    return df
+def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
+    cursor.execute(sql, parameters=params)
+    return cursor.as_pandas()
 
 
 def main() -> None:
@@ -369,57 +367,75 @@ def main() -> None:
     ).cursor(unload=True)
 
     if args.triad:
-        where_assessment = f"run_id = '{args.run_id}' AND assessment_triad = '{args.triad.lower()}'"
+        where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
+        params_assessment = {"run_id": args.run_id, "triad": args.triad.lower()}
     else:
-        pins: list[str] = list(dict.fromkeys(args.pin))  # de‑dupe
+        pins: list[str] = list(set(args.pin))  # de‑dupe
         pins_quoted = ",".join(f"'{p}'" for p in pins)
-        where_assessment = f"run_id = '{args.run_id}' AND meta_pin IN ({pins_quoted})"
+        where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
+        params_assessment = {"run_id": args.run_id}
+
 
     assessment_sql = f"""
         SELECT *
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
-    print("Querying data from athena ...")
-    df_assessment_all = format_df(run_athena_query(cursor, assessment_sql))
+    print("Querying data from Athena ...")
+    df_assessment_all = format_df(run_athena_query(cursor, assessment_sql, params_assessment))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
-        sys.exit("No assessment rows returned for the given parameters — aborting.")
+        raise ValueError(
+            "No assessment rows returned for the given parameters"
+        )
 
-    all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
-    pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
+    #all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
+    #pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
 
     # Get the comps for all the pins
     comps_run_id = RUN_ID_MAP[args.run_id]
 
     if args.triad:
-        comps_sql = f"""
+        comps_sql = """
             SELECT *
             FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = '{comps_run_id}' AND assessment_triad = '{args.triad.lower()}'
+            WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s
         """
+        params_comps = {"run_id": comps_run_id, "triad": args.triad.lower()}
     else:
+        all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
         pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
         comps_sql = f"""
             SELECT *
             FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = '{comps_run_id}' AND pin IN ({pins_quoted_for_comps})
+            WHERE run_id = %(run_id)s AND pin IN ({pins_quoted_for_comps})
         """
+        params_comps = {"run_id": comps_run_id}
 
-    df_comps_all = run_athena_query(cursor, comps_sql)
+    df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
 
     df_comps_all["pin_pretty"] = df_comps_all["pin"].apply(pin_pretty)
     df_comps_all = format_df(convert_dtypes(df_comps_all))
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
-        sys.exit("No comps rows returned for the given parameters — aborting.")
+        raise ValueError(
+            "No comps rows returned for the given parameters — aborting."
+        )
 
     # Crosswalk for making column names human-readable
-    vars_dict = ccao.vars_dict
-    key_map: dict[str, str] = dict(zip(vars_dict["var_name_model"],
-                                   vars_dict["var_name_pretty"]))
+    model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
+
+    pretty_vars: list[str] = ccao.vars_rename(
+        data=model_vars,
+        names_from="model",
+        names_to="pretty",
+        output_type="vector",
+        dictionary=ccao.vars_dict
+    )
+
+    key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
 
     PRESERVE = {"loc_latitude", "loc_longitude", "meta_nbhd_code"}
     def pretty(k: str) -> str:
@@ -440,15 +456,14 @@ def main() -> None:
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
-    for i, pin in enumerate(all_pins):
+    for i, (pin, df_target) in enumerate(df_assessments_by_pin.items()):
         if i >= 10000:
             break  # Stop loop for dev purposes
         if i % 5000 == 0:
-            print(f"Processing PIN {i + 1} of {len(all_pins)}")
+            print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
         run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{run_id_pin_id}.md"
 
-        df_target = df_assessments_by_pin.get(pin)
         df_comps = df_comps_by_pin.get(pin)
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
@@ -456,7 +471,7 @@ def main() -> None:
         write_json(front, md_path)
 
     elapsed_time = time.time() - start_time
-    print(f"✓ Completed generating frontmatter for {len(all_pins)} PINs in {elapsed_time:.4f} seconds.")
+    print(f"✓ Completed generating frontmatter for {len(df_assessments_by_pin)} PINs in {elapsed_time:.4f} seconds.")
 
     # ------------------------------------------------------------------
     # Optional Hugo build
@@ -466,7 +481,7 @@ def main() -> None:
         print("Running Hugo …")
         proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
         if proc.returncode != 0:
-            sys.exit("Hugo build failed.")
+            raise RuntimeError("Hugo build failed.")
 
         # Remove markdown files now that HTML is baked.
         for md_file in md_outdir.glob("*.md"):
@@ -475,8 +490,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("Interrupted by user", file=sys.stderr)
-        sys.exit(130)
+    main()
