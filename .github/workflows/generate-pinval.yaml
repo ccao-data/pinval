@@ -78,10 +78,6 @@ jobs:
           uv pip install .
         working-directory: scripts/generate_pinval
 
-      - name: Debug installed packages
-        run: uv pip list
-        working-directory: scripts/generate_pinval
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -164,7 +160,6 @@ jobs:
           aws s3 sync hugo/public/pinval-reports "$DEST" --delete
 
           # Construct a basic web link for the SNS message
-          # Assuming the bucket is public or fronted by static-website hosting
           BUCKET_NAME="$(echo "$TARGET" | sed -E 's#s3://([^/]+).*#\1#')"
           HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/$(echo "$DEST" | sed -E 's#s3://[^/]+/(.*)#\1#')"
           echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
