@@ -188,9 +188,9 @@ jobs:
           MESSAGE=$(cat <<EOF
           Your requested PINVAL reports have been generated.
 
-          Run-ID:     ${{ inputs.run_id }}
-          Triad:      ${{ inputs.triad_name }}
-          PIN list:   ${{ inputs.pins }}
+          Run-ID: ${{ inputs.run_id }}
+          Triad: ${{ inputs.triad_name }}
+          PIN list: ${{ inputs.pins }}
           Environment: ${{ steps.env_label.outputs.label }}
 
           You can browse or download the reports here:
