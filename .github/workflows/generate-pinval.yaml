@@ -44,7 +44,7 @@ jobs:
   generate-pinval:
     runs-on: ubuntu-latest
 
-    # Needed for federated AWS authentication
+    # AWS authentication
     permissions:
       id-token: write
       contents: read
@@ -116,7 +116,7 @@ jobs:
       - name: Install Hugo
         uses: peaceiris/actions-hugo@v2
         with:
-          hugo-version: '0.147.5'  # Match the version your site needs
+          hugo-version: '0.147.5'
           #extended: true
       # ───────────────────────────────────────────────────────────────
       # 2. Run the report-generation script
