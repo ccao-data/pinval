@@ -159,9 +159,11 @@ jobs:
           echo "Syncing hugo/public → $DEST"
           aws s3 sync hugo/public/pinval-reports "$DEST" --delete
 
-          # Construct a basic web link for the SNS message
-          BUCKET_NAME="$(echo "$TARGET" | sed -E 's#s3://([^/]+).*#\1#')"
-          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/$(echo "$DEST" | sed -E 's#s3://[^/]+/(.*)#\1#')"
+          # Construct the URL for the SNS message
+          BUCKET_NAME="${TARGET#s3://}"
+          DEST_PATH="pinval/${{ inputs.run_id }}/"
+
+          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/${DEST_PATH}"
           echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
 
       # Notify via SNS
