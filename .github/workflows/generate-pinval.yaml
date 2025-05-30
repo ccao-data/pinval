@@ -106,6 +106,16 @@ jobs:
             exit 1
           fi
 
+      # This step makes the environment label available cleanly available for email formatting
+      - name: Normalize environment label
+        id: env_label
+        run: |
+          if [[ "${{ inputs.environment }}" == "Development bucket" ]]; then
+            echo "label=Development" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=Production" >> "$GITHUB_OUTPUT"
+          fi
+
       # Add hugo
       - name: Install Hugo
         uses: peaceiris/actions-hugo@v2
@@ -181,7 +191,7 @@ jobs:
           Run-ID:     ${{ inputs.run_id }}
           Triad:      ${{ inputs.triad_name }}
           PIN list:   ${{ inputs.pins }}
-          Environment: "${{ inputs.environment }}"
+          Environment: ${{ steps.env_label.outputs.label }}
 
           You can browse or download the reports here:
           ${{ steps.upload.outputs.url }}
