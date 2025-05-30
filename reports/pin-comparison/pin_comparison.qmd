@@ -1,10 +1,10 @@
 ---
 title: "PIN Comparison Doc"
 params:
-  run_id: "2025-02-11-charming-eric"
-  pin1: "01011100120000"
+  run_id: "2025-04-25-fancy-free-billy"
+  pin1: "01011260760000"
   pin_1_card_num:
-  pin2: "01011250100000"
+  pin2: "01012150080000"
   pin_2_card_num:
 execute:
   echo: false
@@ -66,11 +66,12 @@ dir.create(base_cache_dir, recursive = TRUE, showWarnings = FALSE)
 
 # Define file paths for the cache files inside the unique folder
 cache_files <- list(
-  char    = file.path(base_cache_dir, "char.parquet"),
-  value   = file.path(base_cache_dir, "value.parquet"),
-  shap    = file.path(base_cache_dir, "shap.parquet"),
+  char = file.path(base_cache_dir, "char.parquet"),
+  value = file.path(base_cache_dir, "value.parquet"),
+  shap = file.path(base_cache_dir, "shap.parquet"),
   address = file.path(base_cache_dir, "address.parquet"),
-  sales   = file.path(base_cache_dir, "sales.parquet")
+  sales = file.path(base_cache_dir, "sales.parquet"),
+  metadata = file.path(base_cache_dir, "metadata.parquet")
 )
 
 # Check if the unique folder already exists and if all cache files are present
@@ -82,6 +83,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   shap <- read_parquet(cache_files$shap)
   address <- read_parquet(cache_files$address)
   sales <- read_parquet(cache_files$sales)
+  metadata <- read_parquet(cache_files$metadata)
 } else {
   message("Some or all cache files are missing.
           Running queries and creating them...")
@@ -106,7 +108,8 @@ if (all(map_lgl(cache_files, file.exists))) {
     glue(
       "select
          dvc_md5_assessment_data,
-         model_predictor_all_name
+         model_predictor_all_name,
+         shap_enable
        from model.metadata
        where run_id = '{run_id}'
        limit 1"
@@ -149,11 +152,20 @@ if (all(map_lgl(cache_files, file.exists))) {
       by = "meta_pin"
     )
 
-  if (nrow(pin_labels %>%
-    filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
-    stop("Error: For PINs with <= 3 cards,
+  if (year >= 2025 &&
+    nrow(pin_labels %>%
+      filter(total_cards <= 3 & !is.na(primary_card))) > 0) {
+    stop("Error: For PINs with <= 3 cards and 2025 or later,
          the `pin_{x}_card_num` param must be empty.")
   }
+
+  if (year <= 2024 &&
+    nrow(pin_labels %>%
+      filter(total_cards %in% c(2, 3) & is.na(primary_card))) > 0) {
+    stop("Error: For PINs with 2-3 cards and 2024 or before,
+         the `pin_{x}_card_num` param must have a value.")
+  }
+
   if (nrow(pin_labels %>%
     filter(total_cards >= 4 & is.na(primary_card))) > 0) {
     stop("Error: For PINs with >= 4 cards,
@@ -173,7 +185,7 @@ if (all(map_lgl(cache_files, file.exists))) {
     mutate(
       max_sf = max(char_bldg_sf, na.rm = TRUE),
       target_meta = min(meta_card_num[char_bldg_sf == max_sf]),
-      is_target = total_cards %in% c(2, 3) &
+      is_target = total_cards %in% c(2, 3) & !!year >= 2025 &
         (char_bldg_sf == max_sf) & (meta_card_num == target_meta),
       primary_card = if_else(is_target,
         meta_card_num, as.character(primary_card)
@@ -326,22 +338,45 @@ if (all(map_lgl(cache_files, file.exists))) {
       .con = conn
     )
   )
+  # Build comp_flag: if comps is empty, mark every pin as TRUE;
+  # otherwise compute as before (TRUE when all document nums are NA)
+  if (nrow(comps) == 0) {
+    comp_flag <- pin_labels %>%
+      distinct(meta_pin) %>%
+      mutate(pin = meta_pin, comp_flag = TRUE, .keep = "none")
+  } else {
+    comp_flag <- comps %>%
+      # TRUE when all comp_document_num_* columns are NA. We expect this
+      # to be the case for comp runs prior to June 2024, when we switched
+      # from indexing comps based on PIN to indexing them based on doc no.
+      # Instead of handling joins for these runs differently, we just display
+      # a warning to the user that comps will not be visible for this run
+      mutate(comp_flag = if_all(starts_with("comp_document_num_"), is.na)) %>%
+      select(pin, comp_flag) %>%
+      distinct()
+  }
+
+  # Filter comps down to the primary card
+  comps <- comps %>%
+    left_join(
+      pin_labels %>% select(meta_pin, primary_card),
+      by = c("pin" = "meta_pin")
+    ) %>%
+    # keep only the row whose meta_card_num matches the designated primary_card
+    filter(card == primary_card)
 
   # Identify the appended comp_pin columns (e.g. "comp_pin_1", "comp_pin_2")
   comp_pin_cols <- grep("^comp_pin_", names(comps), value = TRUE)
-
   # For each appended comp_pin column, create new columns
   # for the document number and comp score
   # if the comp_pin value matches a primary pin.
   for (col in comp_pin_cols) {
-    # Extract the comp_number number from the column name
+    # Extract the comp_number from the column name
     comp_number <- sub("comp_pin_", "", col)
-
     # Build the corresponding column names for document number and comp score
     doc_no_col <- paste0("comp_document_num_", comp_number)
     score_col <- paste0("comp_score_", comp_number)
 
-    # Create new columns with a prefix "matched_"
     comps <- comps %>%
       mutate(
         # If the comp_pin value is not NA, is different
@@ -350,21 +385,23 @@ if (all(map_lgl(cache_files, file.exists))) {
         # copy the corresponding doc_no value;
         # otherwise, set to NA.
         !!paste0("matched_doc_no_", comp_number) := if_else(
-          !is.na(.data[[col]]) & (.data[[col]] != pin) &
-            (.data[[col]] %in% pin_labels$meta_pin),
+          !is.na(.data[[col]]) &
+            .data[[col]] != pin &
+            .data[[col]] %in% pin_labels$meta_pin,
           as.character(.data[[doc_no_col]]),
           NA_character_
         ),
         !!paste0("matched_comp_score_", comp_number) := if_else(
-          !is.na(.data[[col]]) & (.data[[col]] != pin) &
-            (.data[[col]] %in% pin_labels$meta_pin),
+          !is.na(.data[[col]]) &
+            .data[[col]] != pin &
+            .data[[col]] %in% pin_labels$meta_pin,
           .data[[score_col]],
           NA_real_
         )
       )
   }
 
-  # Pivot the matched columns together using a names_pattern
+  # Pivot the matched columns into long form using a names_pattern
   comps <- comps %>%
     pivot_longer(
       cols = matches("^matched_(doc_no|comp_score)_"),
@@ -373,14 +410,18 @@ if (all(map_lgl(cache_files, file.exists))) {
     ) %>%
     select(-pin)
 
-  # Now merge with sales based on doc_no.
-  # This join will add the comp_number and its comp_score to the sale row.
+  # Merge the comps info into sales:
+  #  - joins on doc_no to bring in comp_number and comp_score
+  #  - then brings in comp_flag by pin
   sales <- sales %>%
     left_join(comps, by = "doc_no") %>%
+    left_join(comp_flag, by = "pin") %>%
     arrange(desc(sale_date)) %>%
-    select(pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
+    select(
+      pin, year, sale_date, doc_no, sale_price, sv_is_outlier,
       other_pin_comp_number = comp_number,
-      other_pin_comp_score = comp_score
+      other_pin_comp_score = comp_score,
+      comp_flag
     )
 
   # Write the cache files into the unique folder
@@ -389,6 +430,7 @@ if (all(map_lgl(cache_files, file.exists))) {
   write_parquet(shap, cache_files$shap)
   write_parquet(address, cache_files$address)
   write_parquet(sales, cache_files$sales)
+  write_parquet(metadata, cache_files$metadata)
 }
 
 card_values <- value %>%
@@ -408,6 +450,8 @@ Comparison between PINs:
 <span style="color: red;"><b>`r params$pin1`</b></span> (card `r primary_card_1` of `r total_cards_1` card`r if (total_cards_1 > 1) "s" else ""`)
 
 <span style="color: blue;"><b>`r params$pin2`</b></span> (card `r primary_card_2` of `r total_cards_2` card`r if (total_cards_2 > 1) "s" else ""`)
+
+<b>run_id:</b> ``r params$run_id``
 
 ### Map of PINs
 
@@ -561,9 +605,11 @@ datatable(
 ### Feature Differences Between the Two PINs
 
 
-`r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE)) "If a PIN has 2 or 3 cards, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
+`r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE) && as.integer(substr(params$run_id, 1, 4)) >= 2025) "If a PIN has 2 or 3 cards, and is from 2025 or after, we select features from the card with the largest building square footage. Ties are broken by the lower PIN number. Building square footage is summed in accordance with our modeling technique."`
 
 `r if (any(value$total_cards > 3, na.rm = TRUE)) "If a PIN has 4 or more cards, we use features from the target card."`
+
+`r if (any(value$total_cards %in% c(2, 3), na.rm = TRUE) && as.integer(substr(params$run_id, 1, 4)) < 2025) "If a PIN has 2 or 3 cards, and is from 2024 or before we select features from the target card."`
 
 ```{r feature_comparison, out.width="90%"}
 char_fmt <- char %>%
@@ -618,6 +664,8 @@ datatable(
 
 ### Sale History
 
+`r if (any(sales$comp_flag)) "Comps were not enabled or not joined based on Document Number for this Run."`
+
 Each sale is marked with a checkmark if the model considers it to be a comp for the other PIN.
 
 ```{r sales}
@@ -641,7 +689,7 @@ pin_colors <- sapply(unique_pins, function(p) {
 })
 
 sales <- sales %>%
-  select(-color) %>%
+  select(-color, -comp_flag) %>%
   arrange(desc(sale_date))
 
 datatable(
@@ -667,55 +715,94 @@ datatable(
 
 ### $ Value
 
+`r if (!isTRUE(metadata$shap_enable)) "SHAPs were not enabled for this run"`
+
 ```{r SHAPs}
 #| column: screen-inset
-
-shap %>%
-  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
-  ggplot(aes(
-    y = `Feature Name`,
-    x = .data[[params$pin1]],
-    xend = .data[[params$pin2]]
-  )) +
-  geom_dumbbell(
-    size_x = 1,
-    size_xend = 1,
-    colour_x = "red",
-    colour_xend = "blue"
-  ) +
-  labs(
-    x = "SHAP Value",
-    y = "Feature Name"
-  ) +
-  scale_x_continuous(labels = scales::dollar_format()) +
-  theme_minimal(base_size = 5)
+if (isTRUE(metadata$shap_enable)) {
+  shap %>%
+    filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+    ggplot(aes(
+      y = `Feature Name`,
+      x = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "SHAP Value",
+      y = "Feature Name"
+    ) +
+    scale_x_continuous(labels = scales::dollar_format()) +
+    theme_minimal(base_size = 5)
+}
 ```
-### SHAP as a % of Value
-Because SHAPs are positive and negative, percentages do not sum to 100%
+
+### SHAP as a % of FMV
+
+SHAPs do not add up to 100% due to the removal of the baseline value
 
 ```{r SHAPs percent}
 #| column: screen-inset
+if (isTRUE(metadata$shap_enable)) {
+  shap %>%
+    mutate(across(where(is.numeric), ~ (. / sum(.)) * 100)) %>%
+    filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+    ggplot(aes(
+      y = `Feature Name`,
+      x = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "SHAP Value as a % of FMV",
+      y = "Feature Name"
+    ) +
+    scale_x_continuous(labels = scales::percent_format(scale = 1)) +
+    theme_minimal(base_size = 5)
+}
+```
 
-shap %>%
-  mutate(across(where(is.numeric), ~ (. / sum(.)) * 100)) %>%
-  filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
-  ggplot(aes(
-    y = `Feature Name`,
-    x = .data[[params$pin1]],
-    xend = .data[[params$pin2]]
-  )) +
-  geom_dumbbell(
-    size_x = 1,
-    size_xend = 1,
-    colour_x = "red",
-    colour_xend = "blue"
-  ) +
-  labs(
-    x = "SHAP Value as a % of FMV",
-    y = "Feature Name"
-  ) +
-  scale_x_continuous(labels = scales::percent_format(scale = 1)) +
-  theme_minimal(base_size = 5)
+### SHAP as a % of Summed Absolute SHAP Values
+
+SHAPs do not add up to 100% due to the removal of the baseline value
+
+```{r}
+#| column: screen-inset
+if (isTRUE(metadata$shap_enable)) {
+  shap %>%
+    mutate(across(
+      where(is.numeric),
+      ~ (. / sum(abs(.))) * 100
+    )) %>%
+    filter(`Feature Name` != "pred_card_shap_baseline_fmv") %>%
+    ggplot(aes(
+      y    = `Feature Name`,
+      x    = .data[[params$pin1]],
+      xend = .data[[params$pin2]]
+    )) +
+    geom_dumbbell(
+      size_x = 1,
+      size_xend = 1,
+      colour_x = "red",
+      colour_xend = "blue"
+    ) +
+    labs(
+      x = "Value as a % of Summed Absolute SHAP Values",
+      y = "Feature Name"
+    ) +
+    scale_x_continuous(labels = scales::percent_format(scale = 1)) +
+    theme_minimal(base_size = 5)
+}
 ```
 
 :::
