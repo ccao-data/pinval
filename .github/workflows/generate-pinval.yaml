@@ -181,7 +181,7 @@ jobs:
           Run-ID:     ${{ inputs.run_id }}
           Triad:      ${{ inputs.triad_name }}
           PIN list:   ${{ inputs.pins }}
-          Environment: ${{ inputs.environment }}
+          Environment: "${{ inputs.environment }}"
 
           You can browse or download the reports here:
           ${{ steps.upload.outputs.url }}
