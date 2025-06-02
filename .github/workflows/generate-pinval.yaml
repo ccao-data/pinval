@@ -158,6 +158,7 @@ jobs:
             echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
           fi
 
+      # Upload reports to S3
       - name: Upload reports to S3
         id: upload
         run: |
