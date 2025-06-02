@@ -158,7 +158,6 @@ jobs:
             echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
           fi
 
-      # Upload the generated site
       - name: Upload reports to S3
         id: upload
         run: |
@@ -168,7 +167,7 @@ jobs:
           RUN_ID='${{ inputs.run_id }}'
           YEAR="${RUN_ID:0:4}"
 
-          SRC="hugo/public/pinval-reports/${RUN_ID}"
+          SRC="hugo/public/pinval-reports"
 
           DEST="${TARGET%/}/pinval/${YEAR}/"
 
