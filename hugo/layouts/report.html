@@ -27,6 +27,10 @@
 </head>
 <body>
   {{ partial "banner/banner.html" . }}
+  <script>
+    /* Declare front matter var_labels as JS object */
+    const VAR_LABELS = {{ .Params.var_labels | jsonify | safeJS }};
+  </script>
 
   <!-- Body of the report -->
   <div class="container">
@@ -288,10 +292,12 @@
         <!-- Regular rows -->
         {{ range $char := .card.predictors }}
         <tr>
-          <td class="char-name">{{ $char }}</td>
+          <!-- Setting this up for the JS to later swap raw column name to human readable name -->
+          <td class="char-name" data-char="{{ $char }}">{{ $char }}</td>
           <td>{{ index $.card.chars $char }}</td>
-          {{ range $index, $comp := $.card.comps }}
-          <td>{{ index $comp $char }}</td>
+
+          {{ range $comp := $.card.comps }}
+            <td>{{ index $comp $char }}</td>
           {{ end }}
         </tr>
         {{ end }}
@@ -623,6 +629,23 @@
       // Trigger initial draw (forces first insert)
       dt.draw();
     }
+  </script>
+  <!-- JS block that updates raw column names to human readable -->
+  <script>
+  document.addEventListener("DOMContentLoaded", () => {
+    /* Replace each raw characteristic code with its pretty label */
+    const updateLabels = () => {
+      document.querySelectorAll(".characteristic-comparison-table .char-name")
+              .forEach(td => {
+                const key    = td.dataset.char;   // e.g. "char_beds"
+                const pretty = VAR_LABELS[key];   // e.g. "Bedrooms"
+                if (pretty) td.textContent = pretty;
+              });
+    };
+
+    updateLabels();
+    $('.characteristic-comparison-table').on('draw.dt', updateLabels);
+  });
   </script>
 </body>
 </html>
