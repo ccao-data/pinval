@@ -181,7 +181,7 @@
             </tr>
             <tr>
               <td><strong>Municipality</strong></td>
-              <td>{{ index .card.chars "Municipality Name" }}</td>
+              <td>{{ .card.location.municipality }}</td>
             </tr>
             <tr>
               <td><strong>Assessor Township</strong></td>
@@ -193,11 +193,11 @@
             </tr>
             <tr>
               <td><strong>Elementary School District</strong></td>
-              <td>{{ index .card.chars "School Elementary District GEOID" }}</td>
+              <td>{{ .card.location.loc_school_elementary_district_name }}</td>
             </tr>
             <tr>
               <td><strong>High School District</strong></td>
-              <td>{{ index .card.chars "School Secondary District GEOID" }}</td>
+              <td>{{ .card.location.loc_school_secondary_district_name }}</td>
             </tr>
           </tbody>
         </table>
@@ -211,27 +211,27 @@
           <tbody>
             <tr>
               <td><strong>Class</strong></td>
-              <td>{{ index .card.chars "Property Class" }}</td>
+              <td>{{ .card.chars.char_class }}</td>
             </tr>
             <tr>
               <td><strong>Year Built</strong></td>
-              <td>{{ index .card.chars "Year Built" }}</td>
+              <td>{{ .card.chars.char_yrblt }}</td>
             </tr>
             <tr>
               <td><strong>Bldg. S.F.</strong></td>
-              <td>{{ index .card.chars "Building Square Feet" }}</td>
+              <td>{{ .card.chars.char_bldg_sf }}</td>
             </tr>
             <tr>
               <td><strong>Land S.F.</strong></td>
-              <td>{{ index .card.chars "Land Square Feet" }}</td>
+              <td>{{ .card.chars.char_land_sf }}</td>
             </tr>
             <tr>
               <td><strong>Beds</strong></td>
-              <td>{{ index .card.chars "Bedrooms" }}</td>
+              <td>{{ .card.chars.char_beds }}</td>
             </tr>
             <tr>
               <td><strong>Full Baths</strong></td>
-              <td>{{ index .card.chars "Full Baths" }}</td>
+              <td>{{ .card.chars.char_fbath }}</td>
             </tr>
           </tbody>
         </table>

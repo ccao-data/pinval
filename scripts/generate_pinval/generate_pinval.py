@@ -141,6 +141,8 @@ def build_front_matter(
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
+    preds_raw = _clean_predictors(tp["model_predictor_all_name"])
+
     front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
@@ -152,11 +154,14 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
+        "var_labels": {k: pretty_fn(k) for k in preds_raw},
     }
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
         card_df = card_df.iloc[0]
+
+        #preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
 
         comps_df = (
             df_comps[df_comps["card"] == card_num]
@@ -164,13 +169,9 @@ def build_front_matter(
             .reset_index(drop=True)
         )
 
-        # Clean predictor names
-        preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
-        preds_pretty = [pretty_fn(p) for p in preds_raw]
-
         # Add all of the feature columns to the card
         subject_chars = {
-            pretty_fn(pred): card_df[pred]
+            pred: card_df[pred]
             for pred in preds_raw
             if pred in card_df
         }
@@ -193,9 +194,9 @@ def build_front_matter(
             }
 
             # Make preds human-readable
-            for pred_raw, pred_pretty in zip(preds_raw, preds_pretty):
-                if pred_pretty not in comp_dict and pred_raw in comp:
-                    comp_dict[pred_pretty] = comp[pred_raw]
+            for pred_raw in preds_raw:
+                if pred_raw not in comp_dict and pred_raw in comp:
+                    comp_dict[pred_raw] = comp[pred_raw]
 
             comps_list.append(comp_dict)
 
@@ -245,7 +246,8 @@ def build_front_matter(
                 ),
                 "comps": comps_list,
                 "comp_summary": comp_summary,
-                "predictors": preds_pretty,
+                "predictors": preds_raw,
+                #"var_labels": {k: pretty_fn(k) for k in preds_raw},
             }
         )
 
