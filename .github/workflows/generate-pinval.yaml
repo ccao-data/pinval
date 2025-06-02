@@ -165,17 +165,18 @@ jobs:
           set -euo pipefail
 
           TARGET="${{ steps.bucket.outputs.bucket }}"
-          # Prefix reports by run-id to avoid collisions
-          DEST="${TARGET%/}/pinval/${{ inputs.run_id }}/"
+          RUN_ID='${{ inputs.run_id }}'
+          YEAR="${RUN_ID:0:4}"
 
-          echo "Syncing hugo/public → $DEST"
-          aws s3 sync hugo/public/pinval-reports "$DEST" --delete
+          SRC="hugo/public/pinval-reports/${RUN_ID}"
 
-          # Construct the URL for the SNS message
+          DEST="${TARGET%/}/pinval/${YEAR}/"
+
+          echo "Syncing $SRC → $DEST"
+          aws s3 sync "$SRC" "$DEST" --delete
+
           BUCKET_NAME="${TARGET#s3://}"
-          DEST_PATH="pinval/${{ inputs.run_id }}/"
-
-          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/${DEST_PATH}"
+          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/pinval/${YEAR}/"
           echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
 
       # Notify via SNS
