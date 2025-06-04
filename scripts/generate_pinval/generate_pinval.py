@@ -47,6 +47,18 @@ RUN_ID_MAP = {
     "2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"
 }
 
+# Structure we can use to sort the chars
+TOP_CHARS: tuple[str, ...] = (
+    "char_class",
+    "meta_nbhd_code",
+    "char_yrblt",
+    "char_bldg_sf",
+    "char_land_sf",
+    "char_beds",
+    "char_fbath",
+    "char_hbath",
+)
+
 def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation."""
 
@@ -143,6 +155,11 @@ def build_front_matter(
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_raw = _clean_predictors(tp["model_predictor_all_name"])
 
+    preds_sorted: list[str] = (
+        [p for p in TOP_CHARS if p in preds_raw] +
+        [p for p in preds_raw if p not in TOP_CHARS]
+    )
+
     front: dict = {
         "layout": "report",
         "title": "Cook County Assessor's Model Value Report (Experimental)",
@@ -154,7 +171,7 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
-        "var_labels": {k: pretty_fn(k) for k in preds_raw},
+        "var_labels": {k: pretty_fn(k) for k in preds_sorted},
     }
 
     # Per card
@@ -172,7 +189,7 @@ def build_front_matter(
         # Add all of the feature columns to the card
         subject_chars = {
             pred: card_df[pred]
-            for pred in preds_raw
+            for pred in preds_sorted
             if pred in card_df
         }
 
@@ -194,9 +211,9 @@ def build_front_matter(
             }
 
             # Make preds human-readable
-            for pred_raw in preds_raw:
-                if pred_raw not in comp_dict and pred_raw in comp:
-                    comp_dict[pred_raw] = comp[pred_raw]
+            for pred in preds_sorted:
+                if pred not in comp_dict and pred in comp:
+                    comp_dict[pred] = comp[pred]
 
             comps_list.append(comp_dict)
 
@@ -246,7 +263,7 @@ def build_front_matter(
                 ),
                 "comps": comps_list,
                 "comp_summary": comp_summary,
-                "predictors": preds_raw,
+                "predictors": preds_sorted,
                 #"var_labels": {k: pretty_fn(k) for k in preds_raw},
             }
         )
@@ -304,7 +321,7 @@ def write_json(front_dict: dict, outfile: str | Path) -> None:
 
     json_bytes: bytes = orjson.dumps(
         front_dict,
-        option=orjson.OPT_INDENT_2 | orjson.OPT_SORT_KEYS,
+        option=orjson.OPT_INDENT_2,
     )
     Path(outfile).write_text(json_bytes.decode("utf-8") + "\n", encoding="utf-8")
 
