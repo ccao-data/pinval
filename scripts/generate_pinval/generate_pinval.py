@@ -484,11 +484,10 @@ def main() -> None:
         #run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{pin}.md"
 
-        if df_comps_by_pin.get(pin) is None:
+        df_comps = df_comps_by_pin.get(pin)
+        if df_comps is None or df_comps.empty:
             print(f"Warning: No comps found for PIN {pin}, skipping.")
             continue
-
-        df_comps = df_comps_by_pin.get(pin)
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
         year = args.run_id[:4]
