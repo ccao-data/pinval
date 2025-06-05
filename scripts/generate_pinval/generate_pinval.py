@@ -81,6 +81,14 @@ def parse_args() -> argparse.Namespace:
         help="Generate only frontmatter files; skip running the Hugo build step",
     )
 
+    parser.add_argument(
+        "--township",
+        help=(
+            "Restrict triad mode to a single Cook County township code "
+            "(two-digit string, e.g. 01, 23). Ignored unless --triad is used."
+        ),
+    )
+
     args = parser.parse_args()
 
     # ── Validation ────────────────────────────────────────────────────────────
@@ -367,14 +375,20 @@ def main() -> None:
     ).cursor(unload=True)
 
     if args.triad:
-        where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
-        params_assessment = {"run_id": args.run_id, "triad": args.triad.lower()}
+        where_assessment = (
+            "run_id = %(run_id)s AND assessment_triad = %(triad)s "
+            ("AND meta_township_code = %(township)s" if args.township else "")
+        )
+        params_assessment = {
+            "run_id": args.run_id,
+            "triad": args.triad.lower(),
+            "township": args.township,
+        }
     else:
         pins: list[str] = list(set(args.pin))  # de‑dupe
         pins_quoted = ",".join(f"'{p}'" for p in pins)
         where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
         params_assessment = {"run_id": args.run_id}
-
 
     assessment_sql = f"""
         SELECT *
@@ -397,12 +411,17 @@ def main() -> None:
     comps_run_id = RUN_ID_MAP[args.run_id]
 
     if args.triad:
-        comps_sql = """
-            SELECT *
-            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s
-        """
-        params_comps = {"run_id": comps_run_id, "triad": args.triad.lower()}
+        comps_sql = (
+            "SELECT * "
+            "FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp "
+            "WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s "
+            + ("AND meta_township_code = %(township)s" if args.township else "")
+        )
+        params_comps = {
+            "run_id": comps_run_id,
+            "triad": args.triad.lower(),
+            "township": args.township,
+        }
     else:
         all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
         pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
