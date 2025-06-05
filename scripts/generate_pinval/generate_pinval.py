@@ -172,6 +172,9 @@ def build_front_matter(
             .reset_index(drop=True)
         )
 
+        if comps_df.empty:
+            continue
+
         # Clean predictor names
         preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
         preds_pretty = [pretty_fn(p) for p in preds_raw]
