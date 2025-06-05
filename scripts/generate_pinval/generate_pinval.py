@@ -217,7 +217,7 @@ def build_front_matter(
                 if " and " in comps_df["sale_year_range"].iloc[0]
                 else "in"
             ),
-            "sale_year_range": comps_df["sale_year_range"].iloc[0],
+            "sale_year_range": comps_df["sale_year_range"].iloc[0] if not comps_df.empty else "",
             "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
             "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
         }
