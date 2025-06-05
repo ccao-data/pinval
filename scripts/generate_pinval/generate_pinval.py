@@ -376,7 +376,7 @@ def main() -> None:
 
     if args.triad:
         where_assessment = (
-            "run_id = %(run_id)s AND assessment_triad = %(triad)s "
+            "run_id = %(run_id)s AND assessment_triad = %(triad)s " +
             ("AND meta_township_code = %(township)s" if args.township else "")
         )
         params_assessment = {
