@@ -168,15 +168,15 @@ jobs:
           RUN_ID='${{ inputs.run_id }}'
           YEAR="${RUN_ID:0:4}"
 
-          SRC="hugo/public/pinval-reports"
+          SRC="hugo/public/${YEAR}"
 
-          DEST="${TARGET%/}/pinval/${YEAR}/"
+          DEST="${TARGET%/}/${YEAR}/"
 
           echo "Syncing $SRC → $DEST"
           aws s3 sync "$SRC" "$DEST" --delete
 
           BUCKET_NAME="${TARGET#s3://}"
-          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/pinval/${YEAR}/"
+          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/${YEAR}/"
           echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
 
       # Notify via SNS
