@@ -274,6 +274,8 @@ def convert_to_builtin_types(obj):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_builtin_types(v) for v in obj]
+    elif obj is pd.NA:          # pandas NA scalar
+        return ""               # or use None if you prefer
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
         return ""
