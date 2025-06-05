@@ -495,6 +495,11 @@ def main() -> None:
             continue
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
+
+        if not front["cards"]:
+            # No comps matched any card – don’t output an empty report
+            continue
+
         year = args.run_id[:4]
         front["url"] = f"/{year}/{pin}.html"
 
