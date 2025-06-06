@@ -263,14 +263,19 @@ jobs:
       - name: Flatten artifacts into final site directory
         run: |
           mkdir -p final-site
-          find merged -type f -name '*.html' -print0 | xargs -0 -I{} cp --parents {} final-site/
+          # copy only PIN-number HTML files, drop the entire path
+          find merged -type f -name '[0-9]*.html' -exec cp -t final-site {} +
 
       - name: Sync to S3
         env:
           TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
         run: |
           YEAR="${{ inputs.run_id }}"; YEAR="${YEAR:0:4}"
-          aws s3 sync final-site/ "${TARGET_BUCKET%/}/${YEAR}/" --delete
+          aws s3 sync final-site/ "${TARGET_BUCKET%/}/${YEAR}/" \
+            --delete \
+            --no-progress \
+            --only-show-errors \
+            --exclude '*' --include '*.html'
 
       - name: Publish SNS notification
         env:
