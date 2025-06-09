@@ -81,6 +81,14 @@ def parse_args() -> argparse.Namespace:
         help="Generate only frontmatter files; skip running the Hugo build step",
     )
 
+    parser.add_argument(
+        "--township",
+        help=(
+            "Restrict triad mode to a single Cook County township code "
+            "(two-digit string, e.g. 01, 23). Ignored unless --triad is used."
+        ),
+    )
+
     args = parser.parse_args()
 
     # ── Validation ────────────────────────────────────────────────────────────
@@ -169,6 +177,13 @@ def build_front_matter(
             .reset_index(drop=True)
         )
 
+        if comps_df.empty:
+            continue
+
+        # Clean predictor names
+        preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
+        preds_pretty = [pretty_fn(p) for p in preds_raw]
+
         # Add all of the feature columns to the card
         subject_chars = {
             pred: card_df[pred]
@@ -210,7 +225,7 @@ def build_front_matter(
                 if " and " in comps_df["sale_year_range"].iloc[0]
                 else "in"
             ),
-            "sale_year_range": comps_df["sale_year_range"].iloc[0],
+            "sale_year_range": comps_df["sale_year_range"].iloc[0] if not comps_df.empty else "",
             "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
             "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
         }
@@ -265,6 +280,8 @@ def convert_to_builtin_types(obj):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_builtin_types(v) for v in obj]
+    elif obj is pd.NA:          # pandas NA scalar
+        return ""               # or use None if you prefer
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
         return ""
@@ -369,14 +386,20 @@ def main() -> None:
     ).cursor(unload=True)
 
     if args.triad:
-        where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
-        params_assessment = {"run_id": args.run_id, "triad": args.triad.lower()}
+        where_assessment = (
+            "run_id = %(run_id)s AND assessment_triad = %(triad)s " +
+            ("AND meta_township_code = %(township)s" if args.township else "")
+        )
+        params_assessment = {
+            "run_id": args.run_id,
+            "triad": args.triad.lower(),
+            "township": args.township,
+        }
     else:
         pins: list[str] = list(set(args.pin))  # de‑dupe
         pins_quoted = ",".join(f"'{p}'" for p in pins)
         where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
         params_assessment = {"run_id": args.run_id}
-
 
     assessment_sql = f"""
         SELECT *
@@ -399,12 +422,17 @@ def main() -> None:
     comps_run_id = RUN_ID_MAP[args.run_id]
 
     if args.triad:
-        comps_sql = """
-            SELECT *
-            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s
-        """
-        params_comps = {"run_id": comps_run_id, "triad": args.triad.lower()}
+        comps_sql = (
+            "SELECT * "
+            "FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp "
+            "WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s "
+            + ("AND meta_township_code = %(township)s" if args.township else "")
+        )
+        params_comps = {
+            "run_id": comps_run_id,
+            "triad": args.triad.lower(),
+            "township": args.township,
+        }
     else:
         all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
         pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
@@ -463,12 +491,23 @@ def main() -> None:
             break  # Stop loop for dev purposes
         if i % 5000 == 0:
             print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
+            
         #run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{pin}.md"
 
         df_comps = df_comps_by_pin.get(pin)
+        if df_comps is None or df_comps.empty:
+            print(f"Warning: No comps found for PIN {pin}, skipping.")
+            continue
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
+        year = args.run_id[:4]
+        front["url"] = f"/{year}/{pin}.html"
+
+        if not front["cards"]:
+            # No comps matched any card – don’t output an empty report
+            continue
+
         year = args.run_id[:4]
         front["url"] = f"/{year}/{pin}.html"
 
