@@ -587,6 +587,16 @@ def main() -> None:
     # ------------------------------------------------------------------
 
     if not args.skip_html:
+        # Attempt to clean up memory before running Hugo
+        import gc
+        for _v in (
+            df_assessment_all,
+            df_comps_all,
+            df_assessments_by_pin,
+            df_comps_by_pin,
+        ):
+            del _v
+        gc.collect()
         print("Running Hugo …")
         proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
         if proc.returncode != 0:
