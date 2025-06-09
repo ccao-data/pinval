@@ -467,7 +467,7 @@ def main() -> None:
 
     key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
 
-    PRESERVE = {"loc_latitude", "loc_longitude", "meta_nbhd_code"}
+    PRESERVE = {"loc_latitude", "loc_longitude"}
     def pretty(k: str) -> str:
         return k if k in PRESERVE else key_map.get(k, k)
 
