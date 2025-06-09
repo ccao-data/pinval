@@ -503,15 +503,28 @@ def main() -> None:
 
     pins_to_remove_no_card_comps = []
 
+    # For tracking NaNs
+    total_card_nans = 0
+    total_comp_card_nans = 0
+
     for pin, df_target in df_assessments_by_pin.items():
-        card_nums = df_target["meta_card_num"].unique()
+        # Drop NaNs from cards
+        card_nums_series = df_target["meta_card_num"]
+        card_nums_nans = card_nums_series.isna().sum()
+        total_card_nans += card_nums_nans
+        card_nums = card_nums_series.dropna().unique()
+
         df_comps = df_comps_by_pin.get(pin)
 
         if df_comps is None or df_comps.empty:
             pins_to_remove_no_card_comps.append(pin)
             continue
 
-        card_nums_with_comps = df_comps["card"].unique()
+        comp_card_series = df_comps["card"]
+        comp_card_nans = comp_card_series.isna().sum()
+        total_comp_card_nans += comp_card_nans
+        card_nums_with_comps = comp_card_series.dropna().unique()
+
         matched = np.intersect1d(card_nums, card_nums_with_comps)
 
         if len(matched) == 0:
@@ -525,6 +538,10 @@ def main() -> None:
 
     print(f"Step 2: Removed {removed_no_card_comps} PINs where no card had matching comps "
         f"out of {total_pins} total ({removed_no_card_comps / total_pins:.2%})")
+
+    # 3. Print total NaNs encountered
+    print(f"Step 3: Filtered out {total_card_nans} NaN meta_card_num values "
+        f"and {total_comp_card_nans} NaN comp card values during matching.")
 
 
 
