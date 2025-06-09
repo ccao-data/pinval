@@ -157,12 +157,25 @@ jobs:
             --triad "${{ inputs.triad_name }}" \
             --township "$TOWNSHIP"
 
-      - name: Upload artifact for township
-        uses: actions/upload-artifact@v4
-        with:
-          name: site-${{ matrix.township }}
-          path: hugo/public/
-          retention-days: 2
+      - name: Resolve target S3 bucket
+        id: bucket
+        run: |
+          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync shard to S3
+        env:
+          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
+        run: |
+          YEAR="${{ inputs.run_id:0:4 }}"
+          # put each township in its own prefix so shards never overwrite each other
+          PREFIX="${YEAR}/${{ matrix.township }}/"
+          aws s3 sync hugo/public/ "${TARGET_BUCKET%/}/${PREFIX}" \
+            --no-progress \
+            --exclude '*' --include '*.html'
 
 ###############################################################################
 # Generate PINVAL reports for an explicit PIN list
@@ -219,33 +232,6 @@ jobs:
             --run-id "${{ inputs.run_id }}" \
             --pin "${PINS[@]}"
 
-      - name: Upload artifact for pin list
-        uses: actions/upload-artifact@v4
-        with:
-          name: site-pinlist
-          path: hugo/public/
-          retention-days: 2
-
-###############################################################################
-# Deploy once after whichever generation job ran finishes
-###############################################################################
-  deploy:
-    needs: [generate-pinval-triad, generate-pinval-pins]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
-          aws-region: us-east-1
-
       - name: Resolve target S3 bucket
         id: bucket
         run: |
@@ -255,29 +241,33 @@ jobs:
             echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: merged
-
-      - name: Flatten artifacts into final site directory
+      - name: Sync to S3
+        env:
+         TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
         run: |
-          mkdir -p final-site
-          # copy only PIN-number HTML files, drop the entire path
-          find merged -type f -name '[0-9]*.html' -exec cp -t final-site {} +
+          YEAR="${{ inputs.run_id:0:4 }}"
+          PREFIX="${YEAR}/pinlist/"
+          aws s3 sync hugo/public/ "${TARGET_BUCKET%/}/${PREFIX}" \
+            --no-progress \
+            --exclude '*' --include '*.html'
+
+###############################################################################
+# SNS Job
+###############################################################################
+  notify:
+    needs: [generate-pinval-triad, generate-pinval-pins]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
+          aws-region: us-east-1
 
       - name: Mask SNS topic ARN
         run: echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
-
-      - name: Sync to S3
-        env:
-          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
-        run: |
-          YEAR="${{ inputs.run_id }}"; YEAR="${YEAR:0:4}"
-          aws s3 sync final-site/ "${TARGET_BUCKET%/}/${YEAR}/" \
-            --delete \
-            --no-progress \
-            --exclude '*' --include '*.html'
 
       - name: Publish SNS notification
         env:
@@ -285,8 +275,13 @@ jobs:
           TRIAD: ${{ inputs.triad_name }}
           PINS: ${{ inputs.pins }}
           ENV_LABEL: ${{ inputs.environment }}
-          URL_BASE: ${{ steps.bucket.outputs.bucket }}
+          URL_BASE_DEV: ${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}
+          URL_BASE_PROD: ${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}
         run: |
+          URL_BASE="${URL_BASE_DEV}"
+          if [[ "${ENV_LABEL}" == 'Production bucket' ]]; then
+            URL_BASE="${URL_BASE_PROD}"
+          fi
           SUBJECT="PINVAL reports ready for run-id $RUN_ID"
           MESSAGE=$(cat <<EOF
           Your requested PINVAL reports have been generated.
