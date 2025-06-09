@@ -483,12 +483,62 @@ def main() -> None:
     end_time_dict_groupby = time.time()
     print(f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds")
 
+    # --------
+    # TESTING
+    # --------
+    total_pins = len(df_assessments_by_pin)
+
+    pins_with_comps = set(df_comps_by_pin.keys())
+    pins_with_assessments = set(df_assessments_by_pin.keys())
+
+    pins_no_comps = pins_with_assessments - pins_with_comps
+
+    for pin in pins_no_comps:
+        df_assessments_by_pin.pop(pin, None)
+
+    removed_no_comps = len(pins_no_comps)
+
+    print(f"Step 1: Removed {removed_no_comps} PINs without any comps "
+        f"out of {total_pins} total ({removed_no_comps / total_pins:.2%})")
+
+    pins_to_remove_no_card_comps = []
+
+    for pin, df_target in df_assessments_by_pin.items():
+        card_nums = df_target["meta_card_num"].unique()
+        df_comps = df_comps_by_pin.get(pin)
+
+        if df_comps is None or df_comps.empty:
+            pins_to_remove_no_card_comps.append(pin)
+            continue
+
+        card_nums_with_comps = df_comps["card"].unique()
+        matched = np.intersect1d(card_nums, card_nums_with_comps)
+
+        if len(matched) == 0:
+            pins_to_remove_no_card_comps.append(pin)
+
+    for pin in pins_to_remove_no_card_comps:
+        df_assessments_by_pin.pop(pin, None)
+        df_comps_by_pin.pop(pin, None)
+
+    removed_no_card_comps = len(pins_to_remove_no_card_comps)
+
+    print(f"Step 2: Removed {removed_no_card_comps} PINs where no card had matching comps "
+        f"out of {total_pins} total ({removed_no_card_comps / total_pins:.2%})")
+
+
+
+
+
+
+
+
+
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
     for i, (pin, df_target) in enumerate(df_assessments_by_pin.items()):
-        if i >= 10000:
-            break  # Stop loop for dev purposes
+
         if i % 5000 == 0:
             print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
             
@@ -496,7 +546,7 @@ def main() -> None:
 
         df_comps = df_comps_by_pin.get(pin)
         if df_comps is None or df_comps.empty:
-            print(f"Warning: No comps found for PIN {pin}, skipping.")
+            #print(f"Warning: No comps found for PIN {pin}, skipping.")
             continue
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
