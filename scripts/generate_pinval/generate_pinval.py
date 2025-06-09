@@ -492,7 +492,6 @@ def main() -> None:
         if i % 5000 == 0:
             print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
             
-        #run_id_pin_id = f"{args.run_id}__{pin}"
         md_path = md_outdir / f"{pin}.md"
 
         df_comps = df_comps_by_pin.get(pin)
