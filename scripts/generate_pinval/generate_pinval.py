@@ -361,8 +361,9 @@ def main() -> None:
     # Athena connection (one per run)
     cursor = connect(
         # We add '+ "/"' to the end of the line below because enabling unload
-        # requires that the staging directory end with a slash
-        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR") + "/",
+        # requires that the staging directory end with a slash. Add rstrip because
+        # the missing '/' seems to depend on different environments
+        s3_staging_dir=os.getenv("AWS_ATHENA_S3_STAGING_DIR").rstrip("/") + "/",
         region_name=os.getenv("AWS_REGION"),
         cursor_class=PandasCursor,
     ).cursor(unload=True)
@@ -462,12 +463,14 @@ def main() -> None:
             break  # Stop loop for dev purposes
         if i % 5000 == 0:
             print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
-        run_id_pin_id = f"{args.run_id}__{pin}"
-        md_path = md_outdir / f"{run_id_pin_id}.md"
+        #run_id_pin_id = f"{args.run_id}__{pin}"
+        md_path = md_outdir / f"{pin}.md"
 
         df_comps = df_comps_by_pin.get(pin)
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
+        year = args.run_id[:4]
+        front["url"] = f"/{year}/{pin}.html"
 
         write_json(front, md_path)
 

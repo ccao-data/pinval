@@ -12,3 +12,7 @@ dependencies = [
     "ccao @ git+https://github.com/ccao-data/ccao@e97bab236d9cbf3035b3c06ec735d016a693cae2#subdirectory=python",
     "pyarrow>=20.0.0",
 ]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

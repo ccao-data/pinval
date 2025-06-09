@@ -1,0 +1,205 @@
+# Workflow that can be manually dispatched to generate PINVAL reports
+name: generate-pinval
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        type: string
+        description: >
+          The run-ID of the model run whose comps should be used
+          (e.g. 2025-02-11-charming-eric)
+        required: true
+
+      triad_name:
+        type: string
+        description: >
+          Generate reports for every PIN in this triad (leave blank if you are
+          supplying explicit PINs instead). Options: city, north, south.
+        required: false
+        default: ""
+
+      pins:
+        type: string
+        description: >
+          One or more comma-separated Cook County PINs.  Leave blank if you are
+          supplying a triad instead.  Mutually-exclusive with triad_name.
+        required: false
+        default: ""
+
+      environment:
+        type: choice
+        description: >
+          Choose where to upload the reports.
+        options:
+          - Development bucket
+          - Production bucket
+        required: false
+        default: Development bucket
+
+env:
+  WORKING_DIR: .
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  generate-pinval:
+    runs-on: ubuntu-latest
+
+    # AWS authentication
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # Setup
+      - name: Checkout repo code
+        uses: actions/checkout@v4
+
+      - name: Mask sensitive information
+        run: echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
+        shell: bash
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: scripts/generate_pinval/.python-version
+
+      - name: Create uv virtual environment
+        run: uv venv
+        working-directory: scripts/generate_pinval
+
+      - name: Install Python requirements
+        run: |
+          ls
+          uv pip install .
+        working-directory: scripts/generate_pinval
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
+          aws-region: us-east-1
+
+      # Validate mutually-exclusive inputs
+      - name: Validate input parameters
+        id: validate
+        run: |
+          set -euo pipefail
+
+          # Convenience vars
+          TRIAD="${{ inputs.triad_name }}"
+          PINS="${{ inputs.pins }}"
+
+          if [[ -z "$TRIAD" && -z "$PINS" ]]; then
+            echo "Error: At least one of triad_name or pins must be supplied." >&2
+            exit 1
+          fi
+
+          if [[ -n "$TRIAD" && -n "$PINS" ]]; then
+            echo "Error: triad_name and pins are mutually-exclusive." >&2
+            exit 1
+          fi
+
+      # This step makes the environment label available cleanly available for email formatting
+      - name: Normalize environment label
+        id: env_label
+        run: |
+          if [[ "${{ inputs.environment }}" == "Development bucket" ]]; then
+            echo "label=Development" >> "$GITHUB_OUTPUT"
+          else
+            echo "label=Production" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Add hugo
+      - name: Install Hugo
+        uses: peaceiris/actions-hugo@v2
+        with:
+          hugo-version: '0.147.5'
+
+      # Run the report-generation script
+      - name: Generate PINVAL reports
+        id: gen
+        run: |
+          set -euo pipefail
+          source scripts/generate_pinval/.venv/bin/activate
+
+          RUN_ID='${{ inputs.run_id }}'
+
+          # Build the CLI args
+          if [[ -n "${{ inputs.triad_name }}" ]]; then
+            EXTRA_ARGS="--triad ${{ inputs.triad_name }}"
+          else
+            # Split comma-separated list → space-separated string after single --pin
+            IFS=',' read -ra PINS <<< "${{ inputs.pins }}"
+            EXTRA_ARGS="--pin ${PINS[*]}"
+          fi
+
+          echo "Running generate_pinval.py for run-id $RUN_ID ..."
+          python3 scripts/generate_pinval/generate_pinval.py \
+            --run-id "$RUN_ID" \
+            $EXTRA_ARGS
+        env:
+          AWS_REGION: us-east-1
+          AWS_ATHENA_S3_STAGING_DIR: s3://ccao-athena-results-us-east-1/
+
+      # Decide which S3 bucket to use (test vs prod)
+      - name: Resolve target S3 bucket
+        id: bucket
+        run: |
+          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Upload reports to S3
+      - name: Upload reports to S3
+        id: upload
+        run: |
+          set -euo pipefail
+
+          TARGET="${{ steps.bucket.outputs.bucket }}"
+          RUN_ID='${{ inputs.run_id }}'
+          YEAR="${RUN_ID:0:4}"
+
+          SRC="hugo/public/${YEAR}"
+
+          DEST="${TARGET%/}/${YEAR}/"
+
+          echo "Syncing $SRC → $DEST"
+          aws s3 sync "$SRC" "$DEST" --delete
+
+          BUCKET_NAME="${TARGET#s3://}"
+          HTTPS_BASE="https://${BUCKET_NAME}.s3.amazonaws.com/${YEAR}/"
+          echo "url=${HTTPS_BASE}" >> "$GITHUB_OUTPUT"
+
+      # Notify via SNS
+      - name: Mask SNS topic ARN
+        run: echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
+
+      - name: Publish SNS notification
+        run: |
+          SUBJECT="PINVAL reports ready for run-id ${{ inputs.run_id }}"
+          MESSAGE=$(cat <<EOF
+          Your requested PINVAL reports have been generated.
+
+          Run-ID: ${{ inputs.run_id }}
+          Triad: ${{ inputs.triad_name }}
+          PIN list: ${{ inputs.pins }}
+          Environment: ${{ steps.env_label.outputs.label }}
+
+          You can browse or download the reports here:
+          ${{ steps.upload.outputs.url }}
+          EOF
+          )
+
+          aws sns publish \
+            --topic-arn "${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}" \
+            --subject "$SUBJECT" \
+            --message "$MESSAGE"
