@@ -47,18 +47,6 @@ RUN_ID_MAP = {
     "2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"
 }
 
-# Structure we can use to sort the chars
-TOP_CHARS: tuple[str, ...] = (
-    "char_class",
-    "meta_nbhd_code",
-    "char_yrblt",
-    "char_bldg_sf",
-    "char_land_sf",
-    "char_beds",
-    "char_fbath",
-    "char_hbath",
-)
-
 def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation."""
 
@@ -153,12 +141,7 @@ def build_front_matter(
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
-    preds_raw = _clean_predictors(tp["model_predictor_all_name"])
-
-    preds_sorted: list[str] = (
-        [p for p in TOP_CHARS if p in preds_raw] +
-        [p for p in preds_raw if p not in TOP_CHARS]
-    )
+    preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
 
     front: dict = {
         "layout": "report",
@@ -171,7 +154,7 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
-        "var_labels": {k: pretty_fn(k) for k in preds_sorted},
+        "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
     }
 
     # Per card
@@ -189,7 +172,7 @@ def build_front_matter(
         # Add all of the feature columns to the card
         subject_chars = {
             pred: card_df[pred]
-            for pred in preds_sorted
+            for pred in preds_cleaned
             if pred in card_df
         }
 
@@ -211,7 +194,7 @@ def build_front_matter(
             }
 
             # Make preds human-readable
-            for pred in preds_sorted:
+            for pred in preds_cleaned:
                 if pred not in comp_dict and pred in comp:
                     comp_dict[pred] = comp[pred]
 
@@ -263,7 +246,7 @@ def build_front_matter(
                 ),
                 "comps": comps_list,
                 "comp_summary": comp_summary,
-                "predictors": preds_sorted,
+                "predictors": preds_cleaned,
                 #"var_labels": {k: pretty_fn(k) for k in preds_raw},
             }
         )
