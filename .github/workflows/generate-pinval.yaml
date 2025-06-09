@@ -170,7 +170,8 @@ jobs:
         env:
           TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
         run: |
-          YEAR="${{ substring(inputs.run_id, 0, 4) }}"
+          RUN_ID="${{ inputs.run_id }}"
+          YEAR="${RUN_ID:0:4}"
           # put each township in its own prefix so shards never overwrite each other
           PREFIX="${YEAR}/${{ matrix.township }}/"
           aws s3 sync hugo/public/ "${TARGET_BUCKET%/}/${PREFIX}" \
@@ -245,7 +246,8 @@ jobs:
         env:
          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
         run: |
-          YEAR="${{ substring(inputs.run_id, 0, 4) }}"
+          RUN_ID="${{ inputs.run_id }}"
+          YEAR="${RUN_ID:0:4}"
           PREFIX="${YEAR}/pinlist/"
           aws s3 sync hugo/public/ "${TARGET_BUCKET%/}/${PREFIX}" \
             --no-progress \
