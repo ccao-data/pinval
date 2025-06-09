@@ -172,9 +172,9 @@ jobs:
         run: |
           RUN_ID="${{ inputs.run_id }}"
           YEAR="${RUN_ID:0:4}"
-          # put each township in its own prefix so shards never overwrite each other
-          PREFIX="${YEAR}/${{ matrix.township }}/"
-          aws s3 sync hugo/public/ "${TARGET_BUCKET%/}/${PREFIX}" \
+          LOCAL="hugo/public/${YEAR}/"
+          REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
+          aws s3 sync "$LOCAL" "$REMOTE" \
             --no-progress \
             --exclude '*' --include '*.html'
 
@@ -248,8 +248,9 @@ jobs:
         run: |
           RUN_ID="${{ inputs.run_id }}"
           YEAR="${RUN_ID:0:4}"
-          PREFIX="${YEAR}/pinlist/"
-          aws s3 sync hugo/public/ "${TARGET_BUCKET%/}/${PREFIX}" \
+          LOCAL="hugo/public/${YEAR}/"
+          REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
+          aws s3 sync "$LOCAL" "$REMOTE" \
             --no-progress \
             --exclude '*' --include '*.html'
 
@@ -258,6 +259,10 @@ jobs:
 ###############################################################################
   notify:
     needs: [generate-pinval-triad, generate-pinval-pins]
+    if: ${{ always() && (
+          needs.generate-pinval-triad.result == 'success' ||
+          needs.generate-pinval-pins.result   == 'success'
+      ) }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
