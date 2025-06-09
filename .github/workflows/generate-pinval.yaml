@@ -277,7 +277,6 @@ jobs:
           aws s3 sync final-site/ "${TARGET_BUCKET%/}/${YEAR}/" \
             --delete \
             --no-progress \
-            --only-show-errors \
             --exclude '*' --include '*.html'
 
       - name: Publish SNS notification
