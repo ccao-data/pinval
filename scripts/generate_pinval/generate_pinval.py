@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import os
 import subprocess as sp
-import sys
+import gc
 import time
 from pathlib import Path
 
@@ -587,8 +587,8 @@ def main() -> None:
     # ------------------------------------------------------------------
 
     if not args.skip_html:
-        # Attempt to clean up memory before running Hugo
-        import gc
+        # Clean up memory before running Hugo, this prevents github runners
+        # from running out of memory
         for _v in (
             df_assessment_all,
             df_comps_all,
@@ -597,6 +597,8 @@ def main() -> None:
         ):
             del _v
         gc.collect()
+
+        # Generate the HTML files using Hugo
         print("Running Hugo …")
         proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
         if proc.returncode != 0:
