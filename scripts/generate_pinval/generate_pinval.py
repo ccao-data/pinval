@@ -562,7 +562,7 @@ def main() -> None:
 
     # Remove PINs that have no comps at all, or where no card matches any comp,
     # or where cards are NAs
-    df_assessments_by_pin, df_comps_by_pin, _ = prune_pins_without_valid_comps(
+    df_assessments_by_pin, df_comps_by_pin = prune_pins_without_valid_comps(
         df_assessments_by_pin,
         df_comps_by_pin,
     )
