@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.list-townships.outputs.matrix) }}
-      max-parallel: 13   # adjust to balance speed vs. concurrency limits
+      max-parallel: 13
     env:
       TOWNSHIP: ${{ matrix.township }}
     permissions:
