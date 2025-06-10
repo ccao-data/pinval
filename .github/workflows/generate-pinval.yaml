@@ -259,6 +259,8 @@ jobs:
 ###############################################################################
   notify:
     needs: [generate-pinval-triad, generate-pinval-pins]
+    if: ${{ always() && (needs.generate-pinval-triad.result == 'success' ||
+                      needs.generate-pinval-pins.result  == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
