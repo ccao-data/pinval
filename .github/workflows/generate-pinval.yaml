@@ -97,7 +97,7 @@ jobs:
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"matrix={matrix}\n")
-              fh.write(f"count={json.dumps(count)}\n")
+              fh.write(f"count={count}\n")
           PY
 
 ###############################################################################
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.list-townships.outputs.matrix) }}
-      max-parallel: ${{ needs.list-townships.outputs.count }}
+      max-parallel: ${{ fromJson(needs.list-townships.outputs.count) }}
     env:
       TOWNSHIP: ${{ matrix.township }}
     permissions:
