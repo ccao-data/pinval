@@ -281,7 +281,7 @@ def convert_to_builtin_types(obj):
     elif isinstance(obj, list):
         return [convert_to_builtin_types(v) for v in obj]
     elif obj is pd.NA:          # pandas NA scalar
-        return ""               # or use None if you prefer
+        return ""
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
         return ""
@@ -362,6 +362,86 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def prune_pins_without_valid_comps(
+    df_assessments_by_pin: Dict[str, pd.DataFrame],
+    df_comps_by_pin: Dict[str, pd.DataFrame],
+) -> Tuple[
+    Dict[str, pd.DataFrame],
+    Dict[str, pd.DataFrame]
+]:
+    """
+    Return dictionaries that contain only PINs with at least one valid card / comp
+    match
+
+    - The function walks through two filters:
+        1. Drop PINs with *zero* comps.
+        2. Drop PINs where none of their assessment cards overlap any comp cards.
+    """
+
+    total_pins = len(df_assessments_by_pin)
+    pins_with_comps = set(df_comps_by_pin.keys())
+    pins_with_assessments = set(df_assessments_by_pin.keys())
+
+    # Drop PINs that have no comps at all
+    pins_no_comps = pins_with_assessments - pins_with_comps
+    after_step1_assess = {
+        pin: df for pin, df in df_assessments_by_pin.items() if pin not in pins_no_comps
+    }
+    after_step1_comps = {
+        pin: df for pin, df in df_comps_by_pin.items() if pin in after_step1_assess
+    }
+    removed_no_comps = len(pins_no_comps)
+    print(
+        f"Step 1: Removed {removed_no_comps} PINs without any comps "
+        f"out of {total_pins} total ({removed_no_comps/total_pins:.2%})"
+    )
+
+    # Drop PINs whose cards never match a comp’s card
+    pins_to_remove_no_card_comps = []
+    total_card_nans = 0
+    total_comp_card_nans = 0
+
+    for pin, df_target in after_step1_assess.items():
+        # Track NaNs in assessment cards
+        card_nums_series = df_target["meta_card_num"]
+        total_card_nans += card_nums_series.isna().sum()
+        card_nums = card_nums_series.dropna().unique()
+
+        df_comps = after_step1_comps.get(pin)
+        if df_comps is None or df_comps.empty:
+            pins_to_remove_no_card_comps.append(pin)
+            continue
+
+        # Track NaNs in comp cards
+        comp_card_series = df_comps["card"]
+        total_comp_card_nans += comp_card_series.isna().sum()
+        card_nums_with_comps = comp_card_series.dropna().unique()
+
+        if not np.intersect1d(card_nums, card_nums_with_comps).size:
+            pins_to_remove_no_card_comps.append(pin)
+
+    cleaned_assessments = {
+        pin: df for pin, df in after_step1_assess.items()
+        if pin not in pins_to_remove_no_card_comps
+    }
+    cleaned_comps = {
+        pin: df for pin, df in after_step1_comps.items()
+        if pin not in pins_to_remove_no_card_comps
+    }
+    removed_no_card_comps = len(pins_to_remove_no_card_comps)
+
+    print(
+        f"Step 2: Removed {removed_no_card_comps} PINs where no card had matching comps "
+        f"out of {total_pins} total ({removed_no_card_comps/total_pins:.2%})"
+    )
+    print(
+        f"Step 3: Filtered out {total_card_nans} NaN meta_card_num values and "
+        f"{total_comp_card_nans} NaN comp card values during matching."
+    )
+
+    return cleaned_assessments, cleaned_comps
+
+
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     cursor.execute(sql, parameters=params)
     return cursor.as_pandas()
@@ -414,9 +494,6 @@ def main() -> None:
         raise ValueError(
             "No assessment rows returned for the given parameters"
         )
-
-    #all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
-    #pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
 
     # Get the comps for all the pins
     comps_run_id = RUN_ID_MAP[args.run_id]
@@ -483,73 +560,12 @@ def main() -> None:
     end_time_dict_groupby = time.time()
     print(f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds")
 
-    # --------
-    # TESTING
-    # --------
-    total_pins = len(df_assessments_by_pin)
-
-    pins_with_comps = set(df_comps_by_pin.keys())
-    pins_with_assessments = set(df_assessments_by_pin.keys())
-
-    pins_no_comps = pins_with_assessments - pins_with_comps
-
-    for pin in pins_no_comps:
-        df_assessments_by_pin.pop(pin, None)
-
-    removed_no_comps = len(pins_no_comps)
-
-    print(f"Step 1: Removed {removed_no_comps} PINs without any comps "
-        f"out of {total_pins} total ({removed_no_comps / total_pins:.2%})")
-
-    pins_to_remove_no_card_comps = []
-
-    # For tracking NaNs
-    total_card_nans = 0
-    total_comp_card_nans = 0
-
-    for pin, df_target in df_assessments_by_pin.items():
-        # Drop NaNs from cards
-        card_nums_series = df_target["meta_card_num"]
-        card_nums_nans = card_nums_series.isna().sum()
-        total_card_nans += card_nums_nans
-        card_nums = card_nums_series.dropna().unique()
-
-        df_comps = df_comps_by_pin.get(pin)
-
-        if df_comps is None or df_comps.empty:
-            pins_to_remove_no_card_comps.append(pin)
-            continue
-
-        comp_card_series = df_comps["card"]
-        comp_card_nans = comp_card_series.isna().sum()
-        total_comp_card_nans += comp_card_nans
-        card_nums_with_comps = comp_card_series.dropna().unique()
-
-        matched = np.intersect1d(card_nums, card_nums_with_comps)
-
-        if len(matched) == 0:
-            pins_to_remove_no_card_comps.append(pin)
-
-    for pin in pins_to_remove_no_card_comps:
-        df_assessments_by_pin.pop(pin, None)
-        df_comps_by_pin.pop(pin, None)
-
-    removed_no_card_comps = len(pins_to_remove_no_card_comps)
-
-    print(f"Step 2: Removed {removed_no_card_comps} PINs where no card had matching comps "
-        f"out of {total_pins} total ({removed_no_card_comps / total_pins:.2%})")
-
-    # 3. Print total NaNs encountered
-    print(f"Step 3: Filtered out {total_card_nans} NaN meta_card_num values "
-        f"and {total_comp_card_nans} NaN comp card values during matching.")
-
-
-
-
-
-
-
-
+    # Remove PINs that have no comps at all, or where no card matches any comp,
+    # or where cards are NAs
+    df_assessments_by_pin, df_comps_by_pin, _ = prune_pins_without_valid_comps(
+        df_assessments_by_pin,
+        df_comps_by_pin,
+    )
 
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
