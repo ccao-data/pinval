@@ -91,10 +91,12 @@ jobs:
 
           codes = [row[0] for row in connect(region_name="us-east-1").cursor().execute(sql)]
           matrix = json.dumps({"township": codes})
+          count  = len(codes)
           print(f"matrix={matrix}")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"matrix={matrix}\n")
+              fh.write(f"count={count}\n")
           PY
 
 ###############################################################################
@@ -106,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.list-townships.outputs.matrix) }}
-      max-parallel: ${{ length(fromJson(needs.list-townships.outputs.matrix).township) }}
+      max-parallel: ${{ needs.list-townships.outputs.count }}
     env:
       TOWNSHIP: ${{ matrix.township }}
     permissions:
