@@ -97,7 +97,7 @@ jobs:
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write(f"matrix={matrix}\n")
-              fh.write(f"count={count}\n")
+              fh.write(f"count={json.dumps(count)}\n")
           PY
 
 ###############################################################################
