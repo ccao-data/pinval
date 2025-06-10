@@ -377,7 +377,7 @@ def prune_pins_without_valid_comps(
         1. Drop PINs with *zero* comps.
         2. Drop PINs where none of their assessment cards overlap any comp cards.
     """
-
+    print("------- Handling PINs without valid comps -------")
     total_pins = len(df_assessments_by_pin)
     pins_with_comps = set(df_comps_by_pin.keys())
     pins_with_assessments = set(df_assessments_by_pin.keys())
@@ -392,7 +392,7 @@ def prune_pins_without_valid_comps(
     }
     removed_no_comps = len(pins_no_comps)
     print(
-        f"Step 1: Removed {removed_no_comps} PINs without any comps "
+        f"Removed {removed_no_comps} PINs without any comps "
         f"out of {total_pins} total ({removed_no_comps/total_pins:.2%})"
     )
 
@@ -431,11 +431,11 @@ def prune_pins_without_valid_comps(
     removed_no_card_comps = len(pins_to_remove_no_card_comps)
 
     print(
-        f"Step 2: Removed {removed_no_card_comps} PINs where no card had matching comps "
+        f"Removed {removed_no_card_comps} PINs where no card had matching comps "
         f"out of {total_pins} total ({removed_no_card_comps/total_pins:.2%})"
     )
     print(
-        f"Step 3: Filtered out {total_card_nans} NaN meta_card_num values and "
+        f"Filtered out {total_card_nans} NaN meta_card_num values and "
         f"{total_comp_card_nans} NaN comp card values during matching."
     )
 
