@@ -53,6 +53,7 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      count:  ${{ steps.set-matrix.outputs.count }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
