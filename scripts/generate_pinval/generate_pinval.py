@@ -473,10 +473,14 @@ def main() -> None:
             "township": args.township,
         }
     else:
-        pins: list[str] = list(set(args.pin))  # de‑dupe
-        pins_quoted = ",".join(f"'{p}'" for p in pins)
-        where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({pins_quoted})"
-        params_assessment = {"run_id": args.run_id}
+        pins: list[str] = list(set(args.pin)) # de-dupe
+        pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
+        placeholders = ",".join(f"%({k})s" for k in pin_params)
+
+        where_assessment = (
+            f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
+        )
+        params_assessment = {"run_id": args.run_id, **pin_params} 
 
     assessment_sql = f"""
         SELECT *
