@@ -510,7 +510,7 @@ def main() -> None:
             "township": args.township,
         }
     else:
-        all_pins = df_assessment_all["meta_pin"].unique().tolist()
+        all_pins = list(set(df_assessment_all["meta_pin"]))  # de-dupe
         pin_params = {f"pin{i}": p for i, p in enumerate(all_pins)}
         placeholders = ",".join(f"%({k})s" for k in pin_params)
         where_comps = f"run_id = %(run_id)s AND pin IN ({placeholders})"
