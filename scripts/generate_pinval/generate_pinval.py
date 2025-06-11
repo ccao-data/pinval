@@ -169,8 +169,6 @@ def build_front_matter(
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
         card_df = card_df.iloc[0]
 
-        #preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
-
         comps_df = (
             df_comps[df_comps["card"] == card_num]
             .sort_values("comp_num")
