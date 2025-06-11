@@ -500,11 +500,9 @@ def main() -> None:
     comps_run_id = RUN_ID_MAP[args.run_id]
 
     if args.triad:
-        comps_sql = (
-            "SELECT * "
-            "FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp "
-            "WHERE run_id = %(run_id)s AND assessment_triad = %(triad)s "
-            + ("AND meta_township_code = %(township)s" if args.township else "")
+        where_comps = (
+            "run_id = %(run_id)s AND assessment_triad = %(triad)s " +
+            ("AND meta_township_code = %(township)s" if args.township else "")
         )
         params_comps = {
             "run_id": comps_run_id,
@@ -512,14 +510,17 @@ def main() -> None:
             "township": args.township,
         }
     else:
-        all_pins: list[str] = df_assessment_all["meta_pin"].unique().tolist()
-        pins_quoted_for_comps = ",".join(f"'{pin}'" for pin in all_pins)
-        comps_sql = f"""
-            SELECT *
-            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
-            WHERE run_id = %(run_id)s AND pin IN ({pins_quoted_for_comps})
-        """
-        params_comps = {"run_id": comps_run_id}
+        all_pins = df_assessment_all["meta_pin"].unique().tolist()
+        pin_params = {f"pin{i}": p for i, p in enumerate(all_pins)}
+        placeholders = ",".join(f"%({k})s" for k in pin_params)
+        where_comps = f"run_id = %(run_id)s AND pin IN ({placeholders})"
+        params_comps = {"run_id": comps_run_id, **pin_params}
+
+    comps_sql = f"""
+        SELECT *
+        FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
+        WHERE {where_comps}
+    """
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
 
