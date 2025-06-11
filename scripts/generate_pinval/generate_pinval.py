@@ -480,7 +480,7 @@ def main() -> None:
         where_assessment = (
             f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
         )
-        params_assessment = {"run_id": args.run_id, **pin_params} 
+        params_assessment = {"run_id": args.run_id, **pin_params}
 
     assessment_sql = f"""
         SELECT *
