@@ -22,7 +22,7 @@ on:
         type: string
         description: >
           One or more comma-separated Cook County PINs. Leave blank if you are
-          supplying a triad instead. Mutually-exclusive with triad_name.
+          supplying a triad instead.
         required: false
         default: ""
 
