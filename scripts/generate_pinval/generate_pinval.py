@@ -195,7 +195,7 @@ def build_front_matter(
             comp_dict = {
                 "comp_num": comp["comp_num"],
                 "pin": comp["comp_pin"],
-                "pin_pretty": comp["comp_pin"],
+                "pin_pretty": pin_pretty(comp["comp_pin"]),
                 "is_subject_pin_sale": comp["is_subject_pin_sale"],
                 "sale_price": f"${float(comp['meta_sale_price']):,.0f}",
                 "sale_price_short": comp['sale_price_short'],
