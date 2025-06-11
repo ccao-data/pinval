@@ -524,7 +524,6 @@ def main() -> None:
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
 
-    df_comps_all["pin_pretty"] = df_comps_all["pin"].apply(pin_pretty)
     df_comps_all = format_df(convert_dtypes(df_comps_all))
 
     print("Shape of df_comps_all:", df_comps_all.shape)
