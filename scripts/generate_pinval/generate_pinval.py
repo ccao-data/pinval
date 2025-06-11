@@ -12,7 +12,7 @@ Generate two specific PINs:
           --run-id 2025-02-11-charming-eric \
           --pin 01011000040000 10112040080000
 
-Generate every PIN in the city triad:
+Generate every PIN in the north triad:
     $ ./scripts/generate_pinval.py \
           --run-id 2025-02-11-charming-eric \
           --triad north
