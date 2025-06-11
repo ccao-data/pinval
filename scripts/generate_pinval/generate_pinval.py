@@ -262,7 +262,6 @@ def build_front_matter(
                 "comps": comps_list,
                 "comp_summary": comp_summary,
                 "predictors": preds_cleaned,
-                #"var_labels": {k: pretty_fn(k) for k in preds_raw},
             }
         )
 
