@@ -579,7 +579,6 @@ def main() -> None:
 
         df_comps = df_comps_by_pin.get(pin)
         if df_comps is None or df_comps.empty:
-            #print(f"Warning: No comps found for PIN {pin}, skipping.")
             continue
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
