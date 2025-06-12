@@ -349,12 +349,12 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
             if c not in {"loc_latitude", "loc_longitude"}
         }))
         # Format $ columns
-        .pipe(lambda d: d.assign(**{
-            c: label_dollar(d[c])
-            for c in d.columns
-            if c == "acs5_median_household_renter_occupied_gross_rent"
-            or c.startswith("acs5_median_income")
-        }))
+            .pipe(lambda d: d.assign(**{
+                c: label_dollar(d[c])
+                for c in d.columns
+                if c == "acs5_median_household_renter_occupied_gross_rent"
+                or c.startswith("acs5_median_income")
+            }))
     )
 
 
