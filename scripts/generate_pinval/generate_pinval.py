@@ -334,8 +334,8 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
-    print("🩻  format_df → incoming shape:", df.shape)
-    print("🩻  format_df → columns:", ",".join(df.columns))
+    print("format_df → incoming shape:", df.shape)
+    print("format_df → columns:", ",".join(df.columns))
     return (
         df
         # Formate percentage columns
