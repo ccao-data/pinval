@@ -194,7 +194,7 @@ jobs:
           REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
           aws s3 sync "$LOCAL" "$REMOTE" \
             --no-progress \
-            --exclude '*' --include '*.html'
+            --include '*.html'
 
 ###############################################################################
 # Generate PINVAL reports for an explicit PIN list
@@ -281,7 +281,7 @@ jobs:
           REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
           aws s3 sync "$LOCAL" "$REMOTE" \
             --no-progress \
-            --exclude '*' --include '*.html'
+            --include '*.html'
 
 ###############################################################################
 # SNS Job
