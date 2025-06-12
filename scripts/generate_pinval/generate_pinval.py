@@ -336,8 +336,8 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     return (
-        print("🩻  format_df → incoming shape:", df.shape)
-        print("🩻  format_df → columns:", ",".join(df.columns))
+        print("🩻  format_df → incoming shape:", df.shape),
+        print("🩻  format_df → columns:", ",".join(df.columns)),
         df
         # Formate percentage columns
         .pipe(lambda d: d.assign(**{
