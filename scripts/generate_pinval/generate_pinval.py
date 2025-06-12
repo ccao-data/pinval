@@ -334,8 +334,6 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
-    print("format_df → incoming shape:", df.shape)
-    print("format_df → columns:", ",".join(df.columns))
     return (
         df
         # Formate percentage columns
@@ -487,9 +485,6 @@ def main() -> None:
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
-    print("\n--- assessment_sql template ---")
-    print(assessment_sql)
-    print("params_assessment =", params_assessment, "\n")
     print("Querying data from Athena ...")
     df_assessment_all = format_df(run_athena_query(cursor, assessment_sql, params_assessment))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
