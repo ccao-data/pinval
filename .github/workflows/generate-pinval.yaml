@@ -178,14 +178,32 @@ jobs:
           TRIAD: ${{ inputs.triad_name }}
           PINS_RAW: ${{ inputs.pins }}
         run: |
+          set -euo pipefail
           source scripts/generate_pinval/.venv/bin/activate
-          # Convert comma‑separated list to space‑separated words (preserves empty string when none supplied)
-          IFS=',' read -ra PINS <<< "$PINS_RAW"
-          python3 scripts/generate_pinval/generate_pinval.py \
-            --run-id "$RUN_ID" \
-            --triad "$TRIAD" \
-            --township "$TOWNSHIP" \
-            --pin "${PINS[@]}"
+
+          declare -a ARGS=(--run-id "$RUN_ID")
+
+          if [[ -n "$TRIAD" ]]; then
+            ARGS+=(--triad "$TRIAD")
+          fi
+
+          if [[ -n "$TOWNSHIP" ]]; then
+            ARGS+=(--township "$TOWNSHIP")
+          fi
+
+          # Convert comma-separated input into an array, stripping blanks
+          IFS=',' read -ra PINS_ARR <<< "$PINS_RAW"
+          CLEAN_PINS=()
+          for p in "${PINS_ARR[@]:-}"; do
+            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
+          done
+
+          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
+            ARGS+=(--pin "${CLEAN_PINS[@]}")
+          fi
+
+          echo "Running generate_pinval.py with: ${ARGS[*]}"
+          python3 scripts/generate_pinval/generate_pinval.py "${ARGS[@]}"
 
       - name: Resolve target S3 bucket
         id: bucket
