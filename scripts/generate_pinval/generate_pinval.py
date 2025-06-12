@@ -351,10 +351,9 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
         # Format $ columns
         .pipe(lambda d: d.assign(**{
             c: label_dollar(d[c])
-            for c in (
-                ['acs5_median_household_renter_occupied_gross_rent'] +
-                [c for c in d.columns if c.startswith('acs5_median_income')]
-            )
+            for c in d.columns
+            if c == "acs5_median_household_renter_occupied_gross_rent"
+            or c.startswith("acs5_median_income")
         }))
     )
 
