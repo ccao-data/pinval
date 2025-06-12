@@ -21,7 +21,7 @@ on:
       pins:
         type: string
         description: >
-          One or more comma-separated Cook County PINs. Leave blank if you are
+          One or more comma‑separated Cook County PINs. Leave blank if you are
           supplying a triad instead.
         required: false
         default: ""
@@ -44,10 +44,9 @@ env:
 
 jobs:
 ###############################################################################
-# Discover township codes when triad mode is requested
+# Setup
 ###############################################################################
   list-townships:
-    if: ${{ inputs.triad_name != '' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -73,28 +72,35 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyathena pandas
 
-      - name: Collect township codes from Athena
+      - name: Collect township codes (or fallback)
         id: set-matrix
         env:
           RUN_ID: ${{ inputs.run_id }}
           TRIAD: ${{ inputs.triad_name }}
         run: |
           python - <<'PY'
-          import json, os
+          import json, os, sys
           from pyathena import connect
 
           run_id = os.environ["RUN_ID"]
-          triad  = os.environ["TRIAD"].lower()
+          triad  = os.environ["TRIAD"].strip().lower()
 
-          sql = f"""
-            SELECT DISTINCT meta_township_code
-            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
-            WHERE run_id = '{run_id}'
-              AND assessment_triad = '{triad}'
-            ORDER BY meta_township_code
-          """
+          # Defaults to a single empty shard if no triad is specified
+          codes = [""]
 
-          codes = [row[0] for row in connect(region_name="us-east-1").cursor().execute(sql)]
+          if triad:
+              sql = f"""
+                SELECT DISTINCT meta_township_code
+                FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
+                WHERE run_id = '{run_id}'
+                  AND assessment_triad = '{triad}'
+                ORDER BY meta_township_code
+              """
+              try:
+                  codes = [row[0] for row in connect(region_name="us-east-1").cursor().execute(sql)] or [""]
+              except Exception as exc:
+                  print(f"Warning: Athena query failed – falling back to single empty shard.\n{exc}", file=sys.stderr)
+
           matrix = json.dumps({"township": codes})
           count  = len(codes)
           print(f"matrix={matrix}")
@@ -105,10 +111,9 @@ jobs:
           PY
 
 ###############################################################################
-# Generate PINVAL reports in parallel – one runner per township shard
+# Generate PINVAL reports for a triad or explicit PINs
 ###############################################################################
-  generate-pinval-triad:
-    if: ${{ inputs.triad_name != '' }}
+  generate-pinval:
     needs: list-townships
     runs-on: ubuntu-latest
     strategy:
@@ -167,99 +172,19 @@ jobs:
       - name: Install Hugo
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      - name: Generate PINVAL reports (triad shard)
-        run: |
-          source scripts/generate_pinval/.venv/bin/activate
-          python3 scripts/generate_pinval/generate_pinval.py \
-            --run-id "${{ inputs.run_id }}" \
-            --triad "${{ inputs.triad_name }}" \
-            --township "$TOWNSHIP"
-
-      - name: Resolve target S3 bucket
-        id: bucket
-        run: |
-          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Sync shard to S3
+      - name: Generate PINVAL reports (triad shard or explicit PINs)
         env:
-          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
-        run: |
-          RUN_ID="${{ inputs.run_id }}"
-          YEAR="${RUN_ID:0:4}"
-          LOCAL="hugo/public/${YEAR}/"
-          REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
-          aws s3 sync "$LOCAL" "$REMOTE" \
-            --no-progress \
-            --include '*.html'
-
-###############################################################################
-# Generate PINVAL reports for an explicit PIN list
-###############################################################################
-  generate-pinval-pins:
-    if: ${{ inputs.triad_name == '' }}
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Mask sensitive information
-        run: echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          cache-dependency-glob: uv.lock
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: scripts/generate_pinval/.python-version
-
-      - name: Create uv virtual environment
-        run: uv venv
-        working-directory: scripts/generate_pinval
-
-      - name: Install Python requirements
-        run: uv pip install .
-        working-directory: scripts/generate_pinval
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
-          aws-region: us-east-1
-
-      - name: Cache Hugo package
-        id: cache-hugo
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/hugo.deb
-          key: hugo-deb-${{ env.HUGO_VERSION }}
-
-      - name: Download Hugo
-        if: steps.cache-hugo.outputs.cache-hit != 'true'
-        run: |
-          wget -O ${{ runner.temp }}/hugo.deb \
-            https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb
-
-      - name: Install Hugo
-        run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
-
-      - name: Generate PINVAL reports (explicit PINs)
+          RUN_ID: ${{ inputs.run_id }}
+          TRIAD: ${{ inputs.triad_name }}
+          PINS_RAW: ${{ inputs.pins }}
         run: |
           source scripts/generate_pinval/.venv/bin/activate
-          # Turn comma‑separated list into space‑separated shell words
-          IFS=',' read -ra PINS <<< "${{ inputs.pins }}"
+          # Convert comma‑separated list to space‑separated words (preserves empty string when none supplied)
+          IFS=',' read -ra PINS <<< "$PINS_RAW"
           python3 scripts/generate_pinval/generate_pinval.py \
-            --run-id "${{ inputs.run_id }}" \
+            --run-id "$RUN_ID" \
+            --triad "$TRIAD" \
+            --township "$TOWNSHIP" \
             --pin "${PINS[@]}"
 
       - name: Resolve target S3 bucket
@@ -271,9 +196,9 @@ jobs:
             echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Sync to S3
+      - name: Sync reports to S3
         env:
-         TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
+          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
         run: |
           RUN_ID="${{ inputs.run_id }}"
           YEAR="${RUN_ID:0:4}"
@@ -287,9 +212,8 @@ jobs:
 # SNS Job
 ###############################################################################
   notify:
-    needs: [generate-pinval-triad, generate-pinval-pins]
-    if: ${{ always() && (needs.generate-pinval-triad.result == 'success' ||
-                      needs.generate-pinval-pins.result  == 'success') }}
+    needs: generate-pinval
+    if: ${{ always() && needs.generate-pinval.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -312,9 +236,9 @@ jobs:
           URL_BASE_DEV: ${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}
           URL_BASE_PROD: ${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}
         run: |
-          URL_BASE="${URL_BASE_DEV}"
-          if [[ "${ENV_LABEL}" == 'Production bucket' ]]; then
-            URL_BASE="${URL_BASE_PROD}"
+          URL_BASE="$URL_BASE_DEV"
+          if [[ "$ENV_LABEL" == 'Production bucket' ]]; then
+            URL_BASE="$URL_BASE_PROD"
           fi
           SUBJECT="PINVAL reports ready for run-id $RUN_ID"
           MESSAGE=$(cat <<EOF
