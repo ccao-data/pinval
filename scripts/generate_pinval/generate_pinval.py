@@ -132,7 +132,7 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
-    pretty_fn: Callable[[str], str],
+    var_labels: dict[str, str],
 ) -> dict:
     """
     Assemble the front-matter dict for **one PIN**.
@@ -239,6 +239,8 @@ def build_front_matter(
                         "municipality": card_df.get("meta_municipality"),
                         "township": card_df["meta_township_code"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
+                        "loc_school_elementary_district_name": card_df.get("loc_school_elementary_district_name"),
+                        "loc_school_secondary_district_name": card_df.get("loc_school_secondary_district_name"),
                         "loc_latitude": float(card_df["loc_latitude"]),
                         "loc_longitude": float(card_df["loc_longitude"]),
                     }.items()
