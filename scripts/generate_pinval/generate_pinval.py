@@ -132,7 +132,7 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
-    var_labels: dict[str, str],
+    pretty_fn: Callable[[str], str],
 ) -> dict:
     """
     Assemble the front-matter dict for **one PIN**.
