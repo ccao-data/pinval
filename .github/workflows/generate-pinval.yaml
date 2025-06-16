@@ -96,10 +96,7 @@ jobs:
                   AND assessment_triad = '{triad}'
                 ORDER BY meta_township_code
               """
-              try:
-                  codes = [row[0] for row in connect(region_name="us-east-1").cursor().execute(sql)] or [""]
-              except Exception as exc:
-                  print(f"Warning: Athena query failed – falling back to single empty shard.\n{exc}", file=sys.stderr)
+              codes = [row[0] for row in connect(region_name="us-east-1").cursor().execute(sql)]
 
           matrix = json.dumps({"township": codes})
           count  = len(codes)
