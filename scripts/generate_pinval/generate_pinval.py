@@ -236,7 +236,7 @@ def build_front_matter(
                     k: v
                     for k, v in {
                         "property_address": card_df["property_address"],
-                        "municipality": card_df.get("meta_municipality"),
+                        "municipality": card_df.get("tax_municipality_name"),
                         "township": card_df["meta_township_code"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
                         "loc_school_elementary_district_name": card_df.get("school_elementary_district_name"),
@@ -268,7 +268,7 @@ def build_front_matter(
     return front
 
 
-def convert_to_builtin_types(obj):
+def convert_to_builtin_types(obj) -> object:
     """
     Recursively convert numpy types to native Python types in a nested structure.
     This is so the frontmatter doesn't through data type errors when being passed
@@ -279,6 +279,15 @@ def convert_to_builtin_types(obj):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_builtin_types(v) for v in obj]
+    elif isinstance(obj, np.ndarray):
+        if obj.size == 1:
+            # Collapse 1-element arrays to their scalar value,
+            # this is currently here because of municipality
+            # behaviour in vw_pin10_location
+            return convert_to_builtin_types(obj.item())
+        else:
+            # keep multi-element arrays as lists
+            return [convert_to_builtin_types(v) for v in obj.tolist()]
     elif obj is pd.NA:          # pandas NA scalar
         return ""
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
