@@ -520,23 +520,33 @@ def main() -> None:
           ON comp.pin = card.meta_pin
         WHERE {where_comps}
     """
-    print("\n>>> Comps query (with placeholders):")
-    print(comps_sql.strip())
-    print(">>> Comps parameters:")
-    for k, v in params_comps.items():
-        print(f"    {k} = {v}")
-    print(">>> Executing comps query …")
-    start_q = time.time()
+
 
     params_comps = {
         "run_id_comps": comps_run_id,
         "run_id_assess": args.run_id,
         **{k: v for k, v in params_assessment.items() if k != "run_id"},
     }
+    # ────DEBUG STATEMENTS ────────────────────────────────────────
+    print("\n>>> Comps query (with placeholders):")
+    print(comps_sql.strip())
+    print(">>> Comps parameters:")
+    for k, v in params_comps.items():
+        print(f"    {k} = {v}")
+
+    # Try to render a fully-formatted preview of the SQL
+    try:
+        sql_preview = comps_sql % params_comps
+        print("\n>>> Comps query (values substituted ‒ preview):")
+        print(sql_preview.strip())
+    except Exception as exc:
+        print(f"(Couldn’t interpolate preview: {exc})")
+
+    print(">>> Executing comps query …")
+    start_q = time.time()
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
     print(f">>> Comps query finished in {time.time() - start_q:.2f}s")
-
     df_comps_all = format_df(convert_dtypes(df_comps_all))
 
     print("Shape of df_comps_all:", df_comps_all.shape)
