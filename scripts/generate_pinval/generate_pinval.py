@@ -520,6 +520,13 @@ def main() -> None:
           ON comp.pin = card.meta_pin
         WHERE {where_comps}
     """
+    print("\n>>> Comps query (with placeholders):")
+    print(comps_sql.strip())
+    print(">>> Comps parameters:")
+    for k, v in params_comps.items():
+        print(f"    {k} = {v}")
+    print(">>> Executing comps query …")
+    start_q = time.time()
 
     params_comps = {
         "run_id_comps": comps_run_id,
@@ -528,6 +535,7 @@ def main() -> None:
     }
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
+    print(f">>> Comps query finished in {time.time() - start_q:.2f}s")
 
     df_comps_all = format_df(convert_dtypes(df_comps_all))
 
