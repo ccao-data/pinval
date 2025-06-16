@@ -501,6 +501,25 @@ def main() -> None:
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
+
+
+    print("\n>>> Assessment query (with placeholders):")
+    print(assessment_sql.strip())
+    print(">>> Assessment parameters:")
+    for k, v in params_assessment.items():
+        print(f"    {k} = {v}")
+
+    try:
+        assess_preview = assessment_sql % params_assessment
+        print("\n>>> Assessment query (values substituted ‒ preview):")
+        print(assess_preview.strip())
+    except Exception as exc:
+        print(f"(Couldn’t interpolate preview: {exc})")
+
+
+
+
+
     print("Querying data from Athena ...")
     df_assessment_all = format_df(run_athena_query(cursor, assessment_sql, params_assessment))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
