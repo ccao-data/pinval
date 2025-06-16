@@ -502,24 +502,6 @@ def main() -> None:
         WHERE {where_assessment}
     """
 
-
-    print("\n>>> Assessment query (with placeholders):")
-    print(assessment_sql.strip())
-    print(">>> Assessment parameters:")
-    for k, v in params_assessment.items():
-        print(f"    {k} = {v}")
-
-    try:
-        assess_preview = assessment_sql % params_assessment
-        print("\n>>> Assessment query (values substituted ‒ preview):")
-        print(assess_preview.strip())
-    except Exception as exc:
-        print(f"(Couldn’t interpolate preview: {exc})")
-
-
-
-
-
     print("Querying data from Athena ...")
     df_assessment_all = format_df(run_athena_query(cursor, assessment_sql, params_assessment))
     print("Shape of df_assessment_all:", df_assessment_all.shape)
@@ -558,26 +540,13 @@ def main() -> None:
         "run_id_assess": args.run_id,
         **{k: v for k, v in params_assessment.items() if k not in {"run_id"}},
     }
-    # ────DEBUG STATEMENTS ────────────────────────────────────────
-    print("\n>>> Comps query (with placeholders):")
-    print(comps_sql.strip())
-    print(">>> Comps parameters:")
-    for k, v in params_comps.items():
-        print(f"    {k} = {v}")
 
-    # Try to render a fully-formatted preview of the SQL
-    try:
-        sql_preview = comps_sql % params_comps
-        print("\n>>> Comps query (values substituted ‒ preview):")
-        print(sql_preview.strip())
-    except Exception as exc:
-        print(f"(Couldn’t interpolate preview: {exc})")
 
-    print(">>> Executing comps query …")
+    print("Executing comps query …")
     start_q = time.time()
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
-    print(f">>> Comps query finished in {time.time() - start_q:.2f}s")
+    print(f"Comps query finished in {time.time() - start_q:.2f}s")
     df_comps_all = format_df(convert_dtypes(df_comps_all))
 
     print("Shape of df_comps_all:", df_comps_all.shape)
