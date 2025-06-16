@@ -265,6 +265,7 @@ def build_front_matter(
             }
         )
 
+    _format_dict_numbers(front, exclude_keys={"loc_latitude", "loc_longitude", "char_yrblt"})
     return front
 
 
@@ -366,6 +367,41 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
                 or c.startswith("acs5_median_income")
             }))
     )
+
+
+def _format_numeric(val):
+    """
+    123456  -> '123,456'
+    1234.5  -> '1,234.5'
+    42.0000 -> '42'
+    Anything non-numeric is returned unchanged.
+    """
+    if isinstance(val, (int, np.integer)):
+        return f"{val:,}"
+    if isinstance(val, (float, np.floating)):
+        txt = f"{val:,.2f}".rstrip("0").rstrip(".")
+        return txt
+    return val
+
+
+def _format_dict_numbers(obj, exclude_keys: set[str] = None):
+    """
+    Recursively walk a mapping / sequence and replace every numeric leaf
+    with its comma-separated string form.
+    """
+    exclude_keys = exclude_keys or set()
+
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in exclude_keys:
+                continue
+            obj[k] = _format_dict_numbers(v, exclude_keys)
+        return obj
+
+    if isinstance(obj, list):
+        return [_format_dict_numbers(v, exclude_keys) for v in obj]
+
+    return _format_numeric(obj)
 
 
 def prune_pins_without_valid_comps(
