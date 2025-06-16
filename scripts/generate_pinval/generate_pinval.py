@@ -472,14 +472,10 @@ def main() -> None:
     ).cursor(unload=True)
 
     if args.triad:
-        where_assessment = (
-            "run_id = %(run_id)s AND assessment_triad = %(triad)s " +
-            ("AND meta_township_code = %(township)s" if args.township else "")
-        )
+        where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
         params_assessment = {
             "run_id": args.run_id,
             "triad": args.triad.lower(),
-            "township": args.township,
         }
     else:
         pins: list[str] = list(set(args.pin)) # de-dupe
@@ -505,31 +501,31 @@ def main() -> None:
             "No assessment rows returned for the given parameters"
         )
 
-    # Get the comps for all the pins
+    # Get the comps
     comps_run_id = RUN_ID_MAP[args.run_id]
 
-    if args.triad:
-        where_comps = (
-            "run_id = %(run_id)s AND assessment_triad = %(triad)s " +
-            ("AND meta_township_code = %(township)s" if args.township else "")
-        )
-        params_comps = {
-            "run_id": comps_run_id,
-            "triad": args.triad.lower(),
-            "township": args.township,
-        }
-    else:
-        all_pins = list(set(df_assessment_all["meta_pin"]))  # de-dupe
-        pin_params = {f"pin{i}": p for i, p in enumerate(all_pins)}
-        placeholders = ",".join(f"%({k})s" for k in pin_params)
-        where_comps = f"run_id = %(run_id)s AND pin IN ({placeholders})"
-        params_comps = {"run_id": comps_run_id, **pin_params}
+    where_comps = "comp.run_id = %(run_id_comps)s"
+
+    where_assessment_join = where_assessment.replace("%(run_id)s",
+                                                     "%(run_id_assess)s")
 
     comps_sql = f"""
-        SELECT *
-        FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp
+        SELECT comp.*
+        FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp AS comp
+        INNER JOIN (
+            SELECT DISTINCT meta_pin
+            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
+            WHERE {where_assessment_join}
+        ) AS card
+          ON comp.pin = card.meta_pin
         WHERE {where_comps}
     """
+
+    params_comps = {
+        "run_id_comps": comps_run_id,
+        "run_id_assess": args.run_id,
+        **{k: v for k, v in params_assessment.items() if k != "run_id"},
+    }
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
 
