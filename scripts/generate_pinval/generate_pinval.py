@@ -514,33 +514,22 @@ def main() -> None:
     # Get the comps
     comps_run_id = RUN_ID_MAP[args.run_id]
 
-    join_clauses = ["run_id = %(run_id_assess)s"]
-    if args.triad:
-        join_clauses.append("assessment_triad = %(triad)s")
-    if args.township:
-        join_clauses.append("meta_township_code = %(township)s")
-
-    where_assessment_join = " AND ".join(join_clauses)
-
     comps_sql = f"""
         SELECT comp.*
         FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT meta_pin
             FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
-            WHERE {where_assessment_join}
+            WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.meta_pin
         WHERE comp.run_id = %(run_id_comps)s
     """
 
-
     params_comps = {
         "run_id_comps": comps_run_id,
-        "run_id_assess": args.run_id,
-        **{k: v for k, v in params_assessment.items() if k not in {"run_id"}},
+        **params_assessment,
     }
-
 
     print("Executing comps query …")
     start_q = time.time()
