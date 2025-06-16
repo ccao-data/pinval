@@ -613,6 +613,10 @@ def main() -> None:
     df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("meta_pin")))
     df_comps_by_pin = dict(tuple(df_comps_all.groupby("pin")))
     end_time_dict_groupby = time.time()
+
+    del df_assessment_all
+    del df_comps_all
+    gc.collect()
     print(f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds")
 
     # Remove PINs that have no comps at all, or where no card matches any comp,
@@ -660,8 +664,6 @@ def main() -> None:
         # Clean up memory before running Hugo, this prevents github runners
         # from running out of memory
         for _v in (
-            df_assessment_all,
-            df_comps_all,
             df_assessments_by_pin,
             df_comps_by_pin,
         ):
