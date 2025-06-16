@@ -535,6 +535,8 @@ def main() -> None:
     join_clauses = ["run_id = %(run_id_assess)s"]
     if args.triad:
         join_clauses.append("assessment_triad = %(triad)s")
+    if args.township:
+        join_clauses.append("meta_township_code = %(township)s")
 
     where_assessment_join = " AND ".join(join_clauses)
 
@@ -554,7 +556,7 @@ def main() -> None:
     params_comps = {
         "run_id_comps": comps_run_id,
         "run_id_assess": args.run_id,
-        **{k: v for k, v in params_assessment.items() if k not in {"run_id", "township"}},
+        **{k: v for k, v in params_assessment.items() if k not in {"run_id"}},
     }
     # ────DEBUG STATEMENTS ────────────────────────────────────────
     print("\n>>> Comps query (with placeholders):")
