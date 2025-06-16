@@ -404,84 +404,6 @@ def _format_dict_numbers(obj, exclude_keys: set[str] = None):
     return _format_numeric(obj)
 
 
-def prune_pins_without_valid_comps(
-    df_assessments_by_pin: Dict[str, pd.DataFrame],
-    df_comps_by_pin: Dict[str, pd.DataFrame],
-) -> Tuple[
-    Dict[str, pd.DataFrame],
-    Dict[str, pd.DataFrame]
-]:
-    """
-    Return dictionaries that contain only PINs with at least one valid card / comp
-    match
-
-    - The function walks through two filters:
-        1. Drop PINs with *zero* comps.
-        2. Drop PINs where none of their assessment cards overlap any comp cards.
-    """
-    print("------- Handling PINs without valid comps -------")
-    total_pins = len(df_assessments_by_pin)
-    pins_with_comps = set(df_comps_by_pin.keys())
-    pins_with_assessments = set(df_assessments_by_pin.keys())
-
-    # Drop PINs that have no comps at all
-    pins_no_comps = pins_with_assessments - pins_with_comps
-    after_step1_assess = {
-        pin: df for pin, df in df_assessments_by_pin.items() if pin not in pins_no_comps
-    }
-    after_step1_comps = {
-        pin: df for pin, df in df_comps_by_pin.items() if pin in after_step1_assess
-    }
-    removed_no_comps = len(pins_no_comps)
-    print(
-        f"Removed {removed_no_comps} PINs without any comps "
-        f"out of {total_pins} total ({removed_no_comps/total_pins:.2%})"
-    )
-
-    # Drop PINs whose cards never match a comp’s card
-    pins_to_remove_no_card_comps = []
-    total_card_nans = 0
-    total_comp_card_nans = 0
-
-    for pin, df_target in after_step1_assess.items():
-        # Track NaNs in assessment cards
-        card_nums_series = df_target["meta_card_num"]
-        total_card_nans += card_nums_series.isna().sum()
-        card_nums = card_nums_series.dropna().unique()
-
-        df_comps = after_step1_comps.get(pin)
-        if df_comps is None or df_comps.empty:
-            pins_to_remove_no_card_comps.append(pin)
-            continue
-
-        # Track NaNs in comp cards
-        comp_card_series = df_comps["card"]
-        total_comp_card_nans += comp_card_series.isna().sum()
-        card_nums_with_comps = comp_card_series.dropna().unique()
-
-        if not np.intersect1d(card_nums, card_nums_with_comps).size:
-            pins_to_remove_no_card_comps.append(pin)
-
-    cleaned_assessments = {
-        pin: df for pin, df in after_step1_assess.items()
-        if pin not in pins_to_remove_no_card_comps
-    }
-    cleaned_comps = {
-        pin: df for pin, df in after_step1_comps.items()
-        if pin not in pins_to_remove_no_card_comps
-    }
-    removed_no_card_comps = len(pins_to_remove_no_card_comps)
-
-    print(
-        f"Removed {removed_no_card_comps} PINs where no card had matching comps "
-        f"out of {total_pins} total ({removed_no_card_comps/total_pins:.2%})"
-    )
-    print(
-        f"Filtered out {total_card_nans} NaN meta_card_num values and "
-        f"{total_comp_card_nans} NaN comp card values during matching."
-    )
-
-    return cleaned_assessments, cleaned_comps
 
 
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
@@ -613,13 +535,6 @@ def main() -> None:
     gc.collect()
     print(f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds")
 
-    # Remove PINs that have no comps at all, or where no card matches any comp,
-    # or where cards are NAs
-    df_assessments_by_pin, df_comps_by_pin = prune_pins_without_valid_comps(
-        df_assessments_by_pin,
-        df_comps_by_pin,
-    )
-
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
@@ -631,16 +546,10 @@ def main() -> None:
         md_path = md_outdir / f"{pin}.md"
 
         df_comps = df_comps_by_pin.get(pin)
-        if df_comps is None or df_comps.empty:
-            continue
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
         year = args.run_id[:4]
         front["url"] = f"/{year}/{pin}.html"
-
-        if not front["cards"]:
-            # No comps matched any card – don’t output an empty report
-            continue
 
         year = args.run_id[:4]
         front["url"] = f"/{year}/{pin}.html"
