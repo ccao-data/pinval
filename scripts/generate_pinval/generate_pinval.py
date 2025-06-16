@@ -472,11 +472,20 @@ def main() -> None:
     ).cursor(unload=True)
 
     if args.triad:
-        where_assessment = "run_id = %(run_id)s AND assessment_triad = %(triad)s"
-        params_assessment = {
+        assessment_clauses: list[str] = [
+            "run_id = %(run_id)s",
+            "assessment_triad = %(triad)s",
+        ]
+        params_assessment: dict[str, str] = {
             "run_id": args.run_id,
             "triad": args.triad.lower(),
         }
+        # Shard by township **only** in the assessment query
+        if args.township:
+            assessment_clauses.append("meta_township_code = %(township)s")
+            params_assessment["township"] = args.township
+
+        where_assessment = " AND ".join(assessment_clauses)
     else:
         pins: list[str] = list(set(args.pin)) # de-dupe
         pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
@@ -504,10 +513,11 @@ def main() -> None:
     # Get the comps
     comps_run_id = RUN_ID_MAP[args.run_id]
 
-    where_comps = "comp.run_id = %(run_id_comps)s"
+    join_clauses = ["run_id = %(run_id_assess)s"]
+    if args.triad:
+        join_clauses.append("assessment_triad = %(triad)s")
 
-    where_assessment_join = where_assessment.replace("%(run_id)s",
-                                                     "%(run_id_assess)s")
+    where_assessment_join = " AND ".join(join_clauses)
 
     comps_sql = f"""
         SELECT comp.*
@@ -518,14 +528,14 @@ def main() -> None:
             WHERE {where_assessment_join}
         ) AS card
           ON comp.pin = card.meta_pin
-        WHERE {where_comps}
+        WHERE comp.run_id = %(run_id_comps)s
     """
 
 
     params_comps = {
         "run_id_comps": comps_run_id,
         "run_id_assess": args.run_id,
-        **{k: v for k, v in params_assessment.items() if k != "run_id"},
+        **{k: v for k, v in params_assessment.items() if k not in {"run_id", "township"}},
     }
     # ────DEBUG STATEMENTS ────────────────────────────────────────
     print("\n>>> Comps query (with placeholders):")
