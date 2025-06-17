@@ -548,9 +548,6 @@ def main() -> None:
         year = args.run_id[:4]
         front["url"] = f"/{year}/{pin}.html"
 
-        year = args.run_id[:4]
-        front["url"] = f"/{year}/{pin}.html"
-
         write_json(front, md_path)
 
     elapsed_time = time.time() - start_time
