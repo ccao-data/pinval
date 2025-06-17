@@ -55,8 +55,10 @@ installed on your machine.
 > While the Data team often does work on the server, you should do Hugo
 > development on your laptop in order to run the development site. Hugo
 > installation is easiest using WSL, where you can install it by running
-> `sudo snap install hugo` and entering your WSL user password (most likely
-> the first password you ever set on your laptop, if you haven't changed it).
+> `sudo snap install hugo` and entering your WSL user password. Your WSL
+> password will most likely be different from your laptop password; if
+> you're having trouble authenticating, reach out to a senior staff member
+> for help.
 
 1. Ensure that Hugo is installed correctly by running `hugo version`.
 2. Navigate to the `hugo/` subdirectory and run the development server:
