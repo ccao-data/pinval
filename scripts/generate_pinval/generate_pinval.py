@@ -453,7 +453,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
+        FROM pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
@@ -471,10 +471,10 @@ def main() -> None:
 
     comps_sql = f"""
         SELECT comp.*
-        FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_comp AS comp
+        FROM pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT meta_pin
-            FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
+            FROM pinval.vw_assessment_card
             WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.meta_pin
