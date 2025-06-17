@@ -1,0 +1,18 @@
+[project]
+name = "generate-pinval"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.2.6",
+    "orjson>=3.10.18",
+    "pandas>=2.2.3",
+    "pyathena>=3.13.0",
+    "ccao @ git+https://github.com/ccao-data/ccao@e97bab236d9cbf3035b3c06ec735d016a693cae2#subdirectory=python",
+    "pyarrow>=20.0.0",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
