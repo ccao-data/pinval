@@ -51,7 +51,7 @@ quarto render pinval.qmd --to html -o pinval.html
 This project expects that you have the [Hugo CLI](https://gohugo.io/installation/)
 installed on your machine.
 
-> [!INFO]
+> [!NOTE]
 > While the Data team often does work on the server, you should do Hugo
 > development on your laptop in order to run the development site. Hugo
 > installation is easiest using WSL, where you can install it by running
