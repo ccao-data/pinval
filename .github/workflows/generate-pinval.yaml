@@ -91,7 +91,7 @@ jobs:
           if triad:
               sql = f"""
                 SELECT DISTINCT meta_township_code
-                FROM z_ci_811_improve_pinval_models_for_hugo_frontmatter_integration_pinval.vw_assessment_card
+                FROM pinval.vw_assessment_card
                 WHERE run_id = '{run_id}'
                   AND assessment_triad = '{triad}'
                 ORDER BY meta_township_code
