@@ -261,7 +261,14 @@ def build_front_matter(
         )
 
     _format_dict_numbers(
-        front, exclude_keys={"loc_latitude", "loc_longitude", "char_yrblt"}
+        front,
+        exclude_keys={
+            "loc_latitude",
+            "loc_longitude",
+            "char_yrblt",
+            "has_subject_pin_sale",
+            "is_subject_pin_sale",
+        },
     )
     return front
 
