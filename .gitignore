@@ -30,3 +30,4 @@ scratch*.*
 
 # Python files
 *.pyc
+*.egg-info/
