@@ -38,6 +38,7 @@ on:
 
 env:
   PYTHONUNBUFFERED: "1"
+  UV_SYSTEM_PYTHON: 1
   AWS_REGION: us-east-1
   AWS_ATHENA_S3_STAGING_DIR: s3://ccao-athena-results-us-east-1/
   HUGO_VERSION: "0.147.5"
@@ -71,10 +72,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version-file: scripts/generate_pinval/.python-version
-
-      - name: Create uv virtual environment
-        run: uv venv
-        working-directory: scripts/generate_pinval
 
       - name: Install Python requirements
         run: uv pip install .
@@ -126,10 +123,6 @@ jobs:
         with:
           python-version-file: scripts/generate_pinval/.python-version
 
-      - name: Create uv virtual environment
-        run: uv venv
-        working-directory: scripts/generate_pinval
-
       - name: Install Python requirements
         run: uv pip install .
         working-directory: scripts/generate_pinval
@@ -163,7 +156,6 @@ jobs:
           PINS_RAW: ${{ inputs.pins }}
         run: |
           set -euo pipefail
-          source scripts/generate_pinval/.venv/bin/activate
 
           declare -a ARGS=(--run-id "$RUN_ID")
 
