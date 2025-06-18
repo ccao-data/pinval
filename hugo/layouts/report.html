@@ -274,12 +274,7 @@
           <th>Characteristic</th>
           <th>{{ if .is_multicard }}Subject card{{ else }}Subject prop.{{ end }}</th>
           {{ range $index, $comp := .card.comps }}
-          <th>
-            Comp {{ $comp.comp_num }}
-            {{ if eq $comp.is_subject_pin_sale "1" }}
-              <span class="asterisk">*</span>
-            {{ end }}
-          </th>
+          <th>Comp {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
           {{ end }}
         </tr>
       </thead>
@@ -321,7 +316,7 @@
     </table>
   </div>
 
-  {{ if eq .card.has_subject_pin_sale "1" }}
+  {{ if .card.has_subject_pin_sale }}
   <p>
     <strong><span class="asterisk">*</span></strong> This is a past sale of your home.
     The model usually considers past sales of a home to be important for its value,
@@ -470,10 +465,11 @@
       let hasSubjectSale = false;
 
       // Check if subject property is also a comp
-      cardData.comps = cardData.comps.map(c => ({
-        ...c,
-        is_subject_pin_sale: String(c.is_subject_pin_sale) === "1"
-      }));
+      cardData.comps.forEach(comp => {
+        if (comp.is_subject_pin_sale) {
+          hasSubjectSale = true;
+        }
+      });
 
       if (!hasSubjectSale) {
         const propertyLabel = cardData.is_multicard ? "Subject card" : "Subject property";
