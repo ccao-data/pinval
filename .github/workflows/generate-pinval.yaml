@@ -6,30 +6,30 @@ on:
       run_id:
         type: string
         description: >
-          The run-ID of the model run whose comps should be used
+          Run ID: The model run whose comps should be used
         required: true
         default: "2025-02-11-charming-eric"
 
       triad_name:
         type: string
         description: >
-          Generate reports for every PIN in this triad (leave blank if you are
-          supplying explicit PINs instead). Options: city, north, south.
+          Triad name: Generate reports for every PIN in this triad. Leave blank if you are
+          supplying PINs instead. Options: city, north, south
         required: false
         default: ""
 
       pins:
         type: string
         description: >
-          One or more comma‑separated Cook County PINs. Leave blank if you are
-          supplying a triad instead.
+          PINs: One or more comma‑separated Cook County PINs. Leave blank if you are
+          supplying a triad instead
         required: false
         default: ""
 
       environment:
         type: choice
         description: >
-          Choose where to upload the reports.
+          Environment: Choose where to upload the reports
         options:
           - Development bucket
           - Production bucket
@@ -171,7 +171,7 @@ jobs:
           fi
 
           echo "Running generate_pinval.py with: ${ARGS[*]}"
-          python3 scripts/generate_pinval/generate_pinval.py "${ARGS[@]}"
+          python3 scripts/generate_pinval/generate_pinval.py ${ARGS[@]}"
 
       - name: Resolve target S3 bucket
         id: bucket
