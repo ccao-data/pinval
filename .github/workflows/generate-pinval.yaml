@@ -171,7 +171,7 @@ jobs:
           fi
 
           echo "Running generate_pinval.py with: ${ARGS[*]}"
-          python3 scripts/generate_pinval/generate_pinval.py ${ARGS[@]}"
+          python3 scripts/generate_pinval/generate_pinval.py "${ARGS[@]}"
 
       - name: Resolve target S3 bucket
         id: bucket
