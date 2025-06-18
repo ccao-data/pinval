@@ -1,7 +1,7 @@
 """Constants that are shared between scripts in this module"""
 
-# Valid assessment triads
-TRIAD_CHOICES: tuple[str, ...] = ("city", "north", "south")
+# Valid assessment triads. Empty string disables the triad filter
+TRIAD_CHOICES: tuple[str, ...] = ("city", "north", "south", "")
 
 # Temporary solution for run_id mapping, a problem that occurs when the model run_id
 # differs between the model values and the comps

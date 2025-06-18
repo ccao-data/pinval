@@ -150,25 +150,17 @@ jobs:
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
       - name: Generate PINVAL reports (triad shard or explicit PINs)
-        env:
-          RUN_ID: ${{ inputs.run_id }}
-          TRIAD: ${{ inputs.triad_name }}
-          PINS_RAW: ${{ inputs.pins }}
         run: |
           set -euo pipefail
 
-          declare -a ARGS=(--run-id "$RUN_ID")
-
-          if [[ -n "$TRIAD" ]]; then
-            ARGS+=(--triad "$TRIAD")
-          fi
-
-          if [[ -n "$TOWNSHIP" ]]; then
-            ARGS+=(--township "$TOWNSHIP")
-          fi
+          declare -a ARGS=(
+            --run-id "${{ inputs.run_id }}"
+            --triad "${{ inputs.triad_name }}"
+            --township "$TOWNSHIP"
+          )
 
           # Convert comma-separated input into an array, stripping blanks
-          IFS=',' read -ra PINS_ARR <<< "$PINS_RAW"
+          IFS=',' read -ra PINS_ARR <<< "${{ inputs.pins }}"
           CLEAN_PINS=()
           for p in "${PINS_ARR[@]:-}"; do
             [[ -n "$p" ]] && CLEAN_PINS+=("$p")

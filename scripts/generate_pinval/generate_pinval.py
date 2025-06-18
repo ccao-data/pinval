@@ -3,7 +3,8 @@
 Generate PINVAL report markdown (and optionally HTML) files for a given model
 run‑id. A user may ask for either **one or more explicit PINs** *or* for **all
 PINs that belong to a triad** (city, north, south). Exactly one of the two must
-be supplied.
+be supplied. If the user passes an empty string for either of the --pin or --triad
+arguments, the script will ignore that argument.
 
 Examples
 --------
@@ -88,6 +89,10 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     # ── Validation ────────────────────────────────────────────────────────────
+    if args.pin == [""]:
+        # Cast empty string to null
+        args.pin = None
+
     provided_pin = bool(args.pin)
     provided_triad = bool(args.triad)
 
