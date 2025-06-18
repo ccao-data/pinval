@@ -87,7 +87,7 @@ jobs:
         id: set-matrix
         run: |
           python3 scripts/generate_pinval/list_townships.py \
-            --run_id "${{ inputs.run_id }}" \
+            --run-id "${{ inputs.run_id }}" \
             --triad "${{ inputs.triad_name }}" \
             --write-github-output
 
