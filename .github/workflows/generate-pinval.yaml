@@ -58,54 +58,41 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Mask sensitive information
+        run: echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: scripts/generate_pinval/uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: scripts/generate_pinval/.python-version
+
+      - name: Create uv virtual environment
+        run: uv venv
+        working-directory: scripts/generate_pinval
+
+      - name: Install Python requirements
+        run: uv pip install .
+        working-directory: scripts/generate_pinval
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
 
-      - name: Mask sensitive information
-        run: echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
-
-      - name: Install Python dependencies for discovery
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyathena pandas
-
       - name: Collect township codes (or fallback)
         id: set-matrix
-        env:
-          RUN_ID: ${{ inputs.run_id }}
-          TRIAD: ${{ inputs.triad_name }}
         run: |
-          python - <<'PY'
-          import json, os, sys
-          from pyathena import connect
-
-          run_id = os.environ["RUN_ID"]
-          triad  = os.environ["TRIAD"].strip().lower()
-
-          # Defaults to a single empty shard if no triad is specified
-          codes = [""]
-
-          if triad:
-              sql = f"""
-                SELECT DISTINCT meta_township_code
-                FROM pinval.vw_assessment_card
-                WHERE run_id = '{run_id}'
-                  AND assessment_triad = '{triad}'
-                ORDER BY meta_township_code
-              """
-              codes = [row[0] for row in connect(region_name="us-east-1").cursor().execute(sql)]
-
-          matrix = json.dumps({"township": codes})
-          count  = len(codes)
-          print(f"matrix={matrix}")
-
-          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-              fh.write(f"matrix={matrix}\n")
-              fh.write(f"count={count}\n")
-          PY
+          python3 scripts/generate_pinval/list_townships.py \
+            --run_id "${{ inputs.run_id }}" \
+            --triad "${{ inputs.triad_name }}" \
+            --write-github-output
 
 ###############################################################################
 # Generate PINVAL reports for a triad or explicit PINs
@@ -132,7 +119,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: uv.lock
+          cache-dependency-glob: scripts/generate_pinval/uv.lock
 
       - name: Set up Python
         uses: actions/setup-python@v5

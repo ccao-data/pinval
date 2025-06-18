@@ -8,12 +8,12 @@ be supplied.
 Examples
 --------
 Generate two specific PINs:
-    $ ./scripts/generate_pinval.py \
+    $ python3 generate_pinval.py \
           --run-id 2025-02-11-charming-eric \
           --pin 01011000040000 10112040080000
 
 Generate every PIN in the north triad:
-    $ ./scripts/generate_pinval.py \
+    $ python3 generate_pinval.py \
           --run-id 2025-02-11-charming-eric \
           --triad north
 """
@@ -28,24 +28,19 @@ import time
 import typing
 from pathlib import Path
 
+import ccao
 import numpy as np
 import pandas as pd
 import orjson
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
 
-import ccao
+from constants import RUN_ID_MAP, TRIAD_CHOICES
+
 
 # Argparse interface
 # ─────────────────────────
 # ───────────────────────────────────────────────────
-TRIAD_CHOICES: tuple[str, ...] = ("city", "north", "south")
-
-# Temporary solution for run_id mapping, a problem that occurs when the model run_id
-# differs between the model values and the comps
-RUN_ID_MAP = {"2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"}
-
-
 def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation."""
 
