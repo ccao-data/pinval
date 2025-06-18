@@ -4,19 +4,17 @@ List township codes for a specific triad and model run ID.
 
 Examples
 --------
-
-Print an array of township codes:
-    $ python3 list_townhip_codes \
+Print an array of township codes in the North tri for a model run :
+    $ python3 list_townships.py \
         --run-id 2025-02-11-charming-eric \
-        --pin 01011000040000 10112040080000
+        --triad north
 
 Write a matrix of township codes to the GITHUB_OUTPUT env var, for use in a
-workflow:
-    $ python3 list_townhip_codes \
+GitHub workflow:
+    $ python3 list_townships.py \
         --run-id 2025-02-11-charming-eric \
-        --pin 01011000040000 10112040080000 \
+        --triad north \
         --write-github-output
-
 """
 
 import argparse
@@ -42,14 +40,14 @@ def parse_args() -> argparse.Namespace:
         choices=list(
             RUN_ID_MAP.keys()
         ),  # Temporarily limits run_ids to those in the map
-        help="Model run‑ID used by the Athena PINVAL tables (e.g. 2025-02-11-charming-eric)",
+        help="Model run ID (e.g. 2025-02-11-charming-eric)",
     )
 
     parser.add_argument(
         "--triad",
         required=False,
         choices=TRIAD_CHOICES,
-        help="Generate reports for all PINs in this triad (mutually‑exclusive with --pin)",
+        help="List townships in this triad that were reassessed by the model run",
     )
 
     parser.add_argument(
