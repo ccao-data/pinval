@@ -272,7 +272,7 @@
       <thead>
         <tr>
           <th>Characteristic</th>
-          <th>{{ if .is_multicard }}Subject card{{ else }}Subject prop.{{ end }}</th>
+          <th>{{ if .is_multicard }}Subject card{{ else }}Your home{{ end }}</th>
           {{ range $index, $comp := .card.comps }}
           <th>Comp {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
           {{ end }}
@@ -472,7 +472,7 @@
       });
 
       if (!hasSubjectSale) {
-        const propertyLabel = cardData.is_multicard ? "Subject card" : "Subject property";
+        const propertyLabel = cardData.is_multicard ? "Subject card" : "Your home";
         subjectMarker.bindTooltip(
           propertyLabel,
           {
@@ -561,7 +561,7 @@
           <div style="background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);">
             <div style="margin-bottom: 5px;">
               <span style="display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid black; margin-right: 5px;"></span>
-              ${cardData.is_multicard ? "Subject card" : "Subject property"}
+              ${cardData.is_multicard ? "Subject card" : "Your home"}
             </div>
             <div>
               <span style="display: inline-block; width: 13px; height: 13px; border-radius: 50%; background-color: #00cc00; margin-right: 5px;"></span>
