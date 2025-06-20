@@ -156,7 +156,7 @@ def build_front_matter(
 
     front: dict = {
         "layout": "report",
-        "title": "Cook County Assessor's Model Value Report (Experimental)",
+        "title": "Report: How Did the Assessor's Model Estimate My Home Value?",
         "assessment_year": tp["assessment_year"],
         "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime(
             "%B %d, %Y"
@@ -226,12 +226,13 @@ def build_front_matter(
         front["cards"].append(
             {
                 "card_num": int(card_num),
+                "char_class_detailed": card_df["char_class_detailed"],
                 "location": {
                     k: v
                     for k, v in {
                         "property_address": card_df["property_address"],
                         "municipality": card_df.get("loc_tax_municipality_name"),
-                        "township": card_df["meta_township_code"],
+                        "township": card_df["township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
                         "loc_school_elementary_district_name": card_df.get(
                             "school_elementary_district_name"
