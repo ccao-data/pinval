@@ -25,6 +25,7 @@ import os
 import subprocess as sp
 import gc
 import time
+import typing
 from pathlib import Path
 
 import numpy as np
@@ -32,7 +33,6 @@ import pandas as pd
 import orjson
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
-from pyathena.pandas.util import as_pandas
 
 import ccao
 
@@ -43,9 +43,8 @@ TRIAD_CHOICES: tuple[str, ...] = ("city", "north", "south")
 
 # Temporary solution for run_id mapping, a problem that occurs when the model run_id
 # differs between the model values and the comps
-RUN_ID_MAP = {
-    "2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"
-}
+RUN_ID_MAP = {"2025-02-11-charming-eric": "2025-04-25-fancy-free-billy"}
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation."""
@@ -58,7 +57,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-id",
         required=True,
-        choices=list(RUN_ID_MAP.keys()), # Temporarily limits run_ids to those in the map
+        choices=list(
+            RUN_ID_MAP.keys()
+        ),  # Temporarily limits run_ids to those in the map
         help="Model run‑ID used by the Athena PINVAL tables (e.g. 2025-02-11-charming-eric)",
     )
 
@@ -101,6 +102,7 @@ def parse_args() -> argparse.Namespace:
 
     return args
 
+
 # Declare functions
 # ────────────────────────────────────────────────────────────────────────────
 def pin_pretty(raw_pin: str) -> str:
@@ -129,10 +131,11 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 
     return [p.strip() for p in txt.split(",") if p.strip()]
 
+
 def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
-    pretty_fn: Callable[[str], str],
+    pretty_fn: typing.Callable[[str], str],
 ) -> dict:
     """
     Assemble the front-matter dict for **one PIN**.
@@ -155,9 +158,9 @@ def build_front_matter(
         "layout": "report",
         "title": "Report: How Did the Assessor's Model Estimate My Home Value?",
         "assessment_year": tp["assessment_year"],
-        "final_model_run_date": pd.to_datetime(
-            tp["final_model_run_date"]
-        ).strftime("%B %d, %Y"),
+        "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime(
+            "%B %d, %Y"
+        ),
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
@@ -175,15 +178,9 @@ def build_front_matter(
             .reset_index(drop=True)
         )
 
-        # Clean predictor names
-        preds_raw = _clean_predictors(card_df["model_predictor_all_name"])
-        preds_pretty = [pretty_fn(p) for p in preds_raw]
-
         # Add all of the feature columns to the card
         subject_chars = {
-            pred: card_df[pred]
-            for pred in preds_cleaned
-            if pred in card_df
+            pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
 
         # Comps
@@ -195,7 +192,7 @@ def build_front_matter(
                 "pin_pretty": pin_pretty(comp["comp_pin"]),
                 "is_subject_pin_sale": comp["is_subject_pin_sale"],
                 "sale_price": f"${float(comp['meta_sale_price']):,.0f}",
-                "sale_price_short": comp['sale_price_short'],
+                "sale_price_short": comp["sale_price_short"],
                 "sale_price_per_sq_ft": f"${float(comp['sale_price_per_sq_ft']):,.0f}",
                 "sale_date": comp["sale_month_year"],
                 "document_num": comp["comp_document_num"],
@@ -216,11 +213,11 @@ def build_front_matter(
 
         comp_summary = {
             "sale_year_range_prefix": (
-                "between"
-                if " and " in comps_df["sale_year_range"].iloc[0]
-                else "in"
+                "between" if " and " in comps_df["sale_year_range"].iloc[0] else "in"
             ),
-            "sale_year_range": comps_df["sale_year_range"].iloc[0] if not comps_df.empty else "",
+            "sale_year_range": comps_df["sale_year_range"].iloc[0]
+            if not comps_df.empty
+            else "",
             "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
             "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
         }
@@ -237,24 +234,25 @@ def build_front_matter(
                         "municipality": card_df.get("loc_tax_municipality_name"),
                         "township": card_df["township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
-                        "loc_school_elementary_district_name": card_df.get("school_elementary_district_name"),
-                        "loc_school_secondary_district_name": card_df.get("school_secondary_district_name"),
+                        "loc_school_elementary_district_name": card_df.get(
+                            "school_elementary_district_name"
+                        ),
+                        "loc_school_secondary_district_name": card_df.get(
+                            "school_secondary_district_name"
+                        ),
                         "loc_latitude": float(card_df["loc_latitude"]),
                         "loc_longitude": float(card_df["loc_longitude"]),
                     }.items()
                 },
                 "chars": subject_chars,
-                "has_subject_pin_sale": bool(
-                    comps_df["is_subject_pin_sale"].any()
-                ),
+                "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
                 "pred_card_initial_fmv": "${:,.0f}".format(
                     card_df["pred_card_initial_fmv"]
                 ),
                 "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
                     card_df.get(
                         "pred_card_initial_fmv_per_sqft",
-                        card_df["pred_card_initial_fmv"]
-                        / card_df["char_bldg_sf"],
+                        card_df["pred_card_initial_fmv"] / card_df["char_bldg_sf"],
                     )
                 ),
                 "comps": comps_list,
@@ -263,7 +261,9 @@ def build_front_matter(
             }
         )
 
-    _format_dict_numbers(front, exclude_keys={"loc_latitude", "loc_longitude", "char_yrblt"})
+    _format_dict_numbers(
+        front, exclude_keys={"loc_latitude", "loc_longitude", "char_yrblt"}
+    )
     return front
 
 
@@ -287,7 +287,7 @@ def convert_to_builtin_types(obj) -> object:
         else:
             # keep multi-element arrays as lists
             return [convert_to_builtin_types(v) for v in obj.tolist()]
-    elif obj is pd.NA:          # pandas NA scalar
+    elif obj is pd.NA:  # pandas NA scalar
         return ""
     # Wrap NaN in quotes, otherwise the .nan breaks html map rendering
     elif isinstance(obj, (float, np.floating)) and np.isnan(obj):
@@ -332,13 +332,16 @@ def write_json(front_dict: dict, outfile: str | Path) -> None:
     )
     Path(outfile).write_text(json_bytes.decode("utf-8") + "\n", encoding="utf-8")
 
+
 def label_percent(s: pd.Series) -> pd.Series:
     """0.123 → '12%' (handles NaNs)."""
     return s.mul(100).round(0).astype("Int64").astype(str).str.replace("<NA>", "") + "%"
 
+
 def label_dollar(s: pd.Series) -> pd.Series:
     """45000 → '$45,000' (handles NaNs)."""
     return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
+
 
 def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -347,23 +350,35 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     return (
         df
         # Formate percentage columns
-        .pipe(lambda d: d.assign(**{
-            c: label_percent(d[c])
-            for c in d.filter(regex=r'^acs5_percent').columns
-        }))
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    c: label_percent(d[c])
+                    for c in d.filter(regex=r"^acs5_percent").columns
+                }
+            )
+        )
         # Round up all numeric columns except for geo cols needed for mapping
-        .pipe(lambda d: d.assign(**{
-            c: d[c].round(2)
-            for c in d.select_dtypes(include='number').columns
-            if c not in {"loc_latitude", "loc_longitude"}
-        }))
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    c: d[c].round(2)
+                    for c in d.select_dtypes(include="number").columns
+                    if c not in {"loc_latitude", "loc_longitude"}
+                }
+            )
+        )
         # Format $ columns
-            .pipe(lambda d: d.assign(**{
-                c: label_dollar(d[c])
-                for c in d.columns
-                if c == "acs5_median_household_renter_occupied_gross_rent"
-                or c.startswith("acs5_median_income")
-            }))
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    c: label_dollar(d[c])
+                    for c in d.columns
+                    if c == "acs5_median_household_renter_occupied_gross_rent"
+                    or c.startswith("acs5_median_income")
+                }
+            )
+        )
     )
 
 
@@ -402,8 +417,6 @@ def _format_dict_numbers(obj, exclude_keys: set[str] = None):
     return _format_numeric(obj)
 
 
-
-
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     cursor.execute(sql, parameters=params)
     return cursor.as_pandas()
@@ -412,9 +425,7 @@ def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
 def main() -> None:
     args = parse_args()
 
-    project_root = Path(
-        sp.getoutput("git rev-parse --show-toplevel")
-    )
+    project_root = Path(sp.getoutput("git rev-parse --show-toplevel"))
     os.chdir(project_root)
 
     # Athena connection (one per run)
@@ -443,13 +454,11 @@ def main() -> None:
 
         where_assessment = " AND ".join(assessment_clauses)
     else:
-        pins: list[str] = list(set(args.pin)) # de-dupe
+        pins: list[str] = list(set(args.pin))  # de-dupe
         pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
         placeholders = ",".join(f"%({k})s" for k in pin_params)
 
-        where_assessment = (
-            f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
-        )
+        where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
         params_assessment = {"run_id": args.run_id, **pin_params}
 
     assessment_sql = f"""
@@ -459,13 +468,13 @@ def main() -> None:
     """
 
     print("Querying data from Athena ...")
-    df_assessment_all = format_df(run_athena_query(cursor, assessment_sql, params_assessment))
+    df_assessment_all = format_df(
+        run_athena_query(cursor, assessment_sql, params_assessment)
+    )
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
-        raise ValueError(
-            "No assessment rows returned for the given parameters"
-        )
+        raise ValueError("No assessment rows returned for the given parameters")
 
     # Get the comps
     comps_run_id = RUN_ID_MAP[args.run_id]
@@ -496,9 +505,7 @@ def main() -> None:
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
-        raise ValueError(
-            "No comps rows returned for the given parameters — aborting."
-        )
+        raise ValueError("No comps rows returned for the given parameters — aborting.")
 
     # Crosswalk for making column names human-readable
     model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
@@ -508,12 +515,13 @@ def main() -> None:
         names_from="model",
         names_to="pretty",
         output_type="vector",
-        dictionary=ccao.vars_dict
+        dictionary=ccao.vars_dict,
     )
 
     key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
 
     PRESERVE = {"loc_latitude", "loc_longitude"}
+
     def pretty(k: str) -> str:
         return k if k in PRESERVE else key_map.get(k, k)
 
@@ -531,13 +539,14 @@ def main() -> None:
     del df_assessment_all
     del df_comps_all
     gc.collect()
-    print(f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds")
+    print(
+        f"Grouping by PIN took {end_time_dict_groupby - start_time_dict_groupby:.2f} seconds"
+    )
 
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
     for i, (pin, df_target) in enumerate(df_assessments_by_pin.items()):
-
         if i % 5000 == 0:
             print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
 
@@ -552,7 +561,9 @@ def main() -> None:
         write_json(front, md_path)
 
     elapsed_time = time.time() - start_time
-    print(f"✓ Completed generating frontmatter for {len(df_assessments_by_pin)} PINs in {elapsed_time:.4f} seconds.")
+    print(
+        f"✓ Completed generating frontmatter for {len(df_assessments_by_pin)} PINs in {elapsed_time:.4f} seconds."
+    )
 
     # ------------------------------------------------------------------
     # Optional Hugo build
