@@ -1,8 +1,6 @@
 [project]
 name = "generate-pinval"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=2.2.6",
@@ -16,3 +14,8 @@ dependencies = [
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+# Disable implicit namespaces, since we have an unusual project structure.
+# See: https://setuptools.pypa.io/en/latest/userguide/package_discovery.html#custom-discovery
+find = {namespaces = false}
