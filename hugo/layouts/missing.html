@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {{ partial "head/boilerplate.html" . }} {{ partial
+    "head/css-link-bootstrap.html" . }} {{ partial "head/favicons.html" . }} {{
+    partial "head/styles.html" . }}
+  </head>
+  <body>
+    {{ partial "banner/banner.html" . }}
+
+    <div class="container">
+      <div class="card-body">
+        <h2>Report not available</h2>
+        {{ if eq .Params.no_comp_reason "condo" }}
+        <p>
+          This property is a condominium unit. The Assessor uses a separate
+          valuation model for condos, and that model is not yet compatible with
+          this report. We hope to add support for condo units soon. Sorry for
+          the inconvenience!
+        </p>
+        {{ else if eq .Params.no_comp_reason "invalid_class" }}
+        <p>
+          This property has class code {{ .Params.class_code }}. Properties with
+          this code fit the description "{{ .Params.class_description }}".
+        </p>
+        <p>
+          The Assessor's residential model does not estimate the value for this
+          type of property. The model only estimates values for single-family
+          homes and multi-family buildings with six or fewer units.
+        </p>
+        {{ else if eq .Params.no_comp_reason "non_tri" }}
+        <p>
+          The Assessor did not reassess this home in
+          {{ .Params.assessment_year }}. In {{ .Params.assessment_year }},
+          the Assessor reassessed the {{ title .Params.assessment_triad_name }}
+          triad, but this home is in the {{ title .Params.parcel_triad_name }}
+          triad. This home will next be reassessed in
+          {{ .Params.parcel_next_assessment_year }}.
+        </p>
+        {{ else }}
+          {{
+            errorf
+            "Unexpected no_comp_reason for PIN %s: %q"
+            .Params.pin
+            .Params.no_comp_reason
+          }}
+        {{ end }}
+        <p>
+          If you believe that any of the above information is wrong, please send
+          us an email. We will do our best to correct the mistake.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

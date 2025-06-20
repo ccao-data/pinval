@@ -168,6 +168,18 @@ def build_front_matter(
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
     }
 
+    # Exit early if there is a reason the PIN has no comps, in which case we
+    # will leave it up to the doc to display the reason for the missing
+    # report
+    if tp["no_comp_reason"] is not None:
+        front["layout"] = "missing"
+        front["class_code"] = tp["meta_class"]
+        front["class_description"] = tp["class_description"]
+        front["parcel_next_assessment_year"] = tp["parcel_next_assessment_year"]
+        front["assessment_triad_name"] = tp["assessment_triad_name"]
+        front["parcel_triad_name"] = tp["parcel_triad_name"]
+        return front
+
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
         card_df = card_df.iloc[0]
