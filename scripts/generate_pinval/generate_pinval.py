@@ -229,12 +229,13 @@ def build_front_matter(
         front["cards"].append(
             {
                 "card_num": int(card_num),
+                "char_class_detailed": card_df["char_class_detailed"],
                 "location": {
                     k: v
                     for k, v in {
                         "property_address": card_df["property_address"],
                         "municipality": card_df.get("loc_tax_municipality_name"),
-                        "township": card_df["meta_township_code"],
+                        "township": card_df["township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
                         "loc_school_elementary_district_name": card_df.get("school_elementary_district_name"),
                         "loc_school_secondary_district_name": card_df.get("school_secondary_district_name"),
