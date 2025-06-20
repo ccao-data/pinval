@@ -274,7 +274,7 @@
           <th>Characteristic</th>
           <th>{{ if .is_multicard }}Subject card{{ else }}Your home{{ end }}</th>
           {{ range $index, $comp := .card.comps }}
-          <th>Comp {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
+          <th>Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
           {{ end }}
         </tr>
       </thead>
@@ -530,7 +530,7 @@
 
         // Create popup content
         const compPopupContent = `
-          <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Comp " + comp.comp_num}</h5>
+          <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Sale " + comp.comp_num}</h5>
           <b>Address</b>: ${comp.property_address}
           <br><b>PIN</b>: <a href="https:\/\/www.cookcountyassessor.com/pin/${comp.pin}" target="_blank">${comp.pin_pretty}</a>
           <br><b>Property class</b>: ${comp.char_class}
