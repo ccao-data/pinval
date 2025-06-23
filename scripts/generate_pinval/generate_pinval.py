@@ -154,6 +154,21 @@ def build_front_matter(
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
 
+    # Add top chars to the front of the list
+    top_chars = [
+        "char_class",
+        "meta_nbhd_code",
+        "char_yrblt",
+        "char_bldg_sf",
+        "char_land_sf",
+        "char_beds",
+        "char_fbath",
+        "char_hbath",
+    ]
+    preds_cleaned = [c for c in top_chars if c in preds_cleaned] + [
+        p for p in preds_cleaned if p not in top_chars
+    ]
+
     front: dict = {
         "layout": "report",
         "title": "Report: How Did the Assessor's Model Estimate My Home Value?",
