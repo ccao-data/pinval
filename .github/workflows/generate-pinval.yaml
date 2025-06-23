@@ -195,11 +195,11 @@ jobs:
             --include '*.html'
 
 ###############################################################################
-# SNS Job
+# Invalidate cache and notify
 ###############################################################################
   notify:
     needs: generate-pinval
-    if: ${{ always() && needs.generate-pinval.result == 'success' }}
+    if: ${{ needs.generate-pinval.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -210,8 +210,48 @@ jobs:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
 
-      - name: Mask SNS topic ARN
-        run: echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
+      - name: Resolve target CloudFront distribution attributes
+        id: resolve-cloudfront
+        run: |
+          set -euo pipefail
+
+          # Resolve distribution ID
+          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
+            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Convert PINs to array and use output to determine invalidation paths
+          IFS=',' read -ra PINS_ARR <<< "${{ inputs.pins }}"
+          CLEAN_PINS=()
+          for p in "${PINS_ARR[@]:-}"; do
+            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
+          done
+
+          PATHS=()
+          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
+            for pin in "${CLEAN_PINS[@]:-}"; do
+              PATHS+=("/2025/${pin}.html")
+            done
+          else
+            PATHS+=("/2025/*.html")
+          fi
+          echo "paths=${PATHS[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Mask AWS identifiers
+        run: |
+          echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
+          echo "::add-mask::${{ steps.resolve-cloudfront.outputs.distribution-id }}"
+
+      - name: Invalidate cache
+        env:
+          TARGET_DISTRIBUTION_ID: ${{ steps.resolve-cloudfront.outputs.distribution-id }}
+          INVALIDATION_PATHS: ${{ steps.resolve-cloudfront.outputs.paths }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${TARGET_DISTRIBUTION_ID}" \
+            --paths "${PATHS}"
 
       - name: Publish SNS notification
         env:
