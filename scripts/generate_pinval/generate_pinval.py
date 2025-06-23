@@ -31,6 +31,7 @@ from pathlib import Path
 
 import ccao
 import numpy as np
+import re
 import pandas as pd
 import orjson
 from pyathena import connect
@@ -150,6 +151,10 @@ def build_front_matter(
         Function that converts a raw model column name → human-readable label.
     """
 
+    def _to_num(x):
+        clean = re.sub(r"[^\d.\-]", "", str(x))
+        return pd.to_numeric(clean, errors="raise")
+
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
@@ -163,7 +168,7 @@ def build_front_matter(
         ),
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
-        "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
+        "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
     }
@@ -191,9 +196,9 @@ def build_front_matter(
                 "pin": comp["comp_pin"],
                 "pin_pretty": pin_pretty(comp["comp_pin"]),
                 "is_subject_pin_sale": comp["is_subject_pin_sale"],
-                "sale_price": f"${float(comp['meta_sale_price']):,.0f}",
+                "sale_price": comp["meta_sale_price"],
                 "sale_price_short": comp["sale_price_short"],
-                "sale_price_per_sq_ft": f"${float(comp['sale_price_per_sq_ft']):,.0f}",
+                "sale_price_per_sq_ft": comp["sale_price_per_sq_ft"],
                 "sale_date": comp["sale_month_year"],
                 "document_num": comp["comp_document_num"],
                 "property_address": comp["property_address"],
@@ -208,8 +213,8 @@ def build_front_matter(
             comps_list.append(comp_dict)
 
         # Comp summary
-        sale_prices = comps_df["meta_sale_price"]
-        sqft_prices = comps_df["sale_price_per_sq_ft"]
+        sale_prices = comps_df["meta_sale_price"].apply(_to_num)
+        sqft_prices = comps_df["sale_price_per_sq_ft"].apply(_to_num)
 
         comp_summary = {
             "sale_year_range_prefix": (
@@ -221,6 +226,17 @@ def build_front_matter(
             "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
             "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
         }
+
+        pred_card_initial_val = _to_num(card_df["pred_card_initial_fmv"])
+
+        pred_card_initial_per_sqft_val = _to_num(
+            card_df.get("pred_card_initial_fmv_per_sqft")
+        )
+
+        if pd.isna(pred_card_initial_per_sqft_val):
+            pred_card_initial_per_sqft_val = pred_card_initial_val / _to_num(
+                card_df["char_bldg_sf"]
+            )
 
         # Complete the card
         front["cards"].append(
@@ -239,20 +255,15 @@ def build_front_matter(
                         "loc_school_secondary_district_name": card_df.get(
                             "school_secondary_district_name"
                         ),
-                        "loc_latitude": float(card_df["loc_latitude"]),
-                        "loc_longitude": float(card_df["loc_longitude"]),
+                        "loc_latitude": card_df["loc_latitude"],
+                        "loc_longitude": card_df["loc_longitude"],
                     }.items()
                 },
                 "chars": subject_chars,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
-                "pred_card_initial_fmv": "${:,.0f}".format(
-                    card_df["pred_card_initial_fmv"]
-                ),
+                "pred_card_initial_fmv": "${:,.0f}".format(pred_card_initial_val),
                 "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
-                    card_df.get(
-                        "pred_card_initial_fmv_per_sqft",
-                        card_df["pred_card_initial_fmv"] / card_df["char_bldg_sf"],
-                    )
+                    pred_card_initial_per_sqft_val
                 ),
                 "comps": comps_list,
                 "comp_summary": comp_summary,
@@ -260,16 +271,6 @@ def build_front_matter(
             }
         )
 
-    _format_dict_numbers(
-        front,
-        exclude_keys={
-            "loc_latitude",
-            "loc_longitude",
-            "char_yrblt",
-            "has_subject_pin_sale",
-            "is_subject_pin_sale",
-        },
-    )
     return front
 
 
@@ -323,7 +324,7 @@ def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
     for col, dtype in dtype_conversions.items():
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").astype(dtype)
+            df[col] = pd.to_numeric(df[col], errors="raise").astype(dtype)
 
     return df
 
@@ -353,24 +354,43 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
-    return (
-        df
-        # Formate percentage columns
+
+    # Columns like year shouldn't be formatted with commas,
+    # so we preserve them as integers
+    INT_COLS = {
+        "time_sale_year",
+        "time_sale_day",
+        "acs5_median_household_total_occupied_year_built",
+        "char_yrblt",
+    }
+
+    # Columns that should be preserved as numeric
+    NUMERIC_PRESERVE = {"loc_latitude", "loc_longitude"}
+
+    def _fmt(x):
+        if isinstance(x, (int, np.integer)):
+            return f"{x:,}"
+        if isinstance(x, (float, np.floating)):
+            txt = f"{x:,.2f}".rstrip("0").rstrip(".")
+            return txt
+        return x
+
+    formatted_df = (
+        df.pipe(
+            lambda d: d.assign(
+                **{
+                    col: pd.to_numeric(d[col], errors="raise").astype("Int64")
+                    for col in INT_COLS
+                    if col in d.columns
+                }
+            )
+        )
+        # Format percentage columns
         .pipe(
             lambda d: d.assign(
                 **{
                     c: label_percent(d[c])
                     for c in d.filter(regex=r"^acs5_percent").columns
-                }
-            )
-        )
-        # Round up all numeric columns except for geo cols needed for mapping
-        .pipe(
-            lambda d: d.assign(
-                **{
-                    c: d[c].round(2)
-                    for c in d.select_dtypes(include="number").columns
-                    if c not in {"loc_latitude", "loc_longitude"}
                 }
             )
         )
@@ -380,47 +400,29 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
                 **{
                     c: label_dollar(d[c])
                     for c in d.columns
-                    if c == "acs5_median_household_renter_occupied_gross_rent"
+                    if c
+                    in {
+                        "meta_sale_price",
+                        "acs5_median_household_renter_occupied_gross_rent",
+                        "pred_pin_final_fmv_round",
+                    }
                     or c.startswith("acs5_median_income")
+                }
+            )
+        )
+        # Generic numerics → comma-separated strings (except preserved cols)
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    c: d[c].apply(_fmt)
+                    for c in d.select_dtypes(include="number").columns
+                    if c not in NUMERIC_PRESERVE and c not in INT_COLS
                 }
             )
         )
     )
 
-
-def _format_numeric(val):
-    """
-    123456  -> '123,456'
-    1234.5  -> '1,234.5'
-    42.0000 -> '42'
-    Anything non-numeric is returned unchanged.
-    """
-    if isinstance(val, (int, np.integer)):
-        return f"{val:,}"
-    if isinstance(val, (float, np.floating)):
-        txt = f"{val:,.2f}".rstrip("0").rstrip(".")
-        return txt
-    return val
-
-
-def _format_dict_numbers(obj, exclude_keys: set[str] = None):
-    """
-    Recursively walk a mapping / sequence and replace every numeric leaf
-    with its comma-separated string form.
-    """
-    exclude_keys = exclude_keys or set()
-
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k in exclude_keys:
-                continue
-            obj[k] = _format_dict_numbers(v, exclude_keys)
-        return obj
-
-    if isinstance(obj, list):
-        return [_format_dict_numbers(v, exclude_keys) for v in obj]
-
-    return _format_numeric(obj)
+    return formatted_df
 
 
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
