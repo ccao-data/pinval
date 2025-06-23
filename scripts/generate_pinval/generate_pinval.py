@@ -479,6 +479,7 @@ def main() -> None:
         where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
         params_assessment = {"run_id": args.run_id, **pin_params}
 
+    # TODO: Left join to all parcels so we can populate missing reports
     assessment_sql = f"""
         SELECT *
         FROM pinval.vw_assessment_card
@@ -497,15 +498,9 @@ def main() -> None:
     # Get the comps
     comps_run_id = RUN_ID_MAP[args.run_id]
 
-    comps_sql = f"""
+    comps_sql = """
         SELECT comp.*
         FROM pinval.vw_comp AS comp
-        INNER JOIN (
-            SELECT DISTINCT meta_pin
-            FROM pinval.vw_assessment_card
-            WHERE {where_assessment}
-        ) AS card
-          ON comp.pin = card.meta_pin
         WHERE comp.run_id = %(run_id_comps)s
     """
 
