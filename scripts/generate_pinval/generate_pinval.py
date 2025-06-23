@@ -233,11 +233,6 @@ def build_front_matter(
             card_df.get("pred_card_initial_fmv_per_sqft")
         )
 
-        if pd.isna(pred_card_initial_per_sqft_val):
-            pred_card_initial_per_sqft_val = pred_card_initial_val / _to_num(
-                card_df["char_bldg_sf"]
-            )
-
         # Complete the card
         front["cards"].append(
             {
