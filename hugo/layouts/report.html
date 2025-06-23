@@ -82,11 +82,19 @@
               past home sales to estimate current prices. The model combines past
               sales with “characteristics” that the Assessor collects about every
               home in Cook County over time, like square footage and location.
+            </p>
+            <p>
               By combining sale prices and characteristics, the model “learns”
               how characteristics like square footage have influenced sale prices
               in the past. It also learns patterns in how these prices have changed
               over time. It uses these patterns from the past to estimate sale prices on
               January 1, {{ .Params.assessment_year }}.
+            </p>
+            <p>
+              The Assessor’s model uses sales reported by the Illinois Department of Revenue.
+              Before analyzing sale trends, the model removes a small number of sales that the
+              Assessor believes were not fair, open-market transactions. This includes sales
+              between family members, distressed sales, and foreclosure auctions, among others.
             </p>
             <p>
               This report compares your home to 5 past sales that the model found to
