@@ -13,6 +13,11 @@
     crossorigin="anonymous"
   />
 
+  <link
+    href="https://unpkg.com/leaflet-gesture-handling/dist/leaflet-gesture-handling.min.css"
+    rel="stylesheet"
+  />
+
   <!-- Load Reactable equivalent (DataTables) CSS -->
   <link
     href="https://cdn.datatables.net/2.3.0/css/dataTables.bootstrap5.min.css"
@@ -381,6 +386,11 @@
     crossorigin="anonymous"
   ></script>
 
+  <!-- Load Leaflet Gesture Handling JS -->
+  <script
+    src="https://unpkg.com/leaflet-gesture-handling/dist/leaflet-gesture-handling.min.js"
+  ></script>
+
   <!-- Load DataTables JS -->
   <script
     src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
@@ -455,11 +465,10 @@
       const cardData = mapData[cardIndex];
 
       // Create map centered on subject property
-      const map = L.map(mapId).setView(
+      const map = L.map(mapId, { gestureHandling: true }).setView(
         [cardData.location.loc_latitude, cardData.location.loc_longitude],
         14
       );
-
       // Add tile layer
       L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
