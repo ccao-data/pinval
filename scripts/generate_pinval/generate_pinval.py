@@ -227,12 +227,6 @@ def build_front_matter(
             "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
         }
 
-        pred_card_initial_val = _to_num(card_df["pred_card_initial_fmv"])
-
-        pred_card_initial_per_sqft_val = _to_num(
-            card_df.get("pred_card_initial_fmv_per_sqft")
-        )
-
         # Complete the card
         front["cards"].append(
             {
@@ -256,10 +250,10 @@ def build_front_matter(
                 },
                 "chars": subject_chars,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
-                "pred_card_initial_fmv": "${:,.0f}".format(pred_card_initial_val),
-                "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
-                    pred_card_initial_per_sqft_val
-                ),
+                "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
+                "pred_card_initial_fmv_per_sqft": card_df[
+                    "pred_card_initial_fmv_per_sqft"
+                ],
                 "comps": comps_list,
                 "comp_summary": comp_summary,
                 "predictors": preds_cleaned,
@@ -400,6 +394,8 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
                         "meta_sale_price",
                         "acs5_median_household_renter_occupied_gross_rent",
                         "pred_pin_final_fmv_round",
+                        "pred_card_initial_fmv",
+                        "pred_card_initial_fmv_per_sqft",
                     }
                     or c.startswith("acs5_median_income")
                 }
@@ -466,7 +462,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM pinval.vw_assessment_card
+        FROM z_ci_add_pred_price_per_sqft_to_vw_assessment_card_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
@@ -487,7 +483,7 @@ def main() -> None:
         FROM pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT meta_pin
-            FROM pinval.vw_assessment_card
+            FROM z_ci_add_pred_price_per_sqft_to_vw_assessment_card_pinval.vw_assessment_card
             WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.meta_pin
