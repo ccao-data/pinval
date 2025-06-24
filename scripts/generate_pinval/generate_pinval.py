@@ -365,6 +365,7 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
         return x
 
     formatted_df = (
+        # Convert data to INT for columns that should be integers (year, etc)
         df.pipe(
             lambda d: d.assign(
                 **{
@@ -372,6 +373,14 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
                     for col in INT_COLS
                     if col in d.columns
                 }
+            )
+        )
+        # Round lat/long to 5 decimal places, a balance between precision and
+        # readability
+        .pipe(
+            lambda d: d.assign(
+                loc_latitude=d["loc_latitude"].apply(round, ndigits=5),
+                loc_longitude=d["loc_longitude"].apply(round, ndigits=5),
             )
         )
         # Format percentage columns
