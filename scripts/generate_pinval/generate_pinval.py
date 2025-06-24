@@ -502,6 +502,20 @@ def main() -> None:
     print(f"Comps query finished in {time.time() - start_q:.2f}s")
     df_comps_all = format_df(convert_dtypes(df_comps_all))
 
+    # Make data human-readable
+    chars_to_recode = [
+        col
+        for col in df_comps_all.columns
+        if col.startswith("char_") and col != "char_apts"
+    ]
+
+    df_comps_all = ccao.vars_recode(
+        data=df_comps_all.copy(),
+        cols=chars_to_recode,
+        code_type="long",
+        as_factor=False,
+    )
+
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
         raise ValueError("No comps rows returned for the given parameters — aborting.")
