@@ -462,7 +462,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM z_ci_add_pred_price_per_sqft_to_vw_assessment_card_pinval.vw_assessment_card
+        FROM pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
@@ -483,7 +483,7 @@ def main() -> None:
         FROM pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT meta_pin
-            FROM z_ci_add_pred_price_per_sqft_to_vw_assessment_card_pinval.vw_assessment_card
+            FROM pinval.vw_assessment_card
             WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.meta_pin
