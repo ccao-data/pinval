@@ -263,6 +263,7 @@ def convert_to_builtin_types(obj) -> object:
     to the hugo template.
     """
 
+    # Standardize string representations of None and NaN
     if isinstance(obj, str) and obj.strip().lower() in {"none", "nan"}:
         return ""
 
