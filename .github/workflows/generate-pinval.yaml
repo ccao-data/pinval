@@ -229,6 +229,7 @@ jobs:
 
       - name: Invalidate cache
         env:
+          YEAR: ${{ needs.setup.outputs.assessment-year }}
           TARGET_DISTRIBUTION_ID: ${{ needs.setup.outputs.distribution-id }}
         run: |
           # If the user passed in PINs, we want to only invalidate the cache
