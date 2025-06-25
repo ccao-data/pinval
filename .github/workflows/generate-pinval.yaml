@@ -214,7 +214,7 @@ jobs:
         shell: bash
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      - name: Generate PINVAL reports (triad shard or explicit PINs)
+      - name: Generate PINVAL reports
         shell: bash
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
