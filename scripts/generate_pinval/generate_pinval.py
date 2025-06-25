@@ -478,7 +478,9 @@ def main() -> None:
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
-        raise ValueError(f"No assessment rows returned for run ID {args.run_id}")
+        raise ValueError(
+            f"No assessment rows returned for the following params: {params_assessment}"
+        )
 
     # Get the comps
     if (comps_run_id := RUN_ID_MAP.get(args.run_id)) is None:
@@ -511,8 +513,7 @@ def main() -> None:
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
         raise ValueError(
-            f"No comp rows returned for assessment run ID {args.run_id} with "
-            f"comp run ID {comps_run_id}"
+            f"No comp rows returned for the following params: {params_comps}"
         )
 
     # Crosswalk for making column names human-readable
