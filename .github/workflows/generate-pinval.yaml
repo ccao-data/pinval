@@ -217,7 +217,7 @@ jobs:
         shell: bash
         env:
           TARGET_BUCKET: ${{ needs.setup.outputs.bucket }}
-          YEAR: ${{ steps.setup.outputs.assessment-year }}
+          YEAR: ${{ needs.setup.outputs.assessment-year }}
         run: |
           LOCAL="hugo/public/${YEAR}/"
           REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
@@ -250,7 +250,7 @@ jobs:
 
       - name: Invalidate cache
         env:
-          TARGET_DISTRIBUTION_ID: ${{ steps.resolve-cloudfront.outputs.distribution-id }}
+          TARGET_DISTRIBUTION_ID: ${{ needs.setup.outputs.distribution-id }}
           INVALIDATION_PATHS: ${{ needs.setup.outputs.invalidation-paths }}
         shell: bash
         run: |
