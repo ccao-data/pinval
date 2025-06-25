@@ -62,8 +62,8 @@ def parse_args() -> argparse.Namespace:
         # Remove empty string
         args.pin = []
 
-    if args.run_id and args.year:
-        parser.error("The --year and --run-id arguments cannot both be present")
+    if bool(args.run_id) == bool(args.year):
+        parser.error("Exactly one of --year or --run-id is required")
 
     return args
 
