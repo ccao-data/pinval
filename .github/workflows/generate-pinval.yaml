@@ -231,6 +231,9 @@ jobs:
         env:
           TARGET_DISTRIBUTION_ID: ${{ needs.setup.outputs.distribution-id }}
         run: |
+          # If the user passed in PINs, we want to only invalidate the cache
+          # for those PINs, and preserve the cache for everything else to
+          # improve performance for unrelated reports
           read -ra PINS <<< "${{ inputs.pins }}"
           INVALIDATION_PATHS=()
           if (( ${#PINS[@]} > 0 )); then
@@ -238,6 +241,8 @@ jobs:
               INVALIDATION_PATHS+=("/${YEAR}/${pin}.html")
             done
           else
+            # If the user didn't pass in PINs, we must have updated the whole
+            # tri, so invalidate everything in this year
             INVALIDATION_PATHS+=("/${YEAR}/*.html")
           fi
 
