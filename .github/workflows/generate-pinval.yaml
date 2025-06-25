@@ -290,8 +290,8 @@ jobs:
           PIN list: $PINS
           Environment: $ENV_LABEL
 
-          You can browse or download the reports here:
-          $BUCKET
+          You can browse or download the reports at the following S3 path:
+          $BUCKET/$YEAR/
           EOF
           )
           aws sns publish \
