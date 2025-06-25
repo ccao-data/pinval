@@ -367,20 +367,6 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             col for col in df.columns if col.startswith("char_") and col != "char_apts"
         ]
 
-        # Recode attic fnsh and type to 'None' if they are NaN,
-        # this is due to a python NA conversion behavior upon reading
-        # in the ccao.vars_dict csv in the ccao python package
-        mask = (
-            (ccao.vars_dict["var_code"] == "3")
-            & (
-                ccao.vars_dict["var_name_athena"]
-                .str.strip()
-                .isin(["char_attic_fnsh", "char_attic_type"])
-            )
-            & (ccao.vars_dict["var_value"].isna())
-        )
-        ccao.vars_dict.loc[mask, "var_value"] = "None"
-
         df = ccao.vars_recode(
             data=df.copy(),
             cols=chars_to_recode,
