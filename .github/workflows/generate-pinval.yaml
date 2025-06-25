@@ -9,7 +9,7 @@ on:
           Assessment year: Use values and comps from the final model for this year.
           Leave blank if you are supplying a run ID instead
         required: false
-        default: "2025"
+        default: ""
 
       run_id:
         type: string
