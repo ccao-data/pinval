@@ -429,6 +429,22 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     return formatted_df
 
 
+def recode_char_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convert coded character columns to human-readable values.
+    """
+    chars_to_recode = [
+        col for col in df.columns if col.startswith("char_") and col != "char_apts"
+    ]
+
+    return ccao.vars_recode(
+        data=df.copy(),  # leave caller’s frame untouched
+        cols=chars_to_recode,
+        code_type="long",
+        as_factor=False,
+    )
+
+
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     cursor.execute(sql, parameters=params)
     return cursor.as_pandas()
@@ -514,20 +530,9 @@ def main() -> None:
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
     print(f"Comps query finished in {time.time() - start_q:.2f}s")
     df_comps_all = format_df(convert_dtypes(df_comps_all))
-
-    # Make data human-readable
-    chars_to_recode = [
-        col
-        for col in df_comps_all.columns
-        if col.startswith("char_") and col != "char_apts"
-    ]
-
-    df_comps_all = ccao.vars_recode(
-        data=df_comps_all.copy(),
-        cols=chars_to_recode,
-        code_type="long",
-        as_factor=False,
-    )
+    # Transform values in character columns to human-readable values,
+    # this is already done in the assessment query, so we only need to do it here
+    df_comps_all = recode_char_columns(df_comps_all)
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
