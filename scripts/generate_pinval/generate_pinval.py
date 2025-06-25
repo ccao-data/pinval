@@ -433,7 +433,7 @@ def main() -> None:
         cursor_class=PandasCursor,
     ).cursor(unload=True)
 
-    # Extract assessment year for model run, which we'll need to determine
+    # Extract assessment year for model run, which we'll use to determine
     # the output path
     assessment_year_df = run_athena_query(
         cursor,
