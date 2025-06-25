@@ -3,26 +3,27 @@ name: generate-pinval
 on:
   workflow_dispatch:
     inputs:
+      year:
+        type: string
+        description: >
+          Assessment year: Use values and comps from the final model for this year.
+          Leave blank if you are supplying a run ID instead
+        required: false
+        default: "2025"
+
       run_id:
         type: string
         description: >
-          Run ID: The model run whose comps should be used
-        required: true
-        default: "2025-02-11-charming-eric"
-
-      triad_name:
-        type: string
-        description: >
-          Triad name: Generate reports for every PIN in this triad. Leave blank if you are
-          supplying PINs instead. Options: city, north, south
+          Run ID: The model run whose comps should be used. Leave blank if you are supplying
+          an assessment year instead
         required: false
         default: ""
 
       pins:
         type: string
         description: >
-          PINs: One or more comma‑separated Cook County PINs. Leave blank if you are
-          supplying a triad instead
+          PINs: One or more comma‑separated Cook County PINs. Leave blank to
+          generate reports for all PINs in the assessment triad
         required: false
         default: ""
 
@@ -34,7 +35,7 @@ on:
           - Development bucket
           - Production bucket
         default: Development bucket
-        required: false
+        required: true
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -47,19 +48,27 @@ jobs:
 ###############################################################################
 # Setup
 ###############################################################################
-  list-townships:
+  setup:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-      count:  ${{ steps.set-matrix.outputs.count }}
+      matrix: ${{ steps.resolve-metadata.outputs.matrix }}
+      count: ${{ steps.resolve-metadata.outputs.count }}
+      assessment-year: ${{ steps.resolve-metadata.outputs.assessment-year }}
+      run-id: ${{ steps.resolve-metadata.outputs.run-id }}
+      triad: ${{ steps.resolve-metadata.outputs.triad }}
+      pins: ${{ steps.clean-pins.outputs.pins }}
+      invalidation-paths: ${{ steps.clean-pins.outputs.invalidation-paths }}
+      bucket: ${{ steps.resolve-aws.outputs.bucket }}
+      distribution-id: ${{ steps.resolve-aws.outputs.distribution-id }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Mask sensitive information
+        shell: bash
         run: echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
 
       - name: Install uv
@@ -74,6 +83,7 @@ jobs:
           python-version-file: scripts/generate_pinval/.python-version
 
       - name: Install Python requirements
+        shell: bash
         run: uv pip install .
         working-directory: scripts/generate_pinval
 
@@ -83,23 +93,64 @@ jobs:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
 
-      - name: Collect township codes (or fallback)
-        id: set-matrix
+      - name: Resolve model metadata
+        id: resolve-metadata
+        shell: bash
         run: |
-          python3 scripts/generate_pinval/list_townships.py \
+          python3 scripts/generate_pinval/resolve_model_metadata.py \
+            --year "${{ inputs.year }}" \
             --run-id "${{ inputs.run_id }}" \
-            --triad "${{ inputs.triad_name }}" \
+            --pins "${{ inputs.pins }}" \
             --write-github-output
+
+      - name: Clean PINs
+        id: clean-pins
+        shell: bash
+        env:
+          YEAR: ${{ steps.resolve-metadata.outputs.assessment-year }}
+        run: |
+          # Convert PINs to array so that we can convert the delimiter from
+          # comma to space for use in script args, and output S3 paths
+          # for cache invalidation
+          IFS=' ' read -ra PINS_ARR <<< "${{ inputs.pins }}"
+          CLEAN_PINS=()
+          for p in "${PINS_ARR[@]:-}"; do
+            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
+          done
+
+          echo "pins=${CLEAN_PINS[@]}" >> "$GITHUB_OUTPUT"
+
+          INVALIDATION_PATHS=()
+          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
+            for pin in "${CLEAN_PINS[@]:-}"; do
+              INVALIDATION_PATHS+=("/${YEAR}/${pin}.html")
+            done
+          else
+            INVALIDATION_PATHS+=("/${YEAR}/*.html")
+          fi
+          echo "invalidation-paths=${INVALIDATION_PATHS[@]}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve AWS resource IDs
+        id: resolve-aws
+        shell: bash
+        run: |
+          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
+            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
+            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}" >> "$GITHUB_OUTPUT"
+          fi
 
 ###############################################################################
 # Generate PINVAL reports for a triad or explicit PINs
 ###############################################################################
   generate-pinval:
-    needs: list-townships
+    needs: setup
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.list-townships.outputs.matrix) }}
-      max-parallel: ${{ fromJson(needs.list-townships.outputs.count) }}
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      max-parallel: ${{ fromJson(needs.setup.outputs.count) }}
     env:
       TOWNSHIP: ${{ matrix.township }}
     permissions:
@@ -124,6 +175,7 @@ jobs:
           python-version-file: scripts/generate_pinval/.python-version
 
       - name: Install Python requirements
+        shell: bash
         run: uv pip install .
         working-directory: scripts/generate_pinval
 
@@ -142,52 +194,32 @@ jobs:
 
       - name: Download Hugo
         if: steps.cache-hugo.outputs.cache-hit != 'true'
+        shell: bash
         run: |
           wget -O ${{ runner.temp }}/hugo.deb \
             https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb
 
       - name: Install Hugo
+        shell: bash
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
       - name: Generate PINVAL reports (triad shard or explicit PINs)
+        shell: bash
+        env:
+          RUN_ID: ${{ needs.setup.outputs.run-id }}
+          PINS: ${{ needs.setup.outputs.pins }}
         run: |
-          set -euo pipefail
-
-          declare -a ARGS=(
-            --run-id "${{ inputs.run_id }}"
-            --triad "${{ inputs.triad_name }}"
-            --township "$TOWNSHIP"
-          )
-
-          # Convert comma-separated input into an array, stripping blanks
-          IFS=',' read -ra PINS_ARR <<< "${{ inputs.pins }}"
-          CLEAN_PINS=()
-          for p in "${PINS_ARR[@]:-}"; do
-            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
-          done
-
-          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
-            ARGS+=(--pin "${CLEAN_PINS[@]}")
-          fi
-
-          echo "Running generate_pinval.py with: ${ARGS[*]}"
-          python3 scripts/generate_pinval/generate_pinval.py "${ARGS[@]}"
-
-      - name: Resolve target S3 bucket
-        id: bucket
-        run: |
-          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
-          fi
+          python3 scripts/generate_pinval/generate_pinval.py \
+            --run-id "$RUN_ID" \
+            --township "$TOWNSHIP" \
+            --pin "$PINS"
 
       - name: Sync reports to S3
+        shell: bash
         env:
-          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
+          TARGET_BUCKET: ${{ needs.setup.outputs.bucket }}
+          YEAR: ${{ steps.setup.outputs.assessment-year }}
         run: |
-          RUN_ID="${{ inputs.run_id }}"
-          YEAR="${RUN_ID:0:4}"
           LOCAL="hugo/public/${YEAR}/"
           REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
           aws s3 sync "$LOCAL" "$REMOTE" \
@@ -198,8 +230,9 @@ jobs:
 # Invalidate cache and notify
 ###############################################################################
   notify:
-    needs: generate-pinval
-    if: ${{ needs.generate-pinval.result == 'success' }}
+    needs:
+      - setup
+      - generate-pinval
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -210,73 +243,44 @@ jobs:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
 
-      - name: Resolve target CloudFront distribution attributes
-        id: resolve-cloudfront
-        run: |
-          set -euo pipefail
-
-          # Resolve distribution ID
-          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
-            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Convert PINs to array and use output to determine invalidation paths
-          IFS=',' read -ra PINS_ARR <<< "${{ inputs.pins }}"
-          CLEAN_PINS=()
-          for p in "${PINS_ARR[@]:-}"; do
-            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
-          done
-
-          PATHS=()
-          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
-            for pin in "${CLEAN_PINS[@]:-}"; do
-              PATHS+=("/2025/${pin}.html")
-            done
-          else
-            PATHS+=("/2025/*.html")
-          fi
-          echo "paths=${PATHS[@]}" >> "$GITHUB_OUTPUT"
-
       - name: Mask AWS identifiers
+        shell: bash
         run: |
+          echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
           echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
-          echo "::add-mask::${{ steps.resolve-cloudfront.outputs.distribution-id }}"
 
       - name: Invalidate cache
         env:
           TARGET_DISTRIBUTION_ID: ${{ steps.resolve-cloudfront.outputs.distribution-id }}
-          INVALIDATION_PATHS: ${{ steps.resolve-cloudfront.outputs.paths }}
+          INVALIDATION_PATHS: ${{ needs.setup.outputs.invalidation-paths }}
+        shell: bash
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${TARGET_DISTRIBUTION_ID}" \
-            --paths "${PATHS}"
+            --paths "${INVALIDATION_PATHS}"
 
       - name: Publish SNS notification
         env:
-          RUN_ID: ${{ inputs.run_id }}
-          TRIAD: ${{ inputs.triad_name }}
-          PINS: ${{ inputs.pins }}
+          RUN_ID: ${{ needs.setup.outputs.run-id }}
+          YEAR: ${{ needs.setup.outputs.assessment-year }}
+          TRIAD: ${{ needs.setup.outputs.triad }}
+          PINS: ${{ needs.setup.outputs.pins }}
           ENV_LABEL: ${{ inputs.environment }}
-          URL_BASE_DEV: ${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}
-          URL_BASE_PROD: ${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}
+          BUCKET: ${{ needs.setup.outputs.bucket }}
+        shell: bash
         run: |
-          URL_BASE="$URL_BASE_DEV"
-          if [[ "$ENV_LABEL" == 'Production bucket' ]]; then
-            URL_BASE="$URL_BASE_PROD"
-          fi
           SUBJECT="PINVAL reports ready for run-id $RUN_ID"
           MESSAGE=$(cat <<EOF
           Your requested PINVAL reports have been generated.
 
+          Assessment year: $YEAR
           Run-ID: $RUN_ID
           Triad: $TRIAD
           PIN list: $PINS
           Environment: $ENV_LABEL
 
           You can browse or download the reports here:
-          $URL_BASE/${RUN_ID:0:4}/
+          $BUCKET
           EOF
           )
           aws sns publish \
