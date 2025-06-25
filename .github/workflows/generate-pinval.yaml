@@ -117,7 +117,9 @@ jobs:
             [[ -n "$p" ]] && CLEAN_PINS+=("$p")
           done
 
-          echo "pins=${CLEAN_PINS[@]}" >> "$GITHUB_OUTPUT"
+          PINS_STR="pins=${CLEAN_PINS[@]}"
+          echo "$PINS_STR"
+          echo "$PINS_STR" >> "$GITHUB_OUTPUT"
 
           INVALIDATION_PATHS=()
           if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
@@ -127,19 +129,29 @@ jobs:
           else
             INVALIDATION_PATHS+=("/${YEAR}/*.html")
           fi
-          echo "invalidation-paths=${INVALIDATION_PATHS[@]}" >> "$GITHUB_OUTPUT"
+          INVALIDATION_PATHS_STR="invalidation-paths=${INVALIDATION_PATHS[@]}"
+          echo "$INVALIDATION_PATHS_STR"
+          echo "$INVALIDATION_PATHS_STR" >> "$GITHUB_OUTPUT"
 
       - name: Resolve AWS resource IDs
         id: resolve-aws
         shell: bash
         run: |
           if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
-            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}" >> "$GITHUB_OUTPUT"
+            BUCKET="${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}"
+            DISTRIBUTION_ID="${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}"
           else
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
-            echo "distribution-id=${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}" >> "$GITHUB_OUTPUT"
+            BUCKET="${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}"
+            DISTRIBUTION_ID="${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}"
           fi
+
+          BUCKET_STR="bucket=${BUCKET}"
+          echo "$BUCKET_STR"
+          echo "$BUCKET_STR" >> "$GITHUB_OUTPUT"
+
+          DISTRIBUTION_ID_STR="distribution-id=${DISTRIBUTION_ID}"
+          echo "$DISTRIBUTION_ID_STR"
+          echo "$DISTRIBUTION_ID_STR" >> "$GITHUB_OUTPUT"
 
 ###############################################################################
 # Generate PINVAL reports for a triad or explicit PINs
@@ -256,7 +268,7 @@ jobs:
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${TARGET_DISTRIBUTION_ID}" \
-            --paths "${INVALIDATION_PATHS}"
+            --paths ${INVALIDATION_PATHS}  # No quotes since we want these to be args
 
       - name: Publish SNS notification
         env:
