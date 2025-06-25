@@ -31,7 +31,6 @@ from pathlib import Path
 
 import ccao
 import numpy as np
-import re
 import pandas as pd
 import orjson
 from pyathena import connect
@@ -151,10 +150,6 @@ def build_front_matter(
         Function that converts a raw model column name → human-readable label.
     """
 
-    def _to_num(x):
-        clean = re.sub(r"[^\d.\-]", "", str(x))
-        return pd.to_numeric(clean, errors="raise")
-
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
@@ -213,9 +208,6 @@ def build_front_matter(
             comps_list.append(comp_dict)
 
         # Comp summary
-        sale_prices = comps_df["meta_sale_price"].apply(_to_num)
-        sqft_prices = comps_df["sale_price_per_sq_ft"].apply(_to_num)
-
         comp_summary = {
             "sale_year_range_prefix": (
                 "between" if " and " in comps_df["sale_year_range"].iloc[0] else "in"
@@ -223,8 +215,8 @@ def build_front_matter(
             "sale_year_range": comps_df["sale_year_range"].iloc[0]
             if not comps_df.empty
             else "",
-            "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
-            "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
+            "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
+            "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
         }
 
         # Complete the card
@@ -364,6 +356,16 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
             return txt
         return x
 
+    # Generate comps summary stats needed for frontmatter
+    if "meta_sale_price" in df.columns:
+        df["comps_avg_sale_price"] = df.groupby("card")["meta_sale_price"].transform(
+            "mean"
+        )
+    if "sale_price_per_sq_ft" in df.columns:
+        df["comps_avg_price_per_sqft"] = df.groupby("card")[
+            "sale_price_per_sq_ft"
+        ].transform("mean")
+
     formatted_df = (
         # Convert data to INT for columns that should be integers (year, etc)
         df.pipe(
@@ -400,6 +402,8 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
                     for c in d.columns
                     if c
                     in {
+                        "comps_avg_sale_price",
+                        "comps_avg_price_per_sqft",
                         "meta_sale_price",
                         "acs5_median_household_renter_occupied_gross_rent",
                         "pred_pin_final_fmv_round",
