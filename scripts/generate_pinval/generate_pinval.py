@@ -263,6 +263,9 @@ def convert_to_builtin_types(obj) -> object:
     to the hugo template.
     """
 
+    if isinstance(obj, str) and obj.strip().lower() in {"none", "nan"}:
+        return ""
+
     if isinstance(obj, dict):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -357,6 +360,8 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             return txt
         return x
 
+    print(df.char_attic_fnsh)
+    print(df.char_attic_type)
     # Recode character columns to human-readable values
     if chars_recode:
         chars_to_recode = [
@@ -369,6 +374,8 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             code_type="long",
             as_factor=False,
         )
+        print(df.char_attic_fnsh)
+        print(df.char_attic_type)
 
     # Generate comps summary stats needed for frontmatter
     if "meta_sale_price" in df.columns:
