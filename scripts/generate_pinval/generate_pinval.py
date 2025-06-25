@@ -331,7 +331,7 @@ def label_dollar(s: pd.Series) -> pd.Series:
     return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
 
 
-def format_df(df: pd.DataFrame) -> pd.DataFrame:
+def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
@@ -355,6 +355,19 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
             txt = f"{x:,.2f}".rstrip("0").rstrip(".")
             return txt
         return x
+
+    # Recode character columns to human-readable values
+    if chars_recode:
+        chars_to_recode = [
+            col for col in df.columns if col.startswith("char_") and col != "char_apts"
+        ]
+
+        df = ccao.vars_recode(
+            data=df.copy(),
+            cols=chars_to_recode,
+            code_type="long",
+            as_factor=False,
+        )
 
     # Generate comps summary stats needed for frontmatter
     if "meta_sale_price" in df.columns:
@@ -429,22 +442,6 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
     return formatted_df
 
 
-def recode_char_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert coded character columns to human-readable values.
-    """
-    chars_to_recode = [
-        col for col in df.columns if col.startswith("char_") and col != "char_apts"
-    ]
-
-    return ccao.vars_recode(
-        data=df.copy(),
-        cols=chars_to_recode,
-        code_type="long",
-        as_factor=False,
-    )
-
-
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     cursor.execute(sql, parameters=params)
     return cursor.as_pandas()
@@ -497,7 +494,8 @@ def main() -> None:
 
     print("Querying data from Athena ...")
     df_assessment_all = format_df(
-        run_athena_query(cursor, assessment_sql, params_assessment)
+        run_athena_query(cursor, assessment_sql, params_assessment),
+        chars_recode=False,
     )
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
@@ -529,11 +527,9 @@ def main() -> None:
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
     print(f"Comps query finished in {time.time() - start_q:.2f}s")
-    df_comps_all = format_df(convert_dtypes(df_comps_all))
+    df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
     # Transform values in character columns to human-readable values,
     # this is already done in the assessment query, so we only need to do it here
-    df_comps_all = recode_char_columns(df_comps_all)
-
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
         raise ValueError("No comps rows returned for the given parameters — aborting.")
