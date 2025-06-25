@@ -438,7 +438,7 @@ def recode_char_columns(df: pd.DataFrame) -> pd.DataFrame:
     ]
 
     return ccao.vars_recode(
-        data=df.copy(),  # leave caller’s frame untouched
+        data=df.copy(),
         cols=chars_to_recode,
         code_type="long",
         as_factor=False,
