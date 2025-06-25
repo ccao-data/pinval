@@ -65,8 +65,6 @@ jobs:
       assessment-year: ${{ steps.resolve-metadata.outputs.assessment-year }}
       run-id: ${{ steps.resolve-metadata.outputs.run-id }}
       triad: ${{ steps.resolve-metadata.outputs.triad }}
-      pins: ${{ steps.clean-pins.outputs.pins }}
-      invalidation-paths: ${{ steps.clean-pins.outputs.invalidation-paths }}
       bucket: ${{ steps.resolve-aws.outputs.bucket }}
       distribution-id: ${{ steps.resolve-aws.outputs.distribution-id }}
     steps:
@@ -100,42 +98,16 @@ jobs:
       - name: Resolve model metadata
         id: resolve-metadata
         run: |
+          # Parse PIN list to an array so we can safely pass it into this
+          # script, which accepts multiple space-delimited PINs
+          read -ra PINS <<< "${{ inputs.pins }}"
           python3 scripts/generate_pinval/resolve_model_metadata.py \
             --year "${{ inputs.year }}" \
             --run-id "${{ inputs.run_id }}" \
-            --pin "${{ inputs.pins }}" \
+            --pin "${PINS[@]}" \
             --write-github-output
 
-      - name: Clean PINs
-        id: clean-pins
-        env:
-          YEAR: ${{ steps.resolve-metadata.outputs.assessment-year }}
-        run: |
-          # Convert PINs to array so that we can clean them up for use in script
-          # args, and output S3 paths for cache invalidation
-          IFS=' ' read -ra PINS_ARR <<< "${{ inputs.pins }}"
-          CLEAN_PINS=()
-          for p in "${PINS_ARR[@]:-}"; do
-            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
-          done
-
-          PINS_STR="pins=${CLEAN_PINS[@]}"
-          echo "$PINS_STR"
-          echo "$PINS_STR" >> "$GITHUB_OUTPUT"
-
-          INVALIDATION_PATHS=()
-          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
-            for pin in "${CLEAN_PINS[@]:-}"; do
-              INVALIDATION_PATHS+=("/${YEAR}/${pin}.html")
-            done
-          else
-            INVALIDATION_PATHS+=("/${YEAR}/*.html")
-          fi
-          INVALIDATION_PATHS_STR="invalidation-paths=${INVALIDATION_PATHS[@]}"
-          echo "$INVALIDATION_PATHS_STR"
-          echo "$INVALIDATION_PATHS_STR" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve AWS resource IDs
+      - name: Resolve AWS resources
         id: resolve-aws
         run: |
           if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
@@ -215,12 +187,12 @@ jobs:
       - name: Generate PINVAL reports
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
-          PINS: ${{ needs.setup.outputs.pins }}
         run: |
+          read -ra PINS <<< "${{ inputs.pins }}"
           python3 scripts/generate_pinval/generate_pinval.py \
             --run-id "$RUN_ID" \
             --township "$TOWNSHIP" \
-            --pin $PINS  # No quotes since we want these to be args
+            --pin "${PINS[@]}"
 
       - name: Sync reports to S3
         env:
@@ -258,21 +230,30 @@ jobs:
       - name: Invalidate cache
         env:
           TARGET_DISTRIBUTION_ID: ${{ needs.setup.outputs.distribution-id }}
-          INVALIDATION_PATHS: ${{ needs.setup.outputs.invalidation-paths }}
         run: |
+          read -ra PINS <<< "${{ inputs.pins }}"
+          INVALIDATION_PATHS=()
+          if (( ${#PINS[@]} > 0 )); then
+            for pin in "${PINS[@]:-}"; do
+              INVALIDATION_PATHS+=("/${YEAR}/${pin}.html")
+            done
+          else
+            INVALIDATION_PATHS+=("/${YEAR}/*.html")
+          fi
+
           aws cloudfront create-invalidation \
             --distribution-id "${TARGET_DISTRIBUTION_ID}" \
-            --paths ${INVALIDATION_PATHS}  # No quotes since we want these to be args
+            --paths "${INVALIDATION_PATHS[@]}"
 
       - name: Publish SNS notification
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
           YEAR: ${{ needs.setup.outputs.assessment-year }}
           TRIAD: ${{ needs.setup.outputs.triad }}
-          PINS: ${{ needs.setup.outputs.pins }}
           ENV_LABEL: ${{ inputs.environment }}
           BUCKET: ${{ needs.setup.outputs.bucket }}
         run: |
+          read -ra PINS <<< "${{ inputs.pins }}"
           SUBJECT="PINVAL reports ready for run-id $RUN_ID"
           MESSAGE=$(cat <<EOF
           Your requested PINVAL reports have been generated.
@@ -280,7 +261,7 @@ jobs:
           Assessment year: $YEAR
           Run-ID: $RUN_ID
           Triad: $TRIAD
-          PIN list: $PINS
+          PIN list: ${PINS[@]}
           Environment: $ENV_LABEL
 
           You can browse or download the reports at the following S3 path:
