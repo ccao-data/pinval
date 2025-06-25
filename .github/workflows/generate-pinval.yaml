@@ -22,7 +22,7 @@ on:
       pins:
         type: string
         description: >
-          PINs: One or more comma‑separated Cook County PINs. Leave blank to
+          PINs: One or more space‑separated Cook County PINs. Leave blank to
           generate reports for all PINs in the assessment triad
         required: false
         default: ""
@@ -100,7 +100,7 @@ jobs:
           python3 scripts/generate_pinval/resolve_model_metadata.py \
             --year "${{ inputs.year }}" \
             --run-id "${{ inputs.run_id }}" \
-            --pins "${{ inputs.pins }}" \
+            --pin "${{ inputs.pins }}" \
             --write-github-output
 
       - name: Clean PINs
@@ -109,9 +109,8 @@ jobs:
         env:
           YEAR: ${{ steps.resolve-metadata.outputs.assessment-year }}
         run: |
-          # Convert PINs to array so that we can convert the delimiter from
-          # comma to space for use in script args, and output S3 paths
-          # for cache invalidation
+          # Convert PINs to array so that we can clean them up for use in script
+          # args, and output S3 paths for cache invalidation
           IFS=' ' read -ra PINS_ARR <<< "${{ inputs.pins }}"
           CLEAN_PINS=()
           for p in "${PINS_ARR[@]:-}"; do
@@ -212,7 +211,7 @@ jobs:
           python3 scripts/generate_pinval/generate_pinval.py \
             --run-id "$RUN_ID" \
             --township "$TOWNSHIP" \
-            --pin "$PINS"
+            --pin $PINS  # No quotes since we want these to be args
 
       - name: Sync reports to S3
         shell: bash

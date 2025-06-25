@@ -42,10 +42,10 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--pins",
-        required=False,
-        default="",
-        help="Comma-separated list of PINs to filter reports",
+        "--pin",
+        nargs="*",
+        metavar="PIN",
+        help="One or more PINs to use for filtering reports",
     )
 
     parser.add_argument(
@@ -58,13 +58,19 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
+    if args.pin == [""]:
+        # Remove empty string
+        args.pin = []
+
     if args.run_id and args.year:
         parser.error("The --year and --run-id arguments cannot both be present")
 
     return args
 
 
-def get_township_codes(run_id: str, pins: str, write_github_output: bool) -> list[str]:
+def get_township_codes(
+    run_id: str, pins: list[str], write_github_output: bool
+) -> list[str]:
     """
     Given a model run ID, return all the township codes for that triad that
     were assessed in the model run.
@@ -161,7 +167,7 @@ def main() -> None:
 
     run_id = get_run_id(args.run_id, args.year)
     metadata = get_model_metadata(run_id)
-    township_codes = get_township_codes(run_id, args.pins, args.write_github_output)
+    township_codes = get_township_codes(run_id, args.pin, args.write_github_output)
 
     matrix = json.dumps({"township": township_codes})
     count = len(township_codes)

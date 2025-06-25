@@ -86,8 +86,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
 
     if args.pin == [""]:
-        # Cast empty string to null
-        args.pin = None
+        # Remove empty string
+        args.pin = []
 
     return args
 
