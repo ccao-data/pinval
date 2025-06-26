@@ -455,11 +455,13 @@
       const cardData = mapData[cardIndex];
 
       // Create map centered on subject property
-      const map = L.map(mapId).setView(
+      const map = L.map('map', {
+        dragging: !L.Browser.mobile,
+        tap: !L.Browser.mobile
+      }).setView(
         [cardData.location.loc_latitude, cardData.location.loc_longitude],
         14
       );
-
       // Add tile layer
       L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
