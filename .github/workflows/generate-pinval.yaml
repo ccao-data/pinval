@@ -3,26 +3,27 @@ name: generate-pinval
 on:
   workflow_dispatch:
     inputs:
+      year:
+        type: string
+        description: >
+          Assessment year: Use values and comps from the final model for this year.
+          Leave blank if you are supplying a run ID instead
+        required: false
+        default: ""
+
       run_id:
         type: string
         description: >
-          Run ID: The model run whose comps should be used
-        required: true
-        default: "2025-02-11-charming-eric"
-
-      triad_name:
-        type: string
-        description: >
-          Triad name: Generate reports for every PIN in this triad. Leave blank if you are
-          supplying PINs instead. Options: city, north, south
+          Run ID: The model run whose comps should be used. Leave blank if you are supplying
+          an assessment year instead
         required: false
         default: ""
 
       pins:
         type: string
         description: >
-          PINs: One or more comma‑separated Cook County PINs. Leave blank if you are
-          supplying a triad instead
+          PINs: One or more space‑separated Cook County PINs. Leave blank to
+          generate reports for all PINs in the assessment triad
         required: false
         default: ""
 
@@ -34,7 +35,7 @@ on:
           - Development bucket
           - Production bucket
         default: Development bucket
-        required: false
+        required: true
 
 env:
   PYTHONUNBUFFERED: "1"
@@ -43,18 +44,29 @@ env:
   AWS_ATHENA_S3_STAGING_DIR: s3://ccao-athena-results-us-east-1/
   HUGO_VERSION: "0.147.5"
 
+defaults:
+  run:
+    # Always use builtin bash shell to take advantage of automatic -eo pipefail.
+    # See: https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#defaultsrunshell
+    shell: bash
+
 jobs:
 ###############################################################################
 # Setup
 ###############################################################################
-  list-townships:
+  setup:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-      count:  ${{ steps.set-matrix.outputs.count }}
+      matrix: ${{ steps.resolve-metadata.outputs.matrix }}
+      count: ${{ steps.resolve-metadata.outputs.count }}
+      assessment-year: ${{ steps.resolve-metadata.outputs.assessment-year }}
+      run-id: ${{ steps.resolve-metadata.outputs.run-id }}
+      triad: ${{ steps.resolve-metadata.outputs.triad }}
+      bucket: ${{ steps.resolve-aws.outputs.bucket }}
+      distribution-id: ${{ steps.resolve-aws.outputs.distribution-id }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -83,23 +95,46 @@ jobs:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
 
-      - name: Collect township codes (or fallback)
-        id: set-matrix
+      - name: Resolve model metadata
+        id: resolve-metadata
         run: |
-          python3 scripts/generate_pinval/list_townships.py \
+          # Parse PIN list to an array so we can safely pass it into this
+          # script, which accepts multiple space-delimited PINs
+          read -ra PINS <<< "${{ inputs.pins }}"
+          python3 scripts/generate_pinval/resolve_model_metadata.py \
+            --year "${{ inputs.year }}" \
             --run-id "${{ inputs.run_id }}" \
-            --triad "${{ inputs.triad_name }}" \
+            --pin "${PINS[@]}" \
             --write-github-output
+
+      - name: Resolve AWS resources
+        id: resolve-aws
+        run: |
+          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
+            BUCKET="${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}"
+            DISTRIBUTION_ID="${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_STAGING }}"
+          else
+            BUCKET="${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}"
+            DISTRIBUTION_ID="${{ vars.AWS_CLOUDFRONT_DISTRIBUTION_ID_PROD }}"
+          fi
+
+          BUCKET_STR="bucket=${BUCKET}"
+          echo "$BUCKET_STR"
+          echo "$BUCKET_STR" >> "$GITHUB_OUTPUT"
+
+          DISTRIBUTION_ID_STR="distribution-id=${DISTRIBUTION_ID}"
+          echo "$DISTRIBUTION_ID_STR"
+          echo "$DISTRIBUTION_ID_STR" >> "$GITHUB_OUTPUT"
 
 ###############################################################################
 # Generate PINVAL reports for a triad or explicit PINs
 ###############################################################################
   generate-pinval:
-    needs: list-townships
+    needs: setup
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.list-townships.outputs.matrix) }}
-      max-parallel: ${{ fromJson(needs.list-townships.outputs.count) }}
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+      max-parallel: ${{ fromJson(needs.setup.outputs.count) }}
     env:
       TOWNSHIP: ${{ matrix.township }}
     permissions:
@@ -149,45 +184,21 @@ jobs:
       - name: Install Hugo
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      - name: Generate PINVAL reports (triad shard or explicit PINs)
+      - name: Generate PINVAL reports
+        env:
+          RUN_ID: ${{ needs.setup.outputs.run-id }}
         run: |
-          set -euo pipefail
-
-          declare -a ARGS=(
-            --run-id "${{ inputs.run_id }}"
-            --triad "${{ inputs.triad_name }}"
-            --township "$TOWNSHIP"
-          )
-
-          # Convert comma-separated input into an array, stripping blanks
-          IFS=',' read -ra PINS_ARR <<< "${{ inputs.pins }}"
-          CLEAN_PINS=()
-          for p in "${PINS_ARR[@]:-}"; do
-            [[ -n "$p" ]] && CLEAN_PINS+=("$p")
-          done
-
-          if [[ ${#CLEAN_PINS[@]} -gt 0 ]]; then
-            ARGS+=(--pin "${CLEAN_PINS[@]}")
-          fi
-
-          echo "Running generate_pinval.py with: ${ARGS[*]}"
-          python3 scripts/generate_pinval/generate_pinval.py "${ARGS[@]}"
-
-      - name: Resolve target S3 bucket
-        id: bucket
-        run: |
-          if [[ "${{ inputs.environment }}" == 'Development bucket' ]]; then
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "bucket=${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}" >> "$GITHUB_OUTPUT"
-          fi
+          read -ra PINS <<< "${{ inputs.pins }}"
+          python3 scripts/generate_pinval/generate_pinval.py \
+            --run-id "$RUN_ID" \
+            --township "$TOWNSHIP" \
+            --pin "${PINS[@]}"
 
       - name: Sync reports to S3
         env:
-          TARGET_BUCKET: ${{ steps.bucket.outputs.bucket }}
+          TARGET_BUCKET: ${{ needs.setup.outputs.bucket }}
+          YEAR: ${{ needs.setup.outputs.assessment-year }}
         run: |
-          RUN_ID="${{ inputs.run_id }}"
-          YEAR="${RUN_ID:0:4}"
           LOCAL="hugo/public/${YEAR}/"
           REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
           aws s3 sync "$LOCAL" "$REMOTE" \
@@ -195,11 +206,12 @@ jobs:
             --include '*.html'
 
 ###############################################################################
-# SNS Job
+# Invalidate cache and notify
 ###############################################################################
   notify:
-    needs: generate-pinval
-    if: ${{ always() && needs.generate-pinval.result == 'success' }}
+    needs:
+      - setup
+      - generate-pinval
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -210,33 +222,56 @@ jobs:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
 
-      - name: Mask SNS topic ARN
-        run: echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
+      - name: Mask AWS identifiers
+        run: |
+          echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
+          echo "::add-mask::${{ secrets.AWS_SNS_NOTIFICATION_TOPIC_ARN }}"
+
+      - name: Invalidate cache
+        env:
+          YEAR: ${{ needs.setup.outputs.assessment-year }}
+          TARGET_DISTRIBUTION_ID: ${{ needs.setup.outputs.distribution-id }}
+        run: |
+          # If the user passed in PINs, we want to only invalidate the cache
+          # for those PINs, and preserve the cache for everything else to
+          # improve performance for unrelated reports
+          read -ra PINS <<< "${{ inputs.pins }}"
+          INVALIDATION_PATHS=()
+          if (( ${#PINS[@]} > 0 )); then
+            for pin in "${PINS[@]:-}"; do
+              INVALIDATION_PATHS+=("/${YEAR}/${pin}.html")
+            done
+          else
+            # If the user didn't pass in PINs, we must have updated the whole
+            # tri, so invalidate everything in this year
+            INVALIDATION_PATHS+=("/${YEAR}/*.html")
+          fi
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${TARGET_DISTRIBUTION_ID}" \
+            --paths "${INVALIDATION_PATHS[@]}"
 
       - name: Publish SNS notification
         env:
-          RUN_ID: ${{ inputs.run_id }}
-          TRIAD: ${{ inputs.triad_name }}
-          PINS: ${{ inputs.pins }}
+          RUN_ID: ${{ needs.setup.outputs.run-id }}
+          YEAR: ${{ needs.setup.outputs.assessment-year }}
+          TRIAD: ${{ needs.setup.outputs.triad }}
           ENV_LABEL: ${{ inputs.environment }}
-          URL_BASE_DEV: ${{ vars.AWS_S3_BUCKET_PINVAL_STAGING }}
-          URL_BASE_PROD: ${{ vars.AWS_S3_BUCKET_PINVAL_PROD }}
+          BUCKET: ${{ needs.setup.outputs.bucket }}
         run: |
-          URL_BASE="$URL_BASE_DEV"
-          if [[ "$ENV_LABEL" == 'Production bucket' ]]; then
-            URL_BASE="$URL_BASE_PROD"
-          fi
+          read -ra PINS <<< "${{ inputs.pins }}"
           SUBJECT="PINVAL reports ready for run-id $RUN_ID"
           MESSAGE=$(cat <<EOF
           Your requested PINVAL reports have been generated.
 
+          Assessment year: $YEAR
           Run-ID: $RUN_ID
           Triad: $TRIAD
-          PIN list: $PINS
+          PIN list: ${PINS[@]}
           Environment: $ENV_LABEL
 
-          You can browse or download the reports here:
-          $URL_BASE/${RUN_ID:0:4}/
+          You can browse or download the reports at the following S3 path:
+          $BUCKET/$YEAR/
           EOF
           )
           aws sns publish \
