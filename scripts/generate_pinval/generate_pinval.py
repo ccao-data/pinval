@@ -36,7 +36,7 @@ import orjson
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
 
-from constants import RUN_ID_MAP, TRIAD_CHOICES
+from constants import RUN_ID_MAP
 
 
 # Argparse interface
@@ -60,16 +60,13 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--triad",
-        choices=TRIAD_CHOICES,
-        help="Generate reports for all PINs in this triad (mutually‑exclusive with --pin)",
-    )
-
-    parser.add_argument(
         "--pin",
         nargs="*",
         metavar="PIN",
-        help="One or more Cook County PINs to generate reports for (mutually‑exclusive with --triad)",
+        help=(
+            "One or more Cook County PINs to generate reports for. When empty, "
+            "generates reports for all PINs in the reassessment triad"
+        ),
     )
 
     parser.add_argument(
@@ -81,24 +78,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--township",
         help=(
-            "Restrict triad mode to a single Cook County township code "
-            "(two-digit string, e.g. 01, 23). Ignored unless --triad is used."
+            "Restrict all-PIN mode to a single Cook County township code "
+            "(two-digit string, e.g. 01, 23). Ignored if --pin is used."
         ),
     )
 
     args = parser.parse_args()
 
-    # ── Validation ────────────────────────────────────────────────────────────
     if args.pin == [""]:
-        # Cast empty string to null
-        args.pin = None
-
-    provided_pin = bool(args.pin)
-    provided_triad = bool(args.triad)
-
-    if provided_pin == provided_triad:
-        # Either both supplied *or* neither supplied → invalid
-        parser.error("Exactly one of --triad or --pin must be provided, but not both.")
+        # Remove empty string
+        args.pin = []
 
     return args
 
@@ -445,28 +434,37 @@ def main() -> None:
         cursor_class=PandasCursor,
     ).cursor(unload=True)
 
-    if args.triad:
-        assessment_clauses: list[str] = [
-            "run_id = %(run_id)s",
-            "assessment_triad = %(triad)s",
-        ]
-        params_assessment: dict[str, str] = {
-            "run_id": args.run_id,
-            "triad": args.triad.lower(),
-        }
-        # Shard by township **only** in the assessment query
-        if args.township:
-            assessment_clauses.append("meta_township_code = %(township)s")
-            params_assessment["township"] = args.township
+    # Extract assessment year for model run, which we'll use to determine
+    # the output path
+    assessment_year_df = run_athena_query(
+        cursor,
+        "SELECT assessment_year FROM model.metadata WHERE run_id = %(run_id)s",
+        {"run_id": args.run_id},
+    )
+    if assessment_year_df.empty:
+        raise ValueError(f"No model metadata found for model run {args.run_id}")
 
-        where_assessment = " AND ".join(assessment_clauses)
-    else:
+    assessment_year = assessment_year_df.iloc[0]["assessment_year"]
+
+    assessment_clauses = ["run_id = %(run_id)s"]
+    params_assessment = {"run_id": args.run_id}
+
+    # Shard by township **only** in the assessment query
+    if args.township:
+        assessment_clauses.append("meta_township_code = %(township)s")
+        params_assessment["township"] = args.township
+
+    if args.pin:
         pins: list[str] = list(set(args.pin))  # de-dupe
         pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
         placeholders = ",".join(f"%({k})s" for k in pin_params)
 
-        where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
-        params_assessment = {"run_id": args.run_id, **pin_params}
+        assessment_clauses.append(
+            f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
+        )
+        params_assessment = {**params_assessment, **pin_params}
+
+    where_assessment = " AND ".join(assessment_clauses)
 
     assessment_sql = f"""
         SELECT *
@@ -481,10 +479,13 @@ def main() -> None:
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
-        raise ValueError("No assessment rows returned for the given parameters")
+        raise ValueError(
+            f"No assessment rows returned for the following params: {params_assessment}"
+        )
 
     # Get the comps
-    comps_run_id = RUN_ID_MAP[args.run_id]
+    if (comps_run_id := RUN_ID_MAP.get(args.run_id)) is None:
+        raise ValueError(f"No comps run ID found for assessment run ID {args.run_id}")
 
     comps_sql = f"""
         SELECT comp.*
@@ -512,7 +513,9 @@ def main() -> None:
 
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
-        raise ValueError("No comps rows returned for the given parameters — aborting.")
+        raise ValueError(
+            f"No comp rows returned for the following params: {params_comps}"
+        )
 
     # Crosswalk for making column names human-readable
     model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
@@ -562,8 +565,7 @@ def main() -> None:
         df_comps = df_comps_by_pin.get(pin)
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
-        year = args.run_id[:4]
-        front["url"] = f"/{year}/{pin}.html"
+        front["url"] = f"/{assessment_year}/{pin}.html"
 
         write_json(front, md_path)
 
