@@ -7,7 +7,7 @@ dependencies = [
     "orjson>=3.10.18",
     "pandas>=2.2.3",
     "pyathena>=3.13.0",
-    "ccao @ git+https://github.com/ccao-data/ccao@e97bab236d9cbf3035b3c06ec735d016a693cae2#subdirectory=python",
+    "ccao @ git+https://github.com/ccao-data/ccao@c74f627d6431203bcf0cc9efa571396e6348eaec#subdirectory=python",
     "pyarrow>=20.0.0",
 ]
 
