@@ -241,6 +241,7 @@ def build_front_matter(
         # Complete the card
         front["cards"].append(
             {
+                "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
                 "char_class_detailed": card_df["char_class_detailed"],
                 "location": {
