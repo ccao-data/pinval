@@ -333,21 +333,21 @@
         </tr>
         <!-- Metadata rows -->
         <tr>
-          <td>Sale Doc. Num.</td>
+          <td class="char-name">Sale Doc. Num.</td>
           <td></td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.document_num }}</td>
           {{ end }}
         </tr>
         <tr>
-          <td>Address</td>
+          <td class="char-name">Address</td>
           <td>{{ $.card.location.property_address }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.property_address }}</td>
           {{ end }}
         </tr>
         <tr>
-          <td>PIN</td>
+          <td class="char-name">PIN</td>
           <td>{{ $.card.pin_pretty }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.pin_pretty }}</td>
@@ -356,7 +356,7 @@
         <!-- Regular rows -->
         {{ range $char := .card.predictors }}
         <tr>
-          <td>{{ index $.var_labels $char }}</td>
+          <td class="char-name">{{ index $.var_labels $char }}</td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
