@@ -130,14 +130,8 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
             txt = txt[1:-1]
         preds_cleaned = [p.strip() for p in txt.split(",") if p.strip()]
 
-    # Add metadata information
-    preds_cleaned = preds_cleaned + ["document_num", "property_address", "pin"]
-
     # Add top chars to the front of the list
     top_chars = [
-        "document_num",
-        "property_address",
-        "pin",
         "char_class",
         "meta_nbhd_code",
         "char_yrblt",
@@ -188,11 +182,7 @@ def build_front_matter(
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
         "var_labels": {
-            **{k: pretty_fn(k) for k in preds_cleaned},
-            # These have no entries in our vars_dict, so we add them manually
-            "pin": "PIN",
-            "document_num": "Sale Doc. Num.",
-            "property_address": "Address",
+            {k: pretty_fn(k) for k in preds_cleaned},
         },
     }
 
@@ -210,7 +200,6 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
-        subject_chars["pin"] = card_df["meta_pin"]
 
         # Comps
         comps_list = []
