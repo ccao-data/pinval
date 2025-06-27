@@ -352,7 +352,7 @@
         </tr>
         <tr>
           <td>PIN</td>
-          <td>{{ $.pin_pretty }}</td>
+          <td>{{ $card.pin_pretty }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.pin_pretty }}</td>
           {{ end }}
