@@ -336,7 +336,7 @@
           <td>Sale Doc. Num.</td>
           <td></td>
           {{ range $comp := $.card.comps }}
-            <td>{{ $comp.meta_sale_document_num }}</td>
+            <td>{{ $comp.document_num }}</td>
           {{ end }}
         </tr>
         <tr>
@@ -348,7 +348,7 @@
         </tr>
         <tr>
           <td>PIN</td>
-          <td>{{ $card.pin_pretty }}</td>
+          <td>{{ $.card.pin_pretty }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.pin_pretty }}</td>
           {{ end }}
