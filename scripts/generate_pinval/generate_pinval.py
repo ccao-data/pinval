@@ -111,14 +111,30 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 
     # Clean up existing lists
     if isinstance(raw, list):
-        return [str(x).strip() for x in raw if str(x).strip()]
+        preds_cleaned = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        # Fix list parsing
+        txt = str(raw).strip()
+        if txt.startswith("[") and txt.endswith("]"):
+            txt = txt[1:-1]
+        preds_cleaned = [p.strip() for p in txt.split(",") if p.strip()]
 
-    # Fix list parsing
-    txt = str(raw).strip()
-    if txt.startswith("[") and txt.endswith("]"):
-        txt = txt[1:-1]
+    # Add top chars to the front of the list
+    top_chars = [
+        "meta_nbhd_code",
+        "char_class",
+        "char_yrblt",
+        "char_bldg_sf",
+        "char_land_sf",
+        "char_beds",
+        "char_fbath",
+        "char_hbath",
+    ]
+    preds_cleaned = [c for c in top_chars if c in preds_cleaned] + [
+        p for p in preds_cleaned if p not in top_chars
+    ]
 
-    return [p.strip() for p in txt.split(",") if p.strip()]
+    return preds_cleaned
 
 
 def build_front_matter(
@@ -211,6 +227,7 @@ def build_front_matter(
         # Complete the card
         front["cards"].append(
             {
+                "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
                 "char_class_detailed": card_df["char_class_detailed"],
                 "location": {
