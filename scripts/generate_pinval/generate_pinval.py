@@ -122,14 +122,36 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 
     # Clean up existing lists
     if isinstance(raw, list):
-        return [str(x).strip() for x in raw if str(x).strip()]
+        preds_cleaned = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        # Fix list parsing
+        txt = str(raw).strip()
+        if txt.startswith("[") and txt.endswith("]"):
+            txt = txt[1:-1]
+        preds_cleaned = [p.strip() for p in txt.split(",") if p.strip()]
 
-    # Fix list parsing
-    txt = str(raw).strip()
-    if txt.startswith("[") and txt.endswith("]"):
-        txt = txt[1:-1]
+    # Add metadata information
+    preds_cleaned = preds_cleaned + ["document_num", "property_address", "pin"]
 
-    return [p.strip() for p in txt.split(",") if p.strip()]
+    # Add top chars to the front of the list
+    top_chars = [
+        "document_num",
+        "property_address",
+        "pin",
+        "char_class",
+        "meta_nbhd_code",
+        "char_yrblt",
+        "char_bldg_sf",
+        "char_land_sf",
+        "char_beds",
+        "char_fbath",
+        "char_hbath",
+    ]
+    preds_cleaned = [c for c in top_chars if c in preds_cleaned] + [
+        p for p in preds_cleaned if p not in top_chars
+    ]
+
+    return preds_cleaned
 
 
 def build_front_matter(
@@ -154,21 +176,6 @@ def build_front_matter(
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
 
-    # Add top chars to the front of the list
-    top_chars = [
-        "char_class",
-        "meta_nbhd_code",
-        "char_yrblt",
-        "char_bldg_sf",
-        "char_land_sf",
-        "char_beds",
-        "char_fbath",
-        "char_hbath",
-    ]
-    preds_cleaned = [c for c in top_chars if c in preds_cleaned] + [
-        p for p in preds_cleaned if p not in top_chars
-    ]
-
     front: dict = {
         "layout": "report",
         "title": "Report: How Did the Assessor's Model Estimate My Home Value?",
@@ -180,7 +187,13 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
-        "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "var_labels": {
+            **{k: pretty_fn(k) for k in preds_cleaned},
+            # These have no entries in our vars_dict, so we add them manually
+            "pin": "PIN",
+            "document_num": "Sale Doc. Num.",
+            "property_address": "Address",
+        },
     }
 
     # Per card
@@ -197,6 +210,8 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
+        print(card_df.index)
+        subject_chars["pin"] = card_df["meta_pin"]
 
         # Comps
         comps_list = []
