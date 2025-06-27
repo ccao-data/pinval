@@ -179,7 +179,12 @@
             role="tabpanel"
             aria-labelledby="card-{{ $index }}-tab"
           >
-            {{ template "card-content" (dict "card" $card "var_labels" .Params.var_labels "is_multicard" true) }}
+            {{ template "card-content"
+            (dict "card" $card
+                  "var_labels" .Params.var_labels
+                  "is_multicard" true
+                  "pin_pretty" $.Params.pin_pretty
+                  "address" $card.location.property_address) }}
           </div>
           {{ end }}
         </div>
@@ -187,7 +192,12 @@
       {{ else }}
         <!-- Single-card: No tabs required -->
         {{ $card := index .Params.cards 0 }}
-        {{ template "card-content" (dict "card" $card "var_labels" .Params.var_labels "is_multicard" false) }}
+        {{ template "card-content"
+          (dict "card" $card
+          "var_labels" .Params.var_labels
+          "is_multicard" false
+          "pin_pretty" $.Params.pin_pretty
+           "address" $card.location.property_address) }}
       {{ end }}
 
       <h2>Final Model Estimate</h2>
@@ -323,6 +333,28 @@
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_date }}</td>
+          {{ end }}
+        </tr>
+        <!-- Metadata rows -->
+        <tr>
+          <td>Sale Doc. Num.</td>
+          <td>{{ index $.card.chars "document_num" }}</td>
+          {{ range $comp := $.card.comps }}
+            <td>{{ $comp.meta_nbhd_code }}</td>
+          {{ end }}
+        </tr>
+        <tr>
+          <td>Address</td>
+          <td>{{ .address }}</td>
+          {{ range $comp := $.card.comps }}
+            <td>{{ $comp.property_address }}</td>
+          {{ end }}
+        </tr>
+        <tr>
+          <td>PIN</td>
+          <td>{{ $.pin_pretty }}</td>
+          {{ range $comp := $.card.comps }}
+            <td>{{ $comp.pin_pretty }}</td>
           {{ end }}
         </tr>
         <!-- Regular rows -->
