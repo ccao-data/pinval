@@ -34,12 +34,16 @@
 
       <!-- Contextual information -->
       <p>
-        The goal of this experimental report is to explain how the Cook County Assessor's
-        statistical model estimated a subject home's value. The {{ .Params.assessment_year }}
-        model ran on <strong>{{ .Params.final_model_run_date }}</strong>, and it used characteristics
-        and sales available at that time to learn about the real estate market and estimate
-        what the subject home would sell for if it sold on
-        <strong>January 1, {{ .Params.assessment_year }}</strong>.
+
+        The goal of this report is to explain how the Cook County Assessor’s statistical
+        model estimated the value of the home with Parcel Identification Number
+        (PIN) <strong>{{ .Params.pin_pretty }}</strong> in tax year
+        <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
+        sales and property characteristics to learn about the real estate market
+        leading up to {{ .Params.assessment_year }}. Then, it used what it learned to
+        estimate what this home could have sold for on <strong>January 1,
+        {{ .Params.assessment_year }}</strong> if it had sold on that date in a fair, open-market transaction.
+
       </p>
       <div class="info-box border">
         <div
@@ -68,32 +72,68 @@
           </span>
           <h5 class="mb-0 mx-2">Click to read more about this report</h5>
         </div>
+
+
         <div class="collapse" id="info-content">
           <div class="p-3 bg-light">
+            <h5>What is the Assessor's model?</h5>
             <p>
-              This report attempts to explain the Assessor’s model by explaining important
-              inputs to the model: first, the subject home’s characteristics, and second,
-              the top 5 experimental “sale comps.” These sale comps were identified by an
-              experimental algorithm we built to answer the question “what sales did the
-              model use to estimate my home’s value?” The end of the report shows the
-              model’s estimated value for this property, which is based on the characteristics
-              and sales input to the model.
+              The Assessor’s “statistical model” is a computer program that uses
+              past home sales to estimate current prices. The model combines past
+              sales with “characteristics” that the Assessor collects about every
+              home in Cook County over time, like square footage and location.
             </p>
             <p>
-              The sales that the model used for estimation are reported by the Illinois
-              Department of Revenue, which records sales using the
-              <a
-                href="https://tax.illinois.gov/content/dam/soi/en/web/tax/localgovernments/property/documents/ptax-203.pdf"
-                target="_blank"
-              >
-                Real Estate Transfer Declaration form
-              </a>.
+              By combining sale prices and characteristics, the model “learns”
+              how characteristics like square footage have influenced sale prices
+              in the past. It also learns patterns in how these prices have changed
+              over time. It uses these patterns from the past to estimate sale prices on
+              January 1, {{ .Params.assessment_year }}.
+            </p>
+            <h5>How does the Assessor use the model to value my home?</h5>
+            <p>
+              Once per year, the Assessor uses the model to make a first
+              estimate for the value of all single-family homes and small
+              multi-family buildings in the portion of Cook County that is
+              up for reassessment. In {{ .Params.assessment_year }}, the
+              Assessor used the model to generate these estimates on
+              {{ .Params.final_model_run_date }}.
             </p>
             <p>
-              For more details on how the experimental sales comp algorithm works, see
+              After using the model to generate estimates, analysts at the
+              Assessor's Office review them by hand to make sure they are
+              correct. Once the Assessor's analysts are confident in the
+              corrected values, the Assessor mails them to homeowners.
+            </p>
+            <p>
+              Due to the Assessor's review process, the model estimates are
+              often not exactly the same as the values that the Assessor mails
+              to homeowners.
+            </p>
+            <h5>What information does this report contain?</h5>
+            <p>
+              The Assessor’s model uses sales reported by the Illinois Department of Revenue.
+              Before analyzing sale trends, the model removes a small number of sales that the
+              Assessor believes were not fair, open-market transactions. This includes sales
+              between family members, distressed sales, and foreclosure auctions, among others.
+            </p>
+            <p>
+              This report compares your home to 5 past sales that the model found to
+              be most important for your estimated home value in {{ .Params.assessment_year }}.
+              The top of the report shows the location and characteristics of your home. The
+              middle section of the report compares the location and characteristics of the
+              top 5 sales to your home’s location and characteristics. At the end,
+              the report summarizes the prices of the top 5 sales and compares them
+              to your home’s estimated value.
+            </p>
+            <p>
+              If you have a background in statistics or computer science, you might be
+              interested in our article
               <a href="https://ccao-data.github.io/lightsnip/articles/finding-comps.html" target="_blank">
                 Finding comparables with LightGBM
               </a>.
+              This article provides technical details about how we used the model to
+              find the top 5 most important sales for every home.
             </p>
           </div>
         </div>
@@ -139,7 +179,7 @@
             role="tabpanel"
             aria-labelledby="card-{{ $index }}-tab"
           >
-            {{ template "card-content" (dict "card" $card "var_labels" .Params.var_labels "is_multicard" true) }}
+            {{ template "card-content" (dict "card" $card "var_labels" $.Params.var_labels "is_multicard" true) }}
           </div>
           {{ end }}
         </div>
@@ -150,7 +190,7 @@
         {{ template "card-content" (dict "card" $card "var_labels" .Params.var_labels "is_multicard" false) }}
       {{ end }}
 
-      <h2>Final model estimate</h2>
+      <h2>Final Model Estimate</h2>
       <p>
         After rounding and other processing, the model's final estimate for the value of this property
         on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
@@ -171,7 +211,7 @@
   <!-- Wrap Location and Characteristics tables in a row so they appear side-by-side on desktop -->
   <div class="row">
     <div class="col-12 col-lg-6">
-      <h2 class="mb-3">Location</h2>
+      <h2 class="mb-3">Your Home's Location</h2>
       <div class="table-responsive mb-3">
         <table class="table table-bordered location-table">
           <tbody>
@@ -188,7 +228,7 @@
               <td>{{ .card.location.township }}</td>
             </tr>
             <tr>
-              <td><strong>Assessor Neighborhood</strong></td>
+              <td><strong>Assessor Neighborhood Code</strong></td>
               <td>{{ .card.location.meta_nbhd_code }}</td>
             </tr>
             <tr>
@@ -205,32 +245,32 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <h2 class="mb-3">Characteristics</h2>
+      <h2 class="mb-3">Your Home's Top Characteristics</h2>
       <div class="table-responsive mb-3">
         <table class="table table-bordered characteristic-table">
           <tbody>
             <tr>
-              <td><strong>Class</strong></td>
-              <td>{{ .card.chars.char_class }}</td>
+              <td><strong>Property Type</strong></td>
+              <td>{{ .card.char_class_detailed }}</td>
             </tr>
             <tr>
               <td><strong>Year Built</strong></td>
               <td>{{ .card.chars.char_yrblt }}</td>
             </tr>
             <tr>
-              <td><strong>Bldg. S.F.</strong></td>
+              <td><strong>Building Square Footage</strong></td>
               <td>{{ .card.chars.char_bldg_sf }}</td>
             </tr>
             <tr>
-              <td><strong>Land S.F.</strong></td>
+              <td><strong>Land Square Footage</strong></td>
               <td>{{ .card.chars.char_land_sf }}</td>
             </tr>
             <tr>
-              <td><strong>Beds</strong></td>
+              <td><strong>Number of Beds</strong></td>
               <td>{{ .card.chars.char_beds }}</td>
             </tr>
             <tr>
-              <td><strong>Full Baths</strong></td>
+              <td><strong>Number of Full Baths</strong></td>
               <td>{{ .card.chars.char_fbath }}</td>
             </tr>
           </tbody>
@@ -240,7 +280,7 @@
   </div>
 
   <!-- Comp map -->
-  <h2 class="mb-3">Top 5 comparable sales</h2>
+  <h2 class="mb-3">Top 5 Most Important Sales</h2>
   <div
     id="map-{{ if .is_multicard }}{{ .card.card_num }}{{ else }}main{{ end }}"
     class="map-container"
@@ -256,9 +296,9 @@
       <thead>
         <tr>
           <th>Characteristic</th>
-          <th>{{ if .is_multicard }}Subject card{{ else }}Subject prop.{{ end }}</th>
+          <th>{{ if .is_multicard }}Subject card{{ else }}Your home{{ end }}</th>
           {{ range $index, $comp := .card.comps }}
-          <th>Comp {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
+          <th>Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
           {{ end }}
         </tr>
       </thead>
@@ -302,13 +342,13 @@
 
   {{ if .card.has_subject_pin_sale }}
   <p>
-    <strong><span class="asterisk">*</span></strong> This comparable is a sale of the subject
-    {{ if .is_multicard }}card{{ else }}property{{ end }}. The model typically weights these sales
-    highly, even if they are older than other comparable sales.
+    <strong><span class="asterisk">*</span></strong> This is a past sale of your home.
+    The model usually considers past sales of a home to be important for its value,
+    even if those sales are older than sales of other homes.
   </p>
   {{ end }}
 
-  <h2 class="mb-3">Summary of comparable sales</h2>
+  <h2 class="mb-3">Summary of the Top 5 Most Important Sales</h2>
   <p>
     The top 5 comparable sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
@@ -317,7 +357,7 @@
     at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
   </p>
 
-  <h2 class="mb-3">Initial model estimate</h2>
+  <h2 class="mb-3">Initial Model Estimate</h2>
   <p>
     Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
     initially estimated that the value of this {{ if .is_multicard }}card{{ else }}property{{ end }}
@@ -456,7 +496,7 @@
       });
 
       if (!hasSubjectSale) {
-        const propertyLabel = cardData.is_multicard ? "Subject card" : "Subject property";
+        const propertyLabel = cardData.is_multicard ? "Subject card" : "Your home";
         subjectMarker.bindTooltip(
           propertyLabel,
           {
@@ -514,7 +554,7 @@
 
         // Create popup content
         const compPopupContent = `
-          <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Comp " + comp.comp_num}</h5>
+          <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Sale " + comp.comp_num}</h5>
           <b>Address</b>: ${comp.property_address}
           <br><b>PIN</b>: <a href="https:\/\/www.cookcountyassessor.com/pin/${comp.pin}" target="_blank">${comp.pin_pretty}</a>
           <br><b>Property class</b>: ${comp.char_class}
@@ -545,7 +585,7 @@
           <div style="background-color: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);">
             <div style="margin-bottom: 5px;">
               <span style="display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid black; margin-right: 5px;"></span>
-              ${cardData.is_multicard ? "Subject card" : "Subject property"}
+              ${cardData.is_multicard ? "Subject card" : "Your home"}
             </div>
             <div>
               <span style="display: inline-block; width: 13px; height: 13px; border-radius: 50%; background-color: #00cc00; margin-right: 5px;"></span>

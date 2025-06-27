@@ -36,7 +36,7 @@ import orjson
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
 
-from constants import RUN_ID_MAP, TRIAD_CHOICES
+from constants import RUN_ID_MAP
 
 
 # Argparse interface
@@ -60,16 +60,13 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--triad",
-        choices=TRIAD_CHOICES,
-        help="Generate reports for all PINs in this triad (mutually‑exclusive with --pin)",
-    )
-
-    parser.add_argument(
         "--pin",
         nargs="*",
         metavar="PIN",
-        help="One or more Cook County PINs to generate reports for (mutually‑exclusive with --triad)",
+        help=(
+            "One or more Cook County PINs to generate reports for. When empty, "
+            "generates reports for all PINs in the reassessment triad"
+        ),
     )
 
     parser.add_argument(
@@ -81,24 +78,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--township",
         help=(
-            "Restrict triad mode to a single Cook County township code "
-            "(two-digit string, e.g. 01, 23). Ignored unless --triad is used."
+            "Restrict all-PIN mode to a single Cook County township code "
+            "(two-digit string, e.g. 01, 23). Ignored if --pin is used."
         ),
     )
 
     args = parser.parse_args()
 
-    # ── Validation ────────────────────────────────────────────────────────────
     if args.pin == [""]:
-        # Cast empty string to null
-        args.pin = None
-
-    provided_pin = bool(args.pin)
-    provided_triad = bool(args.triad)
-
-    if provided_pin == provided_triad:
-        # Either both supplied *or* neither supplied → invalid
-        parser.error("Exactly one of --triad or --pin must be provided, but not both.")
+        # Remove empty string
+        args.pin = []
 
     return args
 
@@ -156,14 +145,14 @@ def build_front_matter(
 
     front: dict = {
         "layout": "report",
-        "title": "Cook County Assessor's Model Value Report (Experimental)",
+        "title": "Report: How Did the Assessor's Model Estimate My Home Value?",
         "assessment_year": tp["assessment_year"],
         "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime(
             "%B %d, %Y"
         ),
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
-        "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
+        "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
     }
@@ -203,9 +192,9 @@ def build_front_matter(
                 "pin": comp["comp_pin"],
                 "pin_pretty": pin_pretty(comp["comp_pin"]),
                 "is_subject_pin_sale": comp["is_subject_pin_sale"],
-                "sale_price": f"${float(comp['meta_sale_price']):,.0f}",
+                "sale_price": comp["meta_sale_price"],
                 "sale_price_short": comp["sale_price_short"],
-                "sale_price_per_sq_ft": f"${float(comp['sale_price_per_sq_ft']):,.0f}",
+                "sale_price_per_sq_ft": comp["sale_price_per_sq_ft"],
                 "sale_date": comp["sale_month_year"],
                 "document_num": comp["comp_document_num"],
                 "property_address": comp["property_address"],
@@ -220,9 +209,6 @@ def build_front_matter(
             comps_list.append(comp_dict)
 
         # Comp summary
-        sale_prices = comps_df["meta_sale_price"]
-        sqft_prices = comps_df["sale_price_per_sq_ft"]
-
         comp_summary = {
             "sale_year_range_prefix": (
                 "between" if " and " in comps_df["sale_year_range"].iloc[0] else "in"
@@ -230,20 +216,21 @@ def build_front_matter(
             "sale_year_range": comps_df["sale_year_range"].iloc[0]
             if not comps_df.empty
             else "",
-            "avg_sale_price": "${:,.0f}".format(sale_prices.mean()),
-            "avg_price_per_sqft": "${:,.0f}".format(sqft_prices.mean()),
+            "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
+            "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
         }
 
         # Complete the card
         front["cards"].append(
             {
                 "card_num": int(card_num),
+                "char_class_detailed": card_df["char_class_detailed"],
                 "location": {
                     k: v
                     for k, v in {
                         "property_address": card_df["property_address"],
                         "municipality": card_df.get("loc_tax_municipality_name"),
-                        "township": card_df["meta_township_code"],
+                        "township": card_df["township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
                         "loc_school_elementary_district_name": card_df.get(
                             "school_elementary_district_name"
@@ -251,37 +238,22 @@ def build_front_matter(
                         "loc_school_secondary_district_name": card_df.get(
                             "school_secondary_district_name"
                         ),
-                        "loc_latitude": float(card_df["loc_latitude"]),
-                        "loc_longitude": float(card_df["loc_longitude"]),
+                        "loc_latitude": card_df["loc_latitude"],
+                        "loc_longitude": card_df["loc_longitude"],
                     }.items()
                 },
                 "chars": subject_chars,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
-                "pred_card_initial_fmv": "${:,.0f}".format(
-                    card_df["pred_card_initial_fmv"]
-                ),
-                "pred_card_initial_fmv_per_sqft": "${:,.2f}".format(
-                    card_df.get(
-                        "pred_card_initial_fmv_per_sqft",
-                        card_df["pred_card_initial_fmv"] / card_df["char_bldg_sf"],
-                    )
-                ),
+                "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
+                "pred_card_initial_fmv_per_sqft": card_df[
+                    "pred_card_initial_fmv_per_sqft"
+                ],
                 "comps": comps_list,
                 "comp_summary": comp_summary,
                 "predictors": preds_cleaned,
             }
         )
 
-    _format_dict_numbers(
-        front,
-        exclude_keys={
-            "loc_latitude",
-            "loc_longitude",
-            "char_yrblt",
-            "has_subject_pin_sale",
-            "is_subject_pin_sale",
-        },
-    )
     return front
 
 
@@ -291,6 +263,10 @@ def convert_to_builtin_types(obj) -> object:
     This is so the frontmatter doesn't through data type errors when being passed
     to the hugo template.
     """
+
+    # Standardize NA string representations
+    if isinstance(obj, str) and obj in {"nan"}:
+        return ""
 
     if isinstance(obj, dict):
         return {k: convert_to_builtin_types(v) for k, v in obj.items()}
@@ -335,7 +311,7 @@ def convert_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
     for col, dtype in dtype_conversions.items():
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").astype(dtype)
+            df[col] = pd.to_numeric(df[col], errors="raise").astype(dtype)
 
     return df
 
@@ -361,28 +337,80 @@ def label_dollar(s: pd.Series) -> pd.Series:
     return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
 
 
-def format_df(df: pd.DataFrame) -> pd.DataFrame:
+def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
-    return (
-        df
-        # Formate percentage columns
+
+    # Columns like year shouldn't be formatted with commas,
+    # so we preserve them as integers
+    INT_COLS = {
+        "time_sale_year",
+        "time_sale_day",
+        "acs5_median_household_total_occupied_year_built",
+        "char_yrblt",
+    }
+
+    # Columns that should be preserved as numeric
+    NUMERIC_PRESERVE = {"loc_latitude", "loc_longitude"}
+
+    def _fmt(x):
+        if isinstance(x, (int, np.integer)):
+            return f"{x:,}"
+        if isinstance(x, (float, np.floating)):
+            txt = f"{x:,.2f}".rstrip("0").rstrip(".")
+            return txt
+        return x
+
+    # Recode character columns to human-readable values
+    if chars_recode:
+        chars_to_recode = [
+            col for col in df.columns if col.startswith("char_") and col != "char_apts"
+        ]
+
+        df = ccao.vars_recode(
+            data=df.copy(),
+            cols=chars_to_recode,
+            code_type="long",
+            as_factor=False,
+            dictionary=ccao.vars_dict,
+        )
+
+    # Generate comps summary stats needed for frontmatter
+    if "meta_sale_price" in df.columns:
+        df["comps_avg_sale_price"] = df.groupby("card")["meta_sale_price"].transform(
+            "mean"
+        )
+    if "sale_price_per_sq_ft" in df.columns:
+        df["comps_avg_price_per_sqft"] = df.groupby("card")[
+            "sale_price_per_sq_ft"
+        ].transform("mean")
+
+    formatted_df = (
+        # Convert data to INT for columns that should be integers (year, etc)
+        df.pipe(
+            lambda d: d.assign(
+                **{
+                    col: pd.to_numeric(d[col], errors="raise").astype("Int64")
+                    for col in INT_COLS
+                    if col in d.columns
+                }
+            )
+        )
+        # Round lat/long to 5 decimal places, a balance between precision and
+        # readability
+        .pipe(
+            lambda d: d.assign(
+                loc_latitude=d["loc_latitude"].apply(round, ndigits=5),
+                loc_longitude=d["loc_longitude"].apply(round, ndigits=5),
+            )
+        )
+        # Format percentage columns
         .pipe(
             lambda d: d.assign(
                 **{
                     c: label_percent(d[c])
                     for c in d.filter(regex=r"^acs5_percent").columns
-                }
-            )
-        )
-        # Round up all numeric columns except for geo cols needed for mapping
-        .pipe(
-            lambda d: d.assign(
-                **{
-                    c: d[c].round(2)
-                    for c in d.select_dtypes(include="number").columns
-                    if c not in {"loc_latitude", "loc_longitude"}
                 }
             )
         )
@@ -392,47 +420,34 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
                 **{
                     c: label_dollar(d[c])
                     for c in d.columns
-                    if c == "acs5_median_household_renter_occupied_gross_rent"
+                    if c
+                    in {
+                        "comps_avg_sale_price",
+                        "comps_avg_price_per_sqft",
+                        "meta_sale_price",
+                        "sale_price_per_sq_ft",
+                        "acs5_median_household_renter_occupied_gross_rent",
+                        "pred_pin_final_fmv_round",
+                        "pred_card_initial_fmv",
+                        "pred_card_initial_fmv_per_sqft",
+                    }
                     or c.startswith("acs5_median_income")
+                }
+            )
+        )
+        # Generic numerics → comma-separated strings (except preserved cols)
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    c: d[c].apply(_fmt)
+                    for c in d.select_dtypes(include="number").columns
+                    if c not in NUMERIC_PRESERVE and c not in INT_COLS
                 }
             )
         )
     )
 
-
-def _format_numeric(val):
-    """
-    123456  -> '123,456'
-    1234.5  -> '1,234.5'
-    42.0000 -> '42'
-    Anything non-numeric is returned unchanged.
-    """
-    if isinstance(val, (int, np.integer)):
-        return f"{val:,}"
-    if isinstance(val, (float, np.floating)):
-        txt = f"{val:,.2f}".rstrip("0").rstrip(".")
-        return txt
-    return val
-
-
-def _format_dict_numbers(obj, exclude_keys: set[str] = None):
-    """
-    Recursively walk a mapping / sequence and replace every numeric leaf
-    with its comma-separated string form.
-    """
-    exclude_keys = exclude_keys or set()
-
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k in exclude_keys:
-                continue
-            obj[k] = _format_dict_numbers(v, exclude_keys)
-        return obj
-
-    if isinstance(obj, list):
-        return [_format_dict_numbers(v, exclude_keys) for v in obj]
-
-    return _format_numeric(obj)
+    return formatted_df
 
 
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
@@ -456,28 +471,37 @@ def main() -> None:
         cursor_class=PandasCursor,
     ).cursor(unload=True)
 
-    if args.triad:
-        assessment_clauses: list[str] = [
-            "run_id = %(run_id)s",
-            "assessment_triad = %(triad)s",
-        ]
-        params_assessment: dict[str, str] = {
-            "run_id": args.run_id,
-            "triad": args.triad.lower(),
-        }
-        # Shard by township **only** in the assessment query
-        if args.township:
-            assessment_clauses.append("meta_township_code = %(township)s")
-            params_assessment["township"] = args.township
+    # Extract assessment year for model run, which we'll use to determine
+    # the output path
+    assessment_year_df = run_athena_query(
+        cursor,
+        "SELECT assessment_year FROM model.metadata WHERE run_id = %(run_id)s",
+        {"run_id": args.run_id},
+    )
+    if assessment_year_df.empty:
+        raise ValueError(f"No model metadata found for model run {args.run_id}")
 
-        where_assessment = " AND ".join(assessment_clauses)
-    else:
+    assessment_year = assessment_year_df.iloc[0]["assessment_year"]
+
+    assessment_clauses = ["run_id = %(run_id)s"]
+    params_assessment = {"run_id": args.run_id}
+
+    # Shard by township **only** in the assessment query
+    if args.township:
+        assessment_clauses.append("meta_township_code = %(township)s")
+        params_assessment["township"] = args.township
+
+    if args.pin:
         pins: list[str] = list(set(args.pin))  # de-dupe
         pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
         placeholders = ",".join(f"%({k})s" for k in pin_params)
 
-        where_assessment = f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
-        params_assessment = {"run_id": args.run_id, **pin_params}
+        assessment_clauses.append(
+            f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
+        )
+        params_assessment = {**params_assessment, **pin_params}
+
+    where_assessment = " AND ".join(assessment_clauses)
 
     # TODO: Left join to all parcels so we can populate missing reports
     assessment_sql = f"""
@@ -488,15 +512,19 @@ def main() -> None:
 
     print("Querying data from Athena ...")
     df_assessment_all = format_df(
-        run_athena_query(cursor, assessment_sql, params_assessment)
+        run_athena_query(cursor, assessment_sql, params_assessment),
+        chars_recode=False,
     )
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
-        raise ValueError("No assessment rows returned for the given parameters")
+        raise ValueError(
+            f"No assessment rows returned for the following params: {params_assessment}"
+        )
 
     # Get the comps
-    comps_run_id = RUN_ID_MAP[args.run_id]
+    if (comps_run_id := RUN_ID_MAP.get(args.run_id)) is None:
+        raise ValueError(f"No comps run ID found for assessment run ID {args.run_id}")
 
     comps_sql = """
         SELECT comp.*
@@ -514,11 +542,14 @@ def main() -> None:
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
     print(f"Comps query finished in {time.time() - start_q:.2f}s")
-    df_comps_all = format_df(convert_dtypes(df_comps_all))
-
+    df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
+    # Transform values in character columns to human-readable values,
+    # this is already done in the assessment query, so we only need to do it here
     print("Shape of df_comps_all:", df_comps_all.shape)
     if df_comps_all.empty:
-        raise ValueError("No comps rows returned for the given parameters — aborting.")
+        raise ValueError(
+            f"No comp rows returned for the following params: {params_comps}"
+        )
 
     # Crosswalk for making column names human-readable
     model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
@@ -568,8 +599,7 @@ def main() -> None:
         df_comps = df_comps_by_pin.get(pin)
 
         front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
-        year = args.run_id[:4]
-        front["url"] = f"/{year}/{pin}.html"
+        front["url"] = f"/{assessment_year}/{pin}.html"
 
         write_json(front, md_path)
 
