@@ -181,9 +181,7 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": f"${tp['pred_pin_final_fmv_round']:,.2f}",
         "cards": [],
-        "var_labels": {
-            {k: pretty_fn(k) for k in preds_cleaned},
-        },
+        "var_labels": {{k: pretty_fn(k) for k in preds_cleaned}},
     }
 
     # Per card
