@@ -210,7 +210,6 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
-        print(card_df.index)
         subject_chars["pin"] = card_df["meta_pin"]
 
         # Comps
