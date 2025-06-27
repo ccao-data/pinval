@@ -345,7 +345,7 @@
         </tr>
         <tr>
           <td>Address</td>
-          <td>{{ .address }}</td>
+          <td>{{ $.card.location.property_address }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.property_address }}</td>
           {{ end }}
