@@ -123,12 +123,12 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
     # Clean up existing lists
     if isinstance(raw, list):
         preds_cleaned = [str(x).strip() for x in raw if str(x).strip()]
-
-    # Fix list parsing
-    txt = str(raw).strip()
-    if txt.startswith("[") and txt.endswith("]"):
-        txt = txt[1:-1]
-    preds_cleaned = [p.strip() for p in txt.split(",") if p.strip()]
+    else:
+        # Fix list parsing
+        txt = str(raw).strip()
+        if txt.startswith("[") and txt.endswith("]"):
+            txt = txt[1:-1]
+        preds_cleaned = [p.strip() for p in txt.split(",") if p.strip()]
 
     # Add metadata information
     preds_cleaned = preds_cleaned + ["document_num", "property_address", "pin"]
