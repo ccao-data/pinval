@@ -340,7 +340,7 @@
           <td>Sale Doc. Num.</td>
           <td>{{ index $.card.chars "document_num" }}</td>
           {{ range $comp := $.card.comps }}
-            <td>{{ $comp.meta_nbhd_code }}</td>
+            <td>{{ $comp.meta_sale_document_num }}</td>
           {{ end }}
         </tr>
         <tr>
