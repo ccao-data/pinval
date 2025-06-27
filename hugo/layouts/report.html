@@ -179,7 +179,7 @@
             role="tabpanel"
             aria-labelledby="card-{{ $index }}-tab"
           >
-            {{ template "card-content" (dict "card" $card "var_labels" .Params.var_labels "is_multicard" true) }}
+            {{ template "card-content" (dict "card" $card "var_labels" $.Params.var_labels "is_multicard" true) }}
           </div>
           {{ end }}
         </div>
