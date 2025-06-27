@@ -132,8 +132,8 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 
     # Add top chars to the front of the list
     top_chars = [
-        "char_class",
         "meta_nbhd_code",
+        "char_class",
         "char_yrblt",
         "char_bldg_sf",
         "char_land_sf",
