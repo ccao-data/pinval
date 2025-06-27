@@ -413,6 +413,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
                         "comps_avg_sale_price",
                         "comps_avg_price_per_sqft",
                         "meta_sale_price",
+                        "sale_price_per_sq_ft",
                         "acs5_median_household_renter_occupied_gross_rent",
                         "pred_pin_final_fmv_round",
                         "pred_card_initial_fmv",
