@@ -72,8 +72,7 @@ def get_township_codes(
     run_id: str, pins: list[str], write_github_output: bool
 ) -> list[str]:
     """
-    Given a model run ID, return all the township codes for that triad that
-    were assessed in the model run.
+    Given a model run ID, return all the township codes for that run.
 
     If `pins` is non-empty, the function will return one of two outputs depending
     on the value of `write_github_output`:
@@ -92,10 +91,10 @@ def get_township_codes(
             .cursor()
             .execute(
                 """
-                    SELECT DISTINCT meta_township_code
+                    SELECT DISTINCT parcel_township_code
                     FROM pinval.vw_assessment_card
-                    WHERE run_id = %(run_id)s
-                    ORDER BY meta_township_code
+                    WHERE model_run_id = %(run_id)s
+                    ORDER BY parcel_township_code
                 """,
                 {"run_id": run_id},
             )
