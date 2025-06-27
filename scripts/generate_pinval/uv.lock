@@ -36,7 +36,7 @@ wheels = [
 [[package]]
 name = "ccao"
 version = "1.3.0"
-source = { git = "https://github.com/ccao-data/ccao.git?subdirectory=python#e97bab236d9cbf3035b3c06ec735d016a693cae2" }
+source = { git = "https://github.com/ccao-data/ccao?subdirectory=python&rev=c74f627d6431203bcf0cc9efa571396e6348eaec#c74f627d6431203bcf0cc9efa571396e6348eaec" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
@@ -66,7 +66,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ccao", git = "https://github.com/ccao-data/ccao.git?subdirectory=python" },
+    { name = "ccao", git = "https://github.com/ccao-data/ccao?subdirectory=python&rev=c74f627d6431203bcf0cc9efa571396e6348eaec#c74f627d6431203bcf0cc9efa571396e6348eaec" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "orjson", specifier = ">=3.10.18" },
     { name = "pandas", specifier = ">=2.2.3" },
