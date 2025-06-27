@@ -182,9 +182,7 @@
             {{ template "card-content"
             (dict "card" $card
                   "var_labels" .Params.var_labels
-                  "is_multicard" true
-                  "pin_pretty" $.Params.pin_pretty
-                  "address" $card.location.property_address) }}
+                  "is_multicard" true)}}
           </div>
           {{ end }}
         </div>
@@ -195,9 +193,7 @@
         {{ template "card-content"
           (dict "card" $card
           "var_labels" .Params.var_labels
-          "is_multicard" false
-          "pin_pretty" $.Params.pin_pretty
-           "address" $card.location.property_address) }}
+          "is_multicard" false) }}
       {{ end }}
 
       <h2>Final Model Estimate</h2>
