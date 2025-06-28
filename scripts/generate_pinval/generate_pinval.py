@@ -494,7 +494,11 @@ def main() -> None:
 
     assessment_year = assessment_year_df.iloc[0]["assessment_year"]
 
-    assessment_clauses = ["run_id = %(run_id)s"]
+    assessment_clauses = [
+        "run_id = %(run_id)s",
+        # Temporary workaround for one broken row
+        "meta_card_num IS NOT NULL",
+    ]
     params_assessment = {"run_id": args.run_id}
 
     # Shard by township **only** in the assessment query
