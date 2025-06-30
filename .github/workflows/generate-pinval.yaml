@@ -37,6 +37,14 @@ on:
         default: Development bucket
         required: true
 
+      deploy-assets:
+        type: boolean
+        description: >
+          Deploy static assets like favicons and error pages in addition
+          to reports
+        required: false
+        default: false
+
 env:
   PYTHONUNBUFFERED: "1"
   UV_SYSTEM_PYTHON: 1
@@ -199,11 +207,17 @@ jobs:
           TARGET_BUCKET: ${{ needs.setup.outputs.bucket }}
           YEAR: ${{ needs.setup.outputs.assessment-year }}
         run: |
-          LOCAL="hugo/public/${YEAR}/"
-          REMOTE="${TARGET_BUCKET%/}/${YEAR}/"
-          aws s3 sync "$LOCAL" "$REMOTE" \
-            --no-progress \
-            --include '*.html'
+          LOCAL="hugo/public"
+          REMOTE="${TARGET_BUCKET%/}"
+          if [[ "${{ inputs.deploy-assets }}" == 'true' ]]; then
+            echo "Deploying static assets in addition to reports"
+          else
+            echo "Skipping static assets and deploying reports only"
+            LOCAL="${LOCAL}/${YEAR}"
+            REMOTE="${REMOTE}/${YEAR}"
+          fi
+
+          aws s3 sync "${LOCAL}/" "${REMOTE}/" --no-progress
 
 ###############################################################################
 # Invalidate cache and notify
