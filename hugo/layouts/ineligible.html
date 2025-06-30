@@ -43,6 +43,13 @@
           triad, but this home is in the {{ title .Params.parcel_triad_name }}
           triad.
         </p>
+        {{ else if eq .Params.reason_report_ineligible "missing_card" }}
+        <p>
+          The Assessor's data indicate that this property did not have any
+          dwellings on it in {{ .Params.assessment_year }}. The Assessor's
+          residential model does not estimate the value for properties without
+          dwellings.
+        </p>
         {{ else }}
           {{
             errorf
