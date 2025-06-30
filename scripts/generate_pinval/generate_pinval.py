@@ -165,7 +165,7 @@ def build_front_matter(
         front["assessment_triad_name"] = tp["assessment_triad_name"]
         front["parcel_class_code"] = tp["parcel_class"]
         front["parcel_class_description"] = tp["parcel_class_description"]
-        front["parcel_triad_name"] = tp["meta_triad_name"]
+        front["parcel_triad_name"] = tp["parcel_triad_name"]
         return front
 
     # Per card
