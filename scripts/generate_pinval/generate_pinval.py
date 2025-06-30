@@ -159,11 +159,11 @@ def build_front_matter(
 
     # Exit early if this PIN is ineligible for a report, in which case we
     # will pass the doc some info to help explain why the parcel is ineligible
-    if tp["is_report_ineligible"] is not None:
+    if not tp["is_report_eligible"]:
         front["layout"] = "ineligible"
         front["reason_report_ineligible"] = tp["reason_report_ineligible"]
         front["assessment_triad_name"] = tp["assessment_triad_name"]
-        front["parcel_class_code"] = tp["parcel_class"]
+        front["parcel_class"] = tp["parcel_class"]
         front["parcel_class_description"] = tp["parcel_class_description"]
         front["parcel_triad_name"] = tp["parcel_triad_name"]
         return front
