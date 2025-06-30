@@ -95,9 +95,15 @@ def parse_args() -> argparse.Namespace:
 # Declare functions
 # ────────────────────────────────────────────────────────────────────────────
 def pin_pretty(raw_pin: str) -> str:
-    """Convert 14‑digit Cook County PIN → canonical xx‑xx‑xxx‑xxx‑xxxx format."""
+    """Format 14‑digit Cook County PIN for display.
 
-    return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
+    If the PIN ends in '0000' we truncate it and return a 10-digit PIN."""
+
+    truncated_pin = f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}"
+    if raw_pin[10:] == "0000":
+        return truncated_pin
+    else:
+        return f"{truncated_pin}-{raw_pin[10:]}"
 
 
 def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
