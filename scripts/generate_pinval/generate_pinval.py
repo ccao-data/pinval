@@ -154,10 +154,25 @@ def build_front_matter(
     pretty_fn : Callable[[str], str]
         Function that converts a raw model column name → human-readable label.
     """
+    print(df_target_pin.columns)
+    special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
+
+    if special_multi:
+        # keep only the Frankencard already flagged by the view
+        print(df_target_pin["is_frankencard"].value_counts())
+        df_target_pin = df_target_pin[df_target_pin["is_frankencard"]].copy()
+        print(df_target_pin)
+        combined_bldg_sf = df_target_pin["combined_bldg_sf"].iloc[0]
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
+
+    # swap out the original sqft column for the new one
+    if special_multi:
+        preds_cleaned = [
+            "combined_bldg_sf" if p == "char_bldg_sf" else p for p in preds_cleaned
+        ]
 
     front: dict = {
         "layout": "report",
@@ -171,7 +186,12 @@ def build_front_matter(
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "special_case_multi_card": special_multi,
     }
+
+    # Add human readable combined_bldg_sf name for 2-3 card case
+    if special_multi:
+        front["var_labels"]["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
@@ -187,6 +207,10 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
+
+        # Insert the combined sf so it shows up in "Your Home" data
+        if special_multi:
+            subject_chars["combined_bldg_sf"] = combined_bldg_sf
 
         # Comps
         comps_list = []
@@ -209,6 +233,11 @@ def build_front_matter(
             for pred in preds_cleaned:
                 if pred not in comp_dict and pred in comp:
                     comp_dict[pred] = comp[pred]
+                # For the special 2–3-card case, fill the
+                # `combined_bldg_sf` column with each comp’s own
+                # building square-footage so the row isn’t blank.
+                if special_multi and pred == "combined_bldg_sf":
+                    comp_dict[pred] = comp.get("char_bldg_sf")
 
             comps_list.append(comp_dict)
 
@@ -510,7 +539,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM pinval.vw_assessment_card
+        FROM z_ci_add_multi_card_calculation_to_pinval_assets_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
