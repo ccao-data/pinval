@@ -428,7 +428,6 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         "time_sale_day",
         "acs5_median_household_total_occupied_year_built",
         "char_yrblt",
-        "ap_meta_pin_num_cards",
     }
 
     # Columns that should be preserved as numeric
