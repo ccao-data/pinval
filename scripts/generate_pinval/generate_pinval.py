@@ -194,6 +194,11 @@ def build_front_matter(
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
+        card_messages = compute_card_messages(
+            pin_num_cards=int(card_df["ap_meta_pin_num_cards"]),
+            special_case_multi=special_multi,
+            assessment_year=int(tp["assessment_year"]),
+        )
         card_df = card_df.iloc[0]
 
         comps_df = (
@@ -284,10 +289,53 @@ def build_front_matter(
                 "comps": comps_list,
                 "comp_summary": comp_summary,
                 "predictors": preds_cleaned,
+                "messages": card_messages,
             }
         )
 
     return front
+
+
+def compute_card_messages(
+    pin_num_cards: int,
+    special_case_multi: bool,
+    assessment_year: int,
+) -> list[str]:
+    """
+    Return the set of explanatory messages that provide clarification for
+    multi-card valuation scenarios.
+    """
+    messages: list[str] = []
+
+    # Two-card (or more) notice
+    if pin_num_cards >= 2:
+        messages.append(
+            "This property has multiple cards, which is an assessment term for a "
+            "building or an improvement on a property."
+        )
+
+    # 2–3-card frankencard explanation
+    if special_case_multi:
+        messages.append(
+            "Since this property has "
+            f"{pin_num_cards} cards, we estimate its value using a slightly "
+            "different method than other properties. We use the characteristics of "
+            "the largest card for estimation, but we adjust the building square "
+            "footage of that card to reflect the combined building square footage "
+            "of all cards on the property. The characteristics below reflect this "
+            "difference."
+        )
+
+    # Pre-2025 and 4-plus-card scenario
+    if (pin_num_cards > 3) or (pin_num_cards >= 2 and assessment_year < 2025):
+        messages.append(
+            "Each card on a property can have different characteristics, so the "
+            "Assessor's model estimates different values for each card. Toggle "
+            "between the tabs below to view characteristics and comparable sales "
+            "for each card."
+        )
+
+    return messages
 
 
 def convert_to_builtin_types(obj) -> object:
