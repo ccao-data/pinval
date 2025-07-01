@@ -158,9 +158,7 @@ def build_front_matter(
 
     if special_multi:
         # keep only the Frankencard already flagged by the view
-        print(df_target_pin["is_frankencard"].value_counts())
         df_target_pin = df_target_pin[df_target_pin["is_frankencard"]].copy()
-        print(df_target_pin)
         combined_bldg_sf = df_target_pin["combined_bldg_sf"].iloc[0]
 
     # Header
