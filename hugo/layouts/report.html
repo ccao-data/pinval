@@ -585,6 +585,9 @@
           }
         ).addTo(map);
 
+        const compBldgLabel = comp.combined_bldg_sf ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
+        const compBldgValue = comp.combined_bldg_sf || comp.char_bldg_sf;
+
         // Add tooltip
         const tooltipText = comp.is_subject_pin_sale
           ? `${cardData.is_multicard ? "Subject card" : "Subject property"} [${comp.sale_price_short} (${comp.sale_date})]`
@@ -612,7 +615,7 @@
           <br><b>Sale date</b>: ${comp.sale_date}
           <br><b>Sale doc. num.</b>: ${comp.document_num}
           <br><b>Year built</b>: ${comp.char_yrblt}
-          <br><b>Bldg S.F.</b>: ${comp.char_bldg_sf}
+          <br><b>${compBldgLabel}</b>: ${compBldgValue}
           <br><b>Land S.F.</b>: ${comp.char_land_sf}
           <br><b>Beds</b>: ${comp.char_beds}
           <br><b>Full baths</b>: ${comp.char_fbath}
