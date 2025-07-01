@@ -261,6 +261,15 @@ jobs:
             INVALIDATION_PATHS+=("/${YEAR}/*.html")
           fi
 
+          # If the user is deploying static assets, also invalidate those
+          # assets
+          if [[ "${{ inputs.deploy-assets }}" == 'true' ]]; then
+            # This pattern will exclude robots.txt, since that file must live at
+            # the root, but this is fine since we rarely if ever expect that file
+            # to change
+            INVALIDATION_PATHS+=("/static/*")
+          fi
+
           aws cloudfront create-invalidation \
             --distribution-id "${TARGET_DISTRIBUTION_ID}" \
             --paths "${INVALIDATION_PATHS[@]}"

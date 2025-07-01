@@ -1,9 +1,8 @@
 ---
 layout: single
-title: "Report: How Did the Assessor's Model Estimate My Home Value?"
+title: "Page not found"
+url: "/static/404.html"
 ---
-
-## Page not found
 
 This page does not exist. Usually this means you requested a report for
 an invalid parcel identification number (PIN), or you requested a report for
