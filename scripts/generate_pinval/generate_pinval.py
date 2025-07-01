@@ -154,7 +154,6 @@ def build_front_matter(
     pretty_fn : Callable[[str], str]
         Function that converts a raw model column name → human-readable label.
     """
-    print(df_target_pin.columns)
     special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
 
     if special_multi:
@@ -252,13 +251,13 @@ def build_front_matter(
             "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
             "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
         }
-
         # Complete the card
         front["cards"].append(
             {
                 "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
                 "char_class_detailed": card_df["char_class_detailed"],
+                "pin_num_cards": card_df["ap_meta_pin_num_cards"],
                 "location": {
                     k: v
                     for k, v in {
@@ -383,6 +382,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         "time_sale_day",
         "acs5_median_household_total_occupied_year_built",
         "char_yrblt",
+        "ap_meta_pin_num_cards",
     }
 
     # Columns that should be preserved as numeric

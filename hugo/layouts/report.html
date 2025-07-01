@@ -213,20 +213,35 @@
     </div>
   </div>
 
-
-
-
   <!-- Define a template for card content -->
   {{ define "card-content" }}
-    {{ if .special_case_multi_card }}
-    <div>
-      Since this property has FIX HERE cards, we estimate its value using
+
+  {{ if ge .card.pin_num_cards 2 }}
+    <div class="mb-4">
+      This property has multiple cards, which is an assessment term for a
+      building or an improvement on a property.
+    </div>
+  {{ end }}
+
+  {{ if .special_case_multi_card }}
+    <div class="mb-4">
+      Since this property has {{ .card.pin_num_cards }} cards, we estimate its value using
       a slightly different method than other properties. We use the characteristics of
       the largest card for estimation, but we adjust the building square footage of
       that card to reflect the combined building square footage of all cards on the
-      property. The characteristics below reflect this difference."
+      property. The characteristics below reflect this difference.
     </div>
   {{ end }}
+
+  {{ if or (gt .card.pin_num_cards 3) (and (ge .card.pin_num_cards 2) (lt (int $.Params.assessment_year) 2025)) }}
+    <div class="mb-4">
+      Each card on a property can have different characteristics, so the Assessor's
+      model estimates different values for each card. Toggle between the tabs below to
+      view characteristics and comparable sales for each card.
+    </div>
+  {{ end }}
+
+
   <!-- Wrap Location and Characteristics tables in a row so they appear side-by-side on desktop -->
   <div class="row">
     <div class="col-12 col-lg-6">
