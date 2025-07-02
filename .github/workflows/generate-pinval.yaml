@@ -23,7 +23,16 @@ on:
         type: string
         description: >
           PINs: One or more space‑separated Cook County PINs. Leave blank to
-          generate reports for all PINs in the assessment triad
+          generate reports for all PINs in the County, or if you are supplying
+          township codes
+        required: false
+        default: ""
+
+      townships:
+        type: string
+        description: >
+          Township codes: One or more space-separated township codes. Leave blank to
+          generate reports for all PINs in the County, or if you are supplying PINs
         required: false
         default: ""
 
@@ -106,13 +115,16 @@ jobs:
       - name: Resolve model metadata
         id: resolve-metadata
         run: |
-          # Parse PIN list to an array so we can safely pass it into this
-          # script, which accepts multiple space-delimited PINs
+          # Parse PIN and township lists to array so we can safely pass them
+          # into this script, which accepts multiple space-delimited values for
+          # both arguments
           read -ra PINS <<< "${{ inputs.pins }}"
+          read -ra TOWNSHIPS <<< "${{ inputs.townships }}"
           python3 scripts/generate_pinval/resolve_model_metadata.py \
             --year "${{ inputs.year }}" \
             --run-id "${{ inputs.run_id }}" \
             --pin "${PINS[@]}" \
+            --township "${TOWNSHIPS[@]}" \
             --write-github-output
 
       - name: Resolve AWS resources
