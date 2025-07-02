@@ -573,14 +573,13 @@ def main() -> None:
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
     print(f"Comps query finished in {time.time() - start_q:.2f}s")
-    df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
-    # Transform values in character columns to human-readable values,
-    # this is already done in the assessment query, so we only need to do it here
     print("Shape of df_comps_all:", df_comps_all.shape)
-    if df_comps_all.empty:
-        raise ValueError(
-            f"No comp rows returned for the following params: {params_comps}"
-        )
+    # Transform values in character columns to human-readable values.
+    # This is already done in the assessment query, so we only need to do it here.
+    # We don't need to do it if the comps are empty, in which case we're
+    # probably working on a township that was not reassessed
+    if not df_comps_all.empty:
+        df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
 
     # Crosswalk for making column names human-readable
     model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
@@ -608,7 +607,9 @@ def main() -> None:
 
     # Group dfs by PIN in dict for theoretically faster access
     df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("pin")))
-    df_comps_by_pin = dict(tuple(df_comps_all.groupby("pin")))
+    df_comps_by_pin = (
+        {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("pin")))
+    )
     end_time_dict_groupby = time.time()
 
     del df_assessment_all
