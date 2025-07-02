@@ -184,12 +184,15 @@ def build_front_matter(
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
-        "multicard_messages": compute_card_messages(
+    }
+
+    # If multi-card, add messages to the frontmatter
+    if len(df_target_pin) > 1:
+        front["multicard_messages"] = compute_card_messages(
             pin_num_cards=int(tp["ap_meta_pin_num_cards"]),
             special_case_multi=special_multi,
-            assessment_year=tp["assessment_year"],
-        ),
-    }
+            assessment_year=int(tp["assessment_year"]),
+        )
 
     # Add human readable combined_bldg_sf name for 2-3 card case
     if special_multi:
