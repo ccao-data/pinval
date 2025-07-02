@@ -184,6 +184,11 @@ def build_front_matter(
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
+        "multicard_messages": compute_card_messages(
+            pin_num_cards=int(tp["ap_meta_pin_num_cards"]),
+            special_case_multi=special_multi,
+            assessment_year=tp["assessment_year"],
+        ),
     }
 
     # Add human readable combined_bldg_sf name for 2-3 card case
@@ -192,11 +197,6 @@ def build_front_matter(
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
-        card_messages = compute_card_messages(
-            pin_num_cards=int(card_df["ap_meta_pin_num_cards"]),
-            special_case_multi=special_multi,
-            assessment_year=int(tp["assessment_year"]),
-        )
         card_df = card_df.iloc[0]
 
         comps_df = (
@@ -287,7 +287,6 @@ def build_front_matter(
                 "comps": comps_list,
                 "comp_summary": comp_summary,
                 "predictors": preds_cleaned,
-                "messages": card_messages,
             }
         )
 
