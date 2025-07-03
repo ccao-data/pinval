@@ -106,7 +106,7 @@ def get_township_codes(
             .execute(
                 """
                     SELECT DISTINCT parcel_township_code
-                    FROM z_dev_jecochr_pinval.vw_assessment_card
+                    FROM pinval.vw_assessment_card
                     WHERE model_run_id = %(run_id)s
                     ORDER BY parcel_township_code
                 """,

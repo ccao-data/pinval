@@ -531,7 +531,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM z_dev_jecochr_pinval.vw_assessment_card
+        FROM pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
@@ -556,7 +556,7 @@ def main() -> None:
         FROM pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT pin
-            FROM z_dev_jecochr_pinval.vw_assessment_card
+            FROM pinval.vw_assessment_card
             WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.pin
