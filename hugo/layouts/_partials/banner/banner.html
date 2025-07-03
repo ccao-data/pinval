@@ -5,13 +5,11 @@
       <h2>{{ .Title }}</h2>
       <div class="subtitle">
         <b>
-          {{ if ne .Params.pin "99999999999999" }}
+          {{ if .Params.pin }}
           Parcel Identification Number (PIN):
           <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
             {{ .Params.pin_pretty }}
           </a>
-          {{ else }}
-          Stub report
           {{ end }}
         </b>
       </div>

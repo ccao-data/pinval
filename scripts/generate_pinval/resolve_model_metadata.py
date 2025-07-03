@@ -49,6 +49,15 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--township",
+        nargs="*",
+        help=(
+            "Restrict all-PIN mode to one or more County township codes "
+            "(two-digit string, e.g. 01, 23)"
+        ),
+    )
+
+    parser.add_argument(
         "--write-github-output",
         action=argparse.BooleanOptionalAction,
         required=False,
@@ -58,9 +67,9 @@ def parse_args() -> argparse.Namespace:
 
     args = parser.parse_args()
 
-    if args.pin == [""]:
-        # Remove empty string
-        args.pin = []
+    # Remove empty strings from list args
+    args.pin = [] if args.pin == [""] else args.pin
+    args.township = [] if args.township == [""] else args.township
 
     if bool(args.run_id) == bool(args.year):
         parser.error("Exactly one of --year or --run-id is required")
@@ -69,11 +78,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_township_codes(
-    run_id: str, pins: list[str], write_github_output: bool
+    run_id: str, townships: list[str], pins: list[str], write_github_output: bool
 ) -> list[str]:
     """
-    Given a model run ID, return all the township codes for that triad that
-    were assessed in the model run.
+    Given a model run ID, return all the township codes for that run.
+
+    If `townships` is non-empty, return it as-is and skip querying altogether.
 
     If `pins` is non-empty, the function will return one of two outputs depending
     on the value of `write_github_output`:
@@ -85,17 +95,20 @@ def get_township_codes(
     """
     codes = [""] if write_github_output else []
 
-    if not pins:
+    if townships:
+        codes = townships
+
+    elif not pins:
         codes = [
             row[0]
             for row in connect(region_name="us-east-1")
             .cursor()
             .execute(
                 """
-                    SELECT DISTINCT meta_township_code
+                    SELECT DISTINCT parcel_township_code
                     FROM pinval.vw_assessment_card
-                    WHERE run_id = %(run_id)s
-                    ORDER BY meta_township_code
+                    WHERE model_run_id = %(run_id)s
+                    ORDER BY parcel_township_code
                 """,
                 {"run_id": run_id},
             )
@@ -167,7 +180,9 @@ def main() -> None:
 
     run_id = get_run_id(args.run_id, args.year)
     metadata = get_model_metadata(run_id)
-    township_codes = get_township_codes(run_id, args.pin, args.write_github_output)
+    township_codes = get_township_codes(
+        run_id, args.township, args.pin, args.write_github_output
+    )
 
     matrix = json.dumps({"township": township_codes})
     count = len(township_codes)

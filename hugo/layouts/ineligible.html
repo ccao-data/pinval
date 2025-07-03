@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {{ partial "head/boilerplate.html" . }}
+
+    {{ partial "head/css-link-bootstrap.html" . }}
+
+    {{ partial "head/favicons.html" . }}
+
+    {{ partial "head/styles.html" . }}
+  </head>
+  <body>
+    {{ partial "banner/banner.html" . }}
+
+    <div class="container">
+      <div class="card-body">
+        <h3>Report not available</h3>
+        <br>
+        {{ if eq .Params.reason_report_ineligible "condo" }}
+        <p>
+          This property is a <strong>condominium unit</strong>. The Assessor uses a separate
+          valuation model for condos, and that model is not yet compatible with
+          this report. We hope to add support for condo units soon. Sorry for
+          the inconvenience!
+        </p>
+        {{ else if eq .Params.reason_report_ineligible "non_regression_class" }}
+        <p>
+          This property has class code <strong>{{ .Params.parcel_class }}</strong>.
+          {{ if .Params.parcel_class_description }}
+            Properties with this code should fit the description
+            <strong>"{{ .Params.parcel_class_description }}"</strong>.
+          {{ end }}
+        </p>
+        <p>
+          The Assessor's residential model does not estimate the value for this
+          type of property. The model only estimates values for single-family
+          homes and multi-family buildings with six or fewer units.
+        </p>
+        {{ else if eq .Params.reason_report_ineligible "non_tri" }}
+        <p>
+          The Assessor did not reassess this home in
+          {{ .Params.assessment_year }}. In {{ .Params.assessment_year }},
+          the Assessor reassessed the <strong>{{ title .Params.assessment_triad_name }}</strong>
+          triad, but this home is in the <strong>{{ title .Params.parcel_triad_name }}</strong>
+          triad.
+        </p>
+        {{ else if eq .Params.reason_report_ineligible "missing_card" }}
+        <p>
+          The Assessor's data indicate that this property did not have any
+          dwellings on it in {{ .Params.assessment_year }}. The Assessor's
+          residential model does not estimate the value for properties without
+          dwellings.
+        </p>
+        {{ else }}
+          {{
+            errorf
+            "Unexpected reason_report_ineligible for PIN %s: %q"
+            .Params.pin
+            .Params.reason_report_ineligible
+          }}
+        {{ end }}
+        <p>
+          If you believe that this information is incorrect, please
+          <a href="https://www.cookcountyassessor.com/contact" target="_blank">contact us</a>
+          and we will do our best to correct the mistake.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
