@@ -141,12 +141,9 @@
 
       {{ $is_multicard := gt (len .Params.cards) 1 }}
       {{ if $is_multicard }}
-      <p>
-        This property has multiple "cards", which is an assessment term for a building or an improvement
-        on a property. Each card on a property can have different characteristics, so the Assessor's
-        model estimates different values for each card. Toggle between the tabs below to view
-        characteristics and comparable sales for each card.
-      </p>
+        {{ range .Params.multicard_messages }}
+           <div class="mb-4">{{ . }}</div>
+        {{ end }}
       {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
@@ -193,7 +190,8 @@
         {{ template "card-content"
           (dict "card" $card
           "var_labels" .Params.var_labels
-          "is_multicard" false) }}
+          "is_multicard" false
+          "special_case_multi_card" .Params.special_case_multi_card) }}
       {{ end }}
 
       <h2>Final Model Estimate</h2>
@@ -214,6 +212,7 @@
 
   <!-- Define a template for card content -->
   {{ define "card-content" }}
+
   <!-- Wrap Location and Characteristics tables in a row so they appear side-by-side on desktop -->
   <div class="row">
     <div class="col-12 col-lg-6">
@@ -263,10 +262,17 @@
               <td><strong>Year Built</strong></td>
               <td>{{ .card.chars.char_yrblt }}</td>
             </tr>
-            <tr>
-              <td><strong>Building Square Footage</strong></td>
-              <td>{{ .card.chars.char_bldg_sf }}</td>
-            </tr>
+            {{ if .special_case_multi_card }}
+              <tr>
+                <td><strong>Combined Bldg. Sq. Ft.</strong></td>
+                <td>{{ .card.chars.combined_bldg_sf }}</td>
+              </tr>
+            {{ else }}
+              <tr>
+                <td><strong>Building Square Footage</strong></td>
+                <td>{{ .card.chars.char_bldg_sf }}</td>
+              </tr>
+            {{ end }}
             <tr>
               <td><strong>Land Square Footage</strong></td>
               <td>{{ .card.chars.char_land_sf }}</td>
@@ -481,6 +487,7 @@
       const pinPretty = {{ .Params.pin_pretty }};
       const mapData = {{ .Params.cards }};
       const cardData = mapData[cardIndex];
+      const specialCase = {{ if .Params.special_case_multi_card }}true{{ else }}false{{ end }};
 
       // Create map centered on subject property
       const map = L.map(mapId).setView(
@@ -535,6 +542,10 @@
           }
         );
 
+        // Define subjectPopupContent dynamically depending on 2-3 card case
+        const bldgLabel = specialCase ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
+        const bldgValue = specialCase ? cardData.chars.combined_bldg_sf : cardData.chars.char_bldg_sf;
+
         // Create popup content
         const subjectPopupContent = `
           <h5>${propertyLabel}</h5>
@@ -543,7 +554,7 @@
           <br><b>Property class</b>: ${cardData.chars.char_class}
           <br><b>Assessor neighborhood</b>: ${cardData.location.meta_nbhd_code}
           <br><b>Year built</b>: ${cardData.chars.char_yrblt}
-          <br><b>Bldg S.F.</b>: ${cardData.chars.char_bldg_sf}
+          <br><b>${bldgLabel}</b>: ${bldgValue}
           <br><b>Land S.F.</b>: ${cardData.chars.char_land_sf}
           <br><b>Beds</b>: ${cardData.chars.char_beds}
           <br><b>Full baths</b>: ${cardData.chars.char_fbath}
@@ -564,6 +575,9 @@
             opacity: comp.is_subject_pin_sale ? 0 : 1 // Hide the marker if it's a subject PIN sale
           }
         ).addTo(map);
+
+        const compBldgLabel = comp.combined_bldg_sf ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
+        const compBldgValue = comp.combined_bldg_sf || comp.char_bldg_sf;
 
         // Add tooltip
         const tooltipText = comp.is_subject_pin_sale
@@ -592,7 +606,7 @@
           <br><b>Sale date</b>: ${comp.sale_date}
           <br><b>Sale doc. num.</b>: ${comp.document_num}
           <br><b>Year built</b>: ${comp.char_yrblt}
-          <br><b>Bldg S.F.</b>: ${comp.char_bldg_sf}
+          <br><b>${compBldgLabel}</b>: ${compBldgValue}
           <br><b>Land S.F.</b>: ${comp.char_land_sf}
           <br><b>Beds</b>: ${comp.char_beds}
           <br><b>Full baths</b>: ${comp.char_fbath}

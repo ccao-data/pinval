@@ -160,10 +160,22 @@ def build_front_matter(
     pretty_fn : Callable[[str], str]
         Function that converts a raw model column name → human-readable label.
     """
+    special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
+
+    if special_multi:
+        # keep only the Frankencard already flagged by the view
+        df_target_pin = df_target_pin[df_target_pin["is_frankencard"]].copy()
+        combined_bldg_sf = df_target_pin["combined_bldg_sf"].iloc[0]
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
+
+    # swap out the original sqft column for the new one
+    if special_multi:
+        preds_cleaned = [
+            "combined_bldg_sf" if p == "char_bldg_sf" else p for p in preds_cleaned
+        ]
 
     front: dict = {
         "layout": "report",
@@ -177,7 +189,20 @@ def build_front_matter(
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "special_case_multi_card": special_multi,
     }
+
+    # If multi-card, add messages to the frontmatter
+    if len(df_target_pin) > 1:
+        front["multicard_messages"] = compute_card_messages(
+            pin_num_cards=int(tp["ap_meta_pin_num_cards"]),
+            special_case_multi=special_multi,
+            assessment_year=int(tp["assessment_year"]),
+        )
+
+    # Add human readable combined_bldg_sf name for 2-3 card case
+    if special_multi:
+        front["var_labels"]["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
@@ -193,6 +218,10 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
+
+        # Insert the combined sf so it shows up in "Your Home" data
+        if special_multi:
+            subject_chars["combined_bldg_sf"] = combined_bldg_sf
 
         # Comps
         comps_list = []
@@ -215,6 +244,11 @@ def build_front_matter(
             for pred in preds_cleaned:
                 if pred not in comp_dict and pred in comp:
                     comp_dict[pred] = comp[pred]
+                # For the special 2–3-card case, fill the
+                # `combined_bldg_sf` column with each comp’s own
+                # building square-footage so the row isn’t blank.
+                if special_multi and pred == "combined_bldg_sf":
+                    comp_dict[pred] = comp.get("char_bldg_sf")
 
             comps_list.append(comp_dict)
 
@@ -229,13 +263,13 @@ def build_front_matter(
             "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
             "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
         }
-
         # Complete the card
         front["cards"].append(
             {
                 "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
                 "char_class_detailed": card_df["char_class_detailed"],
+                "pin_num_cards": card_df["ap_meta_pin_num_cards"],
                 "location": {
                     k: v
                     for k, v in {
@@ -266,6 +300,48 @@ def build_front_matter(
         )
 
     return front
+
+
+def compute_card_messages(
+    pin_num_cards: int,
+    special_case_multi: bool,
+    assessment_year: int,
+) -> list[str]:
+    """
+    Return the set of explanatory messages that provide clarification for
+    multi-card valuation scenarios.
+    """
+    messages: list[str] = []
+
+    # Two-card (or more) notice
+    if pin_num_cards >= 2:
+        messages.append(
+            "This property has multiple cards, which is an assessment term for a "
+            "building or an improvement on a property."
+        )
+
+        # 2–3-card frankencard explanation
+        if special_case_multi:
+            messages.append(
+                "Since this property has "
+                f"{pin_num_cards} cards, we estimate its value using a slightly "
+                "different method than other properties. We use the characteristics of "
+                "the largest card for estimation, but we adjust the building square "
+                "footage of that card to reflect the combined building square footage "
+                "of all cards on the property. The characteristics below reflect this "
+                "difference."
+            )
+
+        # Pre-2025 and 4-plus-card scenario
+       else:
+        messages.append(
+            "Each card on a property can have different characteristics, so the "
+            "Assessor's model estimates different values for each card. Toggle "
+            "between the tabs below to view characteristics and comparable sales "
+            "for each card."
+        )
+
+    return messages
 
 
 def convert_to_builtin_types(obj) -> object:
@@ -516,7 +592,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM pinval.vw_assessment_card
+        FROM z_ci_add_multi_card_calculation_to_pinval_assets_pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
