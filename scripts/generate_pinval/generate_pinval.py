@@ -314,20 +314,20 @@ def compute_card_messages(
             "building or an improvement on a property."
         )
 
-    # 2–3-card frankencard explanation
-    if special_case_multi:
-        messages.append(
-            "Since this property has "
-            f"{pin_num_cards} cards, we estimate its value using a slightly "
-            "different method than other properties. We use the characteristics of "
-            "the largest card for estimation, but we adjust the building square "
-            "footage of that card to reflect the combined building square footage "
-            "of all cards on the property. The characteristics below reflect this "
-            "difference."
-        )
+        # 2–3-card frankencard explanation
+        if special_case_multi:
+            messages.append(
+                "Since this property has "
+                f"{pin_num_cards} cards, we estimate its value using a slightly "
+                "different method than other properties. We use the characteristics of "
+                "the largest card for estimation, but we adjust the building square "
+                "footage of that card to reflect the combined building square footage "
+                "of all cards on the property. The characteristics below reflect this "
+                "difference."
+            )
 
-    # Pre-2025 and 4-plus-card scenario
-    if (pin_num_cards > 3) or (pin_num_cards >= 2 and assessment_year < 2025):
+        # Pre-2025 and 4-plus-card scenario
+       else:
         messages.append(
             "Each card on a property can have different characteristics, so the "
             "Assessor's model estimates different values for each card. Toggle "
