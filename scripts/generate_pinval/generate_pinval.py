@@ -606,7 +606,7 @@ def main() -> None:
     start_time_dict_groupby = time.time()
 
     # Group dfs by PIN in dict for theoretically faster access
-    df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("pin")))
+    df_assessments_by_pin = df_assessment_all.groupby("pin")
     df_comps_by_pin = (
         {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("pin")))
     )
@@ -622,9 +622,13 @@ def main() -> None:
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
-    for i, (pin, df_target) in enumerate(df_assessments_by_pin.items()):
+    pin_groups = df_assessments_by_pin.groups
+    for i, pin in enumerate(pin_groups):
         if i % 5000 == 0:
-            print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
+            print(f"Processing PIN {i + 1} of {len(pin_groups)}")
+
+        # Use get_group to lower memory use when iterating grouped DF
+        df_target = df_assessments_by_pin.get_group(pin)
 
         md_path = md_outdir / f"{pin}.md"
 
