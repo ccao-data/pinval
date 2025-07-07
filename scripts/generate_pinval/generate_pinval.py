@@ -186,14 +186,6 @@ def build_front_matter(
         "special_case_multi_card": special_multi,
     }
 
-    # If multi-card, add messages to the frontmatter
-    if len(df_target_pin) > 1:
-        front["multicard_messages"] = compute_card_messages(
-            pin_num_cards=int(tp["ap_meta_pin_num_cards"]),
-            special_case_multi=special_multi,
-            assessment_year=int(tp["assessment_year"]),
-        )
-
     # Add human readable combined_bldg_sf name for 2-3 card case
     if special_multi:
         front["var_labels"]["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
@@ -294,48 +286,6 @@ def build_front_matter(
         )
 
     return front
-
-
-def compute_card_messages(
-    pin_num_cards: int,
-    special_case_multi: bool,
-    assessment_year: int,
-) -> list[str]:
-    """
-    Return the set of explanatory messages that provide clarification for
-    multi-card valuation scenarios.
-    """
-    messages: list[str] = []
-
-    # Two-card (or more) notice
-    if pin_num_cards >= 2:
-        messages.append(
-            "This property has multiple cards, which is an assessment term for a "
-            "building or an improvement on a property."
-        )
-
-        # 2–3-card frankencard explanation
-        if special_case_multi:
-            messages.append(
-                "Since this property has "
-                f"{pin_num_cards} cards, we estimate its value using a slightly "
-                "different method than other properties. We use the characteristics of "
-                "the largest card for estimation, but we adjust the building square "
-                "footage of that card to reflect the combined building square footage "
-                "of all cards on the property. The characteristics below reflect this "
-                "difference."
-            )
-
-        # Pre-2025 and 4-plus-card scenario
-       else:
-        messages.append(
-            "Each card on a property can have different characteristics, so the "
-            "Assessor's model estimates different values for each card. Toggle "
-            "between the tabs below to view characteristics and comparable sales "
-            "for each card."
-        )
-
-    return messages
 
 
 def convert_to_builtin_types(obj) -> object:
