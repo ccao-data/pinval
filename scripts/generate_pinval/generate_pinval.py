@@ -182,13 +182,11 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
-        "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "var_labels": {
+            k: pretty_fn(k, special_multi=special_multi) for k in preds_cleaned
+        },
         "special_case_multi_card": special_multi,
     }
-
-    # Add human readable combined_bldg_sf name for 2-3 card case
-    if special_multi:
-        front["var_labels"]["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
@@ -597,8 +595,12 @@ def main() -> None:
 
     PRESERVE = {"loc_latitude", "loc_longitude"}
 
-    def pretty(k: str) -> str:
-        return k if k in PRESERVE else key_map.get(k, k)
+    def pretty(k: str, special_multi: bool = False) -> str:
+        if special_multi and k == "combined_bldg_sf":
+            return "Combined Bldg. Sq. Ft."
+        if k in PRESERVE:
+            return k
+        return key_map.get(k, k)
 
     # Declare outputs paths
     md_outdir = project_root / "hugo" / "content" / "pinval-reports"
