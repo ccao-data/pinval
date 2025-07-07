@@ -553,7 +553,7 @@ def main() -> None:
 
     comps_sql = f"""
         SELECT comp.*
-        FROM pinval.vw_comp AS comp
+        FROM z_ci_add_multi_card_calculation_to_pinval_assets_pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT meta_pin
             FROM pinval.vw_assessment_card
