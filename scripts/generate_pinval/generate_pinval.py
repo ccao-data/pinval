@@ -230,11 +230,6 @@ def build_front_matter(
             for pred in preds_cleaned:
                 if pred not in comp_dict and pred in comp:
                     comp_dict[pred] = comp[pred]
-                # For the special 2–3-card case, fill the
-                # `combined_bldg_sf` column with each comp’s own
-                # building square-footage so the row isn’t blank.
-                if special_multi and pred == "combined_bldg_sf":
-                    comp_dict[pred] = comp.get("char_bldg_sf")
 
             comps_list.append(comp_dict)
 
