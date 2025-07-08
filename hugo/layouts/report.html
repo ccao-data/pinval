@@ -140,11 +140,6 @@
       </div>
 
       {{ $is_multicard := gt (len .Params.cards) 1 }}
-      {{ if $is_multicard }}
-        {{ range .Params.multicard_messages }}
-           <div class="mb-4">{{ . }}</div>
-        {{ end }}
-      {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
       {{ if $is_multicard }}
