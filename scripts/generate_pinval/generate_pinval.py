@@ -246,7 +246,6 @@ def build_front_matter(
                 "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
                 "char_class_detailed": card_df["char_class_detailed"],
-                "pin_num_cards": card_df["ap_meta_pin_num_cards"],
                 "location": {
                     k: v
                     for k, v in {
@@ -593,9 +592,6 @@ def main() -> None:
     )
 
     key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
-    # Manually define mapping for the "Combined Bldg. SF" label, which is not
-    # part of `ccao.vars_dict`
-    key_map["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
     PRESERVE = {"loc_latitude", "loc_longitude"}
 
