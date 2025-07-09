@@ -240,6 +240,7 @@ def build_front_matter(
             "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
             "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
         }
+
         # Complete the card
         front["cards"].append(
             {
