@@ -543,7 +543,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM z_ci_add_multi_card_calculation_to_pinval_assets_pinval.vw_assessment_card
+        FROM pinval.vw_assessment_card
         WHERE {where_assessment}
     """
 
@@ -565,7 +565,7 @@ def main() -> None:
 
     comps_sql = f"""
         SELECT comp.*
-        FROM z_ci_add_multi_card_calculation_to_pinval_assets_pinval.vw_comp AS comp
+        FROM pinval.vw_comp AS comp
         INNER JOIN (
             SELECT DISTINCT pin
             FROM pinval.vw_assessment_card
