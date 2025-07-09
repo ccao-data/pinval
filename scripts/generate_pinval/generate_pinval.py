@@ -159,13 +159,12 @@ def build_front_matter(
     if special_multi:
         # keep only the Frankencard already flagged by the view
         df_target_pin = df_target_pin[df_target_pin["is_frankencard"]].copy()
-        combined_bldg_sf = df_target_pin["combined_bldg_sf"].iloc[0]
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
 
-    # swap out the original sqft column for the new one
+    # swap out the original sqft column for the combined version
     if special_multi:
         preds_cleaned = [
             "combined_bldg_sf" if p == "char_bldg_sf" else p for p in preds_cleaned
@@ -202,10 +201,6 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
-
-        # Insert the combined sf so it shows up in "Your Home" data
-        if special_multi:
-            subject_chars["combined_bldg_sf"] = combined_bldg_sf
 
         # Comps
         comps_list = []
