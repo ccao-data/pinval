@@ -95,9 +95,15 @@ def parse_args() -> argparse.Namespace:
 # Declare functions
 # ────────────────────────────────────────────────────────────────────────────
 def pin_pretty(raw_pin: str) -> str:
-    """Convert 14‑digit Cook County PIN → canonical xx‑xx‑xxx‑xxx‑xxxx format."""
+    """Format 14‑digit Cook County PIN for display.
 
-    return f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}-{raw_pin[10:]}"
+    If the PIN ends in '0000' we truncate it and return a 10-digit PIN."""
+
+    truncated_pin = f"{raw_pin[:2]}-{raw_pin[2:4]}-{raw_pin[4:7]}-{raw_pin[7:10]}"
+    if raw_pin[10:] == "0000":
+        return truncated_pin
+    else:
+        return f"{truncated_pin}-{raw_pin[10:]}"
 
 
 def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
@@ -177,13 +183,24 @@ def build_front_matter(
         "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime(
             "%B %d, %Y"
         ),
-        "pin": tp["meta_pin"],
-        "pin_pretty": pin_pretty(tp["meta_pin"]),
+        "pin": tp["pin"],
+        "pin_pretty": pin_pretty(tp["pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
     }
+
+    # Exit early if this PIN is ineligible for a report, in which case we
+    # will pass the doc some info to help explain why the parcel is ineligible
+    if not tp["is_report_eligible"]:
+        front["layout"] = "ineligible"
+        front["reason_report_ineligible"] = tp["reason_report_ineligible"]
+        front["assessment_triad_name"] = tp["assessment_triad_name"]
+        front["parcel_class"] = tp["parcel_class"]
+        front["parcel_class_description"] = tp["parcel_class_description"]
+        front["parcel_triad_name"] = tp["parcel_triad_name"]
+        return front
 
     # Per card
     for card_num, card_df in df_target_pin.groupby("meta_card_num"):
@@ -247,7 +264,7 @@ def build_front_matter(
                     for k, v in {
                         "property_address": card_df["property_address"],
                         "municipality": card_df.get("loc_tax_municipality_name"),
-                        "township": card_df["parcel_township_name"],
+                        "township": tp["parcel_township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
                         "loc_school_elementary_district_name": card_df.get(
                             "school_elementary_district_name"
@@ -500,12 +517,18 @@ def main() -> None:
 
     assessment_year = assessment_year_df.iloc[0]["assessment_year"]
 
-    assessment_clauses = ["run_id = %(run_id)s"]
+    # Use `model_run_id` instead of `run_id` because `run_id` comes from
+    # `model.assessment_card` and so is not present for ineligible PINs,
+    # but we want to query those PINs so we can generate error pages for them
+    assessment_clauses = ["model_run_id = %(run_id)s"]
     params_assessment = {"run_id": args.run_id}
 
     # Shard by township **only** in the assessment query
     if args.township:
-        assessment_clauses.append("meta_township_code = %(township)s")
+        # Similar to `model_run_id` above, use `parcel_township_code` here
+        # instead of `meta_township_code` because the latter will be null
+        # for ineligible PINs
+        assessment_clauses.append("parcel_township_code = %(township)s")
         params_assessment["township"] = args.township
 
     if args.pin:
@@ -513,9 +536,7 @@ def main() -> None:
         pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
         placeholders = ",".join(f"%({k})s" for k in pin_params)
 
-        assessment_clauses.append(
-            f"run_id = %(run_id)s AND meta_pin IN ({placeholders})"
-        )
+        assessment_clauses.append(f"pin IN ({placeholders})")
         params_assessment = {**params_assessment, **pin_params}
 
     where_assessment = " AND ".join(assessment_clauses)
@@ -546,16 +567,16 @@ def main() -> None:
         SELECT comp.*
         FROM z_ci_add_multi_card_calculation_to_pinval_assets_pinval.vw_comp AS comp
         INNER JOIN (
-            SELECT DISTINCT meta_pin
+            SELECT DISTINCT pin
             FROM pinval.vw_assessment_card
             WHERE {where_assessment}
         ) AS card
-          ON comp.pin = card.meta_pin
-        WHERE comp.run_id = %(run_id_comps)s
+          ON comp.pin = card.pin
+        WHERE comp.run_id = %(comps_run_id)s
     """
 
     params_comps = {
-        "run_id_comps": comps_run_id,
+        "comps_run_id": comps_run_id,
         **params_assessment,
     }
 
@@ -564,14 +585,13 @@ def main() -> None:
 
     df_comps_all = run_athena_query(cursor, comps_sql, params_comps)
     print(f"Comps query finished in {time.time() - start_q:.2f}s")
-    df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
-    # Transform values in character columns to human-readable values,
-    # this is already done in the assessment query, so we only need to do it here
     print("Shape of df_comps_all:", df_comps_all.shape)
-    if df_comps_all.empty:
-        raise ValueError(
-            f"No comp rows returned for the following params: {params_comps}"
-        )
+    # Transform values in character columns to human-readable values.
+    # This is already done in the assessment query, so we only need to do it here.
+    # We don't need to do it if the comps are empty, in which case we're
+    # probably working on a township that was not reassessed
+    if not df_comps_all.empty:
+        df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
 
     # Crosswalk for making column names human-readable
     model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
@@ -601,8 +621,10 @@ def main() -> None:
     start_time_dict_groupby = time.time()
 
     # Group dfs by PIN in dict for theoretically faster access
-    df_assessments_by_pin = dict(tuple(df_assessment_all.groupby("meta_pin")))
-    df_comps_by_pin = dict(tuple(df_comps_all.groupby("pin")))
+    df_assessments_by_pin = df_assessment_all.groupby("pin")
+    df_comps_by_pin = (
+        {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("pin")))
+    )
     end_time_dict_groupby = time.time()
 
     del df_assessment_all
@@ -615,9 +637,13 @@ def main() -> None:
     # Iterate over each unique PIN and output frontmatter
     print("Iterating pins to generate frontmatter")
     start_time = time.time()
-    for i, (pin, df_target) in enumerate(df_assessments_by_pin.items()):
+    pin_groups = df_assessments_by_pin.groups
+    for i, pin in enumerate(pin_groups):
         if i % 5000 == 0:
-            print(f"Processing PIN {i + 1} of {len(df_assessments_by_pin)}")
+            print(f"Processing PIN {i + 1} of {len(pin_groups)}")
+
+        # Use get_group to lower memory use when iterating grouped DF
+        df_target = df_assessments_by_pin.get_group(pin)
 
         md_path = md_outdir / f"{pin}.md"
 
