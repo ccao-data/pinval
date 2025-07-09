@@ -181,9 +181,7 @@ def build_front_matter(
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
-        "var_labels": {
-            k: pretty_fn(k, special_multi=special_multi) for k in preds_cleaned
-        },
+        "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
     }
 
@@ -587,15 +585,14 @@ def main() -> None:
     )
 
     key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
+    # Manually define mapping for the "Combined Bldg. SF" label, which is not
+    # part of `ccao.vars_dict`
+    key_map["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
     PRESERVE = {"loc_latitude", "loc_longitude"}
 
-    def pretty(k: str, special_multi: bool = False) -> str:
-        if special_multi and k == "combined_bldg_sf":
-            return "Combined Bldg. Sq. Ft."
-        if k in PRESERVE:
-            return k
-        return key_map.get(k, k)
+    def pretty(k: str) -> str:
+        return k if k in PRESERVE else key_map.get(k, k)
 
     # Declare outputs paths
     md_outdir = project_root / "hugo" / "content" / "pinval-reports"
