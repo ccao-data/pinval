@@ -36,7 +36,7 @@ import orjson
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
 
-from constants import RUN_ID_MAP
+import constants
 
 
 # Argparse interface
@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
         "--run-id",
         required=True,
         choices=list(
-            RUN_ID_MAP.keys()
+            constants.RUN_ID_MAP.keys()
         ),  # Temporarily limits run_ids to those in the map
         help="Model run‑ID used by the Athena PINVAL tables (e.g. 2025-02-11-charming-eric)",
     )
@@ -528,7 +528,7 @@ def main() -> None:
 
     assessment_sql = f"""
         SELECT *
-        FROM pinval.vw_assessment_card
+        FROM {constants.PINVAL_ASSESSMENT_CARD_TABLE}
         WHERE {where_assessment}
     """
 
@@ -545,15 +545,15 @@ def main() -> None:
         )
 
     # Get the comps
-    if (comps_run_id := RUN_ID_MAP.get(args.run_id)) is None:
+    if (comps_run_id := constants.RUN_ID_MAP.get(args.run_id)) is None:
         raise ValueError(f"No comps run ID found for assessment run ID {args.run_id}")
 
     comps_sql = f"""
         SELECT comp.*
-        FROM pinval.vw_comp AS comp
+        FROM {constants.PINVAL_COMP_TABLE} AS comp
         INNER JOIN (
             SELECT DISTINCT meta_pin
-            FROM pinval.vw_assessment_card
+            FROM {constants.PINVAL_ASSESSMENT_CARD_TABLE}
             WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.meta_pin

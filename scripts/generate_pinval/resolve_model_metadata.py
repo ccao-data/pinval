@@ -15,6 +15,8 @@ import os
 from pyathena import connect
 from pyathena.cursor import DictCursor
 
+import constants
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation"""
@@ -104,9 +106,9 @@ def get_township_codes(
             for row in connect(region_name="us-east-1")
             .cursor()
             .execute(
-                """
+                f"""
                     SELECT DISTINCT meta_township_code
-                    FROM pinval.vw_assessment_card
+                    FROM {constants.PINVAL_ASSESSMENT_CARD_TABLE}
                     WHERE run_id = %(run_id)s
                     ORDER BY meta_township_code
                 """,
