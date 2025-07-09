@@ -160,21 +160,10 @@ def build_front_matter(
     pretty_fn : Callable[[str], str]
         Function that converts a raw model column name → human-readable label.
     """
-    special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
-
-    if special_multi:
-        # keep only the Frankencard already flagged by the view
-        df_target_pin = df_target_pin[df_target_pin["is_frankencard"]].copy()
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
-
-    # swap out the original sqft column for the combined version
-    if special_multi:
-        preds_cleaned = [
-            "combined_bldg_sf" if p == "char_bldg_sf" else p for p in preds_cleaned
-        ]
 
     front: dict = {
         "layout": "report",
@@ -188,7 +177,6 @@ def build_front_matter(
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
-        "special_case_multi_card": special_multi,
     }
 
     # Exit early if this PIN is ineligible for a report, in which case we
