@@ -210,26 +210,26 @@
 
   <!-- Handle multi-card message output -->
   {{ if ge .card.pin_num_cards 2 }}
-    <div class="mb-4">
+    <p>
       This property has multiple "cards", which is an assessment term for a
       building or an improvement on a property.
-    </div>
+    </p>
 
     {{ if .special_case_multi_card }}
-      <div class="mb-4">
+      <p>
         Since this property has {{ .card.pin_num_cards }} cards, we estimate its value using
         a slightly different method than other properties. We use the characteristics of
         the largest card for estimation, but we adjust the building square footage of
         that card to reflect the combined building square footage of all cards on the
         property. The characteristics below reflect this difference.
-      </div>
+      </p>
 
     {{ else }}
-      <div class="mb-4">
+      <p>
         Each card on a property can have different characteristics, so the Assessor's
         model estimates different values for each card. Toggle between the tabs below to
         view characteristics and similar sales for each card.
-      </div>
+      </p>
     {{ end }}
   {{ end }}
 
