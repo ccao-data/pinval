@@ -172,8 +172,8 @@ def build_front_matter(
         "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime(
             "%B %d, %Y"
         ),
-        "pin": tp["pin"],
-        "pin_pretty": pin_pretty(tp["pin"]),
+        "pin": tp["meta_pin"],
+        "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
@@ -183,11 +183,14 @@ def build_front_matter(
     # will pass the doc some info to help explain why the parcel is ineligible
     if not tp["is_report_eligible"]:
         front["layout"] = "ineligible"
-        front["reason_report_ineligible"] = tp["reason_report_ineligible"]
-        front["assessment_triad_name"] = tp["assessment_triad_name"]
-        front["parcel_class"] = tp["parcel_class"]
-        front["parcel_class_description"] = tp["parcel_class_description"]
-        front["parcel_triad_name"] = tp["parcel_triad_name"]
+        for attr in [
+            "reason_report_ineligible",
+            "assessment_triad_name",
+            "char_class",
+            "char_class_desc",
+            "meta_triad_name",
+        ]:
+            front[attr] = tp[attr]
         return front
 
     # Per card
@@ -252,7 +255,7 @@ def build_front_matter(
                     for k, v in {
                         "property_address": card_df["property_address"],
                         "municipality": card_df.get("loc_tax_municipality_name"),
-                        "township": tp["parcel_township_name"],
+                        "township": tp["meta_township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
                         "loc_school_elementary_district_name": card_df.get(
                             "school_elementary_district_name"
@@ -505,18 +508,12 @@ def main() -> None:
 
     assessment_year = assessment_year_df.iloc[0]["assessment_year"]
 
-    # Use `model_run_id` instead of `run_id` because `run_id` comes from
-    # `model.assessment_card` and so is not present for ineligible PINs,
-    # but we want to query those PINs so we can generate error pages for them
-    assessment_clauses = ["model_run_id = %(run_id)s"]
+    assessment_clauses = ["run_id = %(run_id)s"]
     params_assessment = {"run_id": args.run_id}
 
     # Shard by township **only** in the assessment query
     if args.township:
-        # Similar to `model_run_id` above, use `parcel_township_code` here
-        # instead of `meta_township_code` because the latter will be null
-        # for ineligible PINs
-        assessment_clauses.append("parcel_township_code = %(township)s")
+        assessment_clauses.append("meta_township_code = %(township)s")
         params_assessment["township"] = args.township
 
     if args.pin:
@@ -524,7 +521,7 @@ def main() -> None:
         pin_params = {f"pin{i}": p for i, p in enumerate(pins)}
         placeholders = ",".join(f"%({k})s" for k in pin_params)
 
-        assessment_clauses.append(f"pin IN ({placeholders})")
+        assessment_clauses.append(f"meta_pin IN ({placeholders})")
         params_assessment = {**params_assessment, **pin_params}
 
     where_assessment = " AND ".join(assessment_clauses)
@@ -555,11 +552,11 @@ def main() -> None:
         SELECT comp.*
         FROM pinval.vw_comp AS comp
         INNER JOIN (
-            SELECT DISTINCT pin
+            SELECT DISTINCT meta_pin
             FROM pinval.vw_assessment_card
             WHERE {where_assessment}
         ) AS card
-          ON comp.pin = card.pin
+          ON comp.pin = card.meta_pin
         WHERE comp.run_id = %(comps_run_id)s
     """
 
@@ -606,9 +603,9 @@ def main() -> None:
     start_time_dict_groupby = time.time()
 
     # Group dfs by PIN in dict for theoretically faster access
-    df_assessments_by_pin = df_assessment_all.groupby("pin")
+    df_assessments_by_pin = df_assessment_all.groupby("meta_pin")
     df_comps_by_pin = (
-        {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("pin")))
+        {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("meta_pin")))
     )
     end_time_dict_groupby = time.time()
 

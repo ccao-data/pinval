@@ -105,10 +105,10 @@ def get_township_codes(
             .cursor()
             .execute(
                 """
-                    SELECT DISTINCT parcel_township_code
+                    SELECT DISTINCT meta_township_code
                     FROM pinval.vw_assessment_card
-                    WHERE model_run_id = %(run_id)s
-                    ORDER BY parcel_township_code
+                    WHERE run_id = %(run_id)s
+                    ORDER BY meta_township_code
                 """,
                 {"run_id": run_id},
             )
