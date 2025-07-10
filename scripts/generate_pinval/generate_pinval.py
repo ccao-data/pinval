@@ -400,11 +400,11 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
 
     # Generate comps summary stats needed for frontmatter
     if "meta_sale_price" in df.columns:
-        df["comps_avg_sale_price"] = df.groupby("card")["meta_sale_price"].transform(
-            "mean"
-        )
+        df["comps_avg_sale_price"] = df.groupby(["pin", "card"])[
+            "meta_sale_price"
+        ].transform("mean")
     if "sale_price_per_sq_ft" in df.columns:
-        df["comps_avg_price_per_sqft"] = df.groupby("card")[
+        df["comps_avg_price_per_sqft"] = df.groupby(["pin", "card"])[
             "sale_price_per_sq_ft"
         ].transform("mean")
 
