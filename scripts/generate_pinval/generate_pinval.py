@@ -186,6 +186,7 @@ def build_front_matter(
         "pin": tp["pin"],
         "pin_pretty": pin_pretty(tp["pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
+        "pin_num_cards": tp["ap_meta_pin_num_cards"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
@@ -258,7 +259,6 @@ def build_front_matter(
                 "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
                 "char_class_detailed": card_df["char_class_detailed"],
-                "pin_num_cards": card_df["ap_meta_pin_num_cards"],
                 "location": {
                     k: v
                     for k, v in {
@@ -383,6 +383,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         "time_sale_day",
         "acs5_median_household_total_occupied_year_built",
         "char_yrblt",
+        "meta_pin_num_cards",
     }
 
     # Columns that should be preserved as numeric

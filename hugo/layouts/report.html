@@ -139,10 +139,41 @@
         </div>
       </div>
 
-      {{ $is_multicard := gt (len .Params.cards) 1 }}
+      {{ $is_multicard := gt .Params.pin_num_cards 1 }}
+      <!--
+        In the 2-3 card case where we collapse square footage from the smaller cards
+        into the larger card, we don't want to render a single tabset, this boolean prevents
+        that
+      -->
+      {{ $is_multicard_render_tabset := and (gt .Params.pin_num_cards 1) (not .Params.special_case_multi_card) }}
+
+        <!-- Handle multi-card message output -->
+        {{ if $is_multicard }}
+          <p>
+            This property has multiple "cards", which is an assessment term for a
+            building or an improvement on a property.
+          </p>
+
+          {{ if .Params.special_case_multi_card }}
+            <p>
+              Since this property has {{ .Params.pin_num_cards }} cards, we estimate its value using
+              a slightly different method than other properties. We use the characteristics of
+              the largest card for estimation, but we adjust the building square footage of
+              that card to reflect the combined building square footage of all cards on the
+              property. The characteristics below reflect this difference.
+            </p>
+
+          {{ else }}
+            <p>
+              Each card on a property can have different characteristics, so the Assessor's
+              model estimates different values for each card. Toggle between the tabs below to
+              view characteristics and similar sales for each card.
+            </p>
+          {{ end }}
+        {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
-      {{ if $is_multicard }}
+      {{ if $is_multicard_render_tabset }}
         <!-- Multicard: Create a tab for each card to show its comps -->
         <ul class="nav nav-tabs" id="propertyCardTabs" role="tablist">
           {{ range $index, $card := .Params.cards }}
@@ -207,31 +238,6 @@
 
   <!-- Define a template for card content -->
   {{ define "card-content" }}
-
-  <!-- Handle multi-card message output -->
-  {{ if ge .card.pin_num_cards 2 }}
-    <p>
-      This property has multiple "cards", which is an assessment term for a
-      building or an improvement on a property.
-    </p>
-
-    {{ if .special_case_multi_card }}
-      <p>
-        Since this property has {{ .card.pin_num_cards }} cards, we estimate its value using
-        a slightly different method than other properties. We use the characteristics of
-        the largest card for estimation, but we adjust the building square footage of
-        that card to reflect the combined building square footage of all cards on the
-        property. The characteristics below reflect this difference.
-      </p>
-
-    {{ else }}
-      <p>
-        Each card on a property can have different characteristics, so the Assessor's
-        model estimates different values for each card. Toggle between the tabs below to
-        view characteristics and similar sales for each card.
-      </p>
-    {{ end }}
-  {{ end }}
 
   <!-- Wrap Location and Characteristics tables in a row so they appear side-by-side on desktop -->
   <div class="row">
@@ -465,7 +471,7 @@
 
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
-      {{ if $is_multicard }}
+      {{ if $is_multicard_render_tabset }}
         {{ range $index, $card := .Params.cards }}
           initializeMap("map-{{ $card.card_num }}", {{ $index }});
           initializeTable("comp-table-{{ $card.card_num }}");
