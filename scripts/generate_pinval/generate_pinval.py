@@ -605,7 +605,7 @@ def main() -> None:
     # Group dfs by PIN in dict for theoretically faster access
     df_assessments_by_pin = df_assessment_all.groupby("meta_pin")
     df_comps_by_pin = (
-        {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("meta_pin")))
+        {} if df_comps_all.empty else dict(tuple(df_comps_all.groupby("pin")))
     )
     end_time_dict_groupby = time.time()
 

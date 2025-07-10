@@ -181,7 +181,7 @@
           >
             {{ template "card-content"
             (dict "card" $card
-                  "var_labels" $.Params.var_labels
+                  "Params" $.Params
                   "is_multicard" true)}}
           </div>
           {{ end }}
@@ -192,7 +192,7 @@
         {{ $card := index .Params.cards 0 }}
         {{ template "card-content"
           (dict "card" $card
-          "var_labels" .Params.var_labels
+          "Params" .Params
           "is_multicard" false) }}
       {{ end }}
 
@@ -356,7 +356,7 @@
         <!-- Regular rows -->
         {{ range $char := .card.predictors }}
         <tr>
-          <td class="char-name">{{ index $.var_labels $char }}</td>
+          <td class="char-name">{{ index $.Params.var_labels $char }}</td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
