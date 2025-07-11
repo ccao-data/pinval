@@ -20,6 +20,13 @@
     integrity="sha384-xkQqWcEusZ1bIXoKJoItkNbJJ1LG5QwR5InghOwFLsCoEkGcNLYjE0O83wWruaK9"
     crossorigin="anonymous"
   />
+  <link
+    href="https://cdn.datatables.net/fixedcolumns/5.0.4/css/fixedColumns.dataTables.min.css"
+    rel="stylesheet"
+    integrity="sha384-hVwUvP9o6t5F4NTn4bygFte7oSFXkYfWMBqENXuJC6xlX2T0lg94klu9D4bHyzUE"
+    crossorigin="anonymous"
+  />
+  <link rel="stylesheet" href="https://cdn.datatables.net/fixedheader/4.0.3/css/fixedHeader.dataTables.min.css" integrity="sha384-MdjfIsy9elm9qOpK/KXJfYR9PmcQ47vcI0vij5V7nLUOBFvZqPwz0wKJ3q+Sg1RG" crossorigin="anonymous">
 
   {{ partial "head/favicons.html" . }}
 
@@ -365,6 +372,11 @@
         </tr>
         {{ end }}
       </tbody>
+      <tfoot>
+          <tr>
+              <th colspan="7" style="text-align:center"><span id="show-more-chars">Show more characteristics</span></th>
+          </tr>
+      </tfoot>
     </table>
   </div>
 
@@ -425,6 +437,12 @@
     integrity="sha384-G85lmdZCo2WkHaZ8U1ZceHekzKcg37sFrs4St2+u/r2UtfvSDQmQrkMsEx4Cgv/W"
     crossorigin="anonymous"
   ></script>
+  <script
+    src="https://cdn.datatables.net/fixedcolumns/5.0.4/js/dataTables.fixedColumns.min.js"
+    integrity="sha384-pTT0DCmQdJKH1Vz2e0adpu+1Tp4tiIYm+vF6e+b+YAywojOEf3TR2WyIGdICT5Gy"
+    crossorigin="anonymous"
+  ></script>
+  <script src="https://cdn.datatables.net/fixedheader/4.0.3/js/dataTables.fixedHeader.min.js" integrity="sha384-p66x0SWwSmqfafoeNRyHmaay6Z/zGSRc52U3aGc0gaseU1+CiGgSEyNHTM3gfcqg" crossorigin="anonymous"></script>
 
   <!-- Main script logic. -->
   <!-- There are two primary steps here: -->
@@ -670,14 +688,26 @@
 
       const dt = $table.DataTable({
         paging: true,
+        scrollX: true,
+        fixedColumns: true,
+        fixedHeader: {
+          header: true,
+          footer: true
+        },
         searching: true,
-        info: false,
+        info: true,
         pageLength: 7,
         ordering: true,
         order: [], // Disable default ordering
         lengthChange: false,
         language: {
-          search: "Filter characteristics:"
+          search: "Filter characteristics:",
+          info: "Scroll to the right to see more sales ➜"
+        },
+        layout: {
+          topStart: "search",
+          topEnd: L.Browser.mobile ? "info" : null,
+          bottomStart: null
         }
       });
 
