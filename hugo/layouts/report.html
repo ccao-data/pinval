@@ -649,6 +649,15 @@
         noteControl.addTo(map);
       }
 
+      // Hide the note control whenever a popup is displayed, since otherwise
+      // the note control will obscure the popup
+      const noteControlDiv = document.querySelector(".leaflet-control.info.note");
+      map.on("popupopen", function() {
+        if (noteControlDiv) noteControlDiv.style.display = "none";
+      }).on("popupclose", function() {
+        if (noteControlDiv) noteControlDiv.style.display = "";
+      });
+
       // Fit bounds with a small buffer
       const boundsPadding = 0.001;
       bounds._southWest.lat -= boundsPadding;
