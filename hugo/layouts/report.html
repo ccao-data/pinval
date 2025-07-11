@@ -316,29 +316,27 @@
         </tr>
       </thead>
       <tbody>
-        <!-- These rows will be frozen at the top -->
-        <tr class="frozen-row">
+        <tr>
           <td class="char-name">Sale Price</td>
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_price }}</td>
           {{ end }}
         </tr>
-        <tr class="frozen-row">
+        <tr>
           <td class="char-name">Sale $/sqft</td>
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_price_per_sq_ft }}</td>
           {{ end }}
         </tr>
-        <tr class="frozen-row frozen-row-bottom-border">
+        <tr>
           <td class="char-name">Sale Date</td>
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_date }}</td>
           {{ end }}
         </tr>
-        <!-- Metadata rows -->
         <tr>
           <td class="char-name">Sale Doc. Num.</td>
           <td></td>
@@ -373,9 +371,23 @@
         {{ end }}
       </tbody>
       <tfoot>
-          <tr>
-              <th colspan="7" style="text-align:center"><span id="show-more-chars">Show more characteristics</span></th>
-          </tr>
+        <tr>
+          <th>
+            <button type="button" class="btn btn-light" id="show-more">
+              🠛 <strong>Show more</strong> characteristics
+            </button>
+          </th>
+          <th>
+            <button type="button" class="btn btn-light" id="show-less">
+              🠙 <strong>Show fewer</strong> characteristics
+            </button>
+          </th>
+          <th colspan="5" style="text-align:left">
+            <button type="button" class="btn btn-light" id="show-all">
+              🠛 <strong>Show all</strong><br>characteristics
+            </button>
+          </th>
+        </tr>
       </tfoot>
     </table>
   </div>
@@ -687,16 +699,12 @@
       $table.find("tr.frozen-row").remove();
 
       const dt = $table.DataTable({
-        paging: true,
+        paging: false,
         scrollX: true,
         fixedColumns: true,
-        fixedHeader: {
-          header: true,
-          footer: true
-        },
+        fixedHeader: true,
         searching: true,
         info: true,
-        pageLength: 7,
         ordering: true,
         order: [], // Disable default ordering
         lengthChange: false,
@@ -711,17 +719,54 @@
         }
       });
 
-      // Hook into draw event to reinsert frozen rows
-      dt.on("draw.dt", function () {
-        const $tbody = $table.find("tbody");
-        // Reverse the frozen rows array and then prepend each one
-        $($frozenRows.get().reverse()).each(function (i, row) {
-          $tbody.prepend($(row).clone()); // Clone again to avoid duplication issues
+      // Implement custom pagination that is friendlier on mobile
+      const pageSize = 10; // rows per page
+      const totalRows = dt.rows().count();
+      const totalPages = Math.ceil(totalRows / pageSize);
+
+      // Use this global state variable to track page state
+      let visiblePages = 1; // start with the first page
+
+      function updateTable(numPages, size = pageSize) {
+        // Save new page count to state. Avoid mutating this state anywhere
+        // outside this function to reduce the possibility for state-related
+        // bugs
+        visiblePages = numPages;
+        // Show rows if they fit within the current visible pageset
+        dt.rows().every(function(rowIdx, tableLoop, rowLoop) {
+          if (rowIdx < numPages * size) {
+            $(this.node()).show();
+          } else {
+            $(this.node()).hide();
+          }
         });
+        updateButtons(numPages);
+      }
+
+      function updateButtons(numPages) {
+        $("#show-more").prop("disabled", numPages >= totalPages);
+        $("#show-all").prop("disabled", numPages >= totalPages);
+        $("#show-less").prop("disabled", numPages <= 1);
+      }
+
+      $("#show-more").on("click", function() {
+        if (visiblePages < totalPages) {
+          updateTable(visiblePages + 1);
+        }
       });
 
-      // Trigger initial draw (forces first insert)
-      dt.draw();
+      $("#show-all").on("click", function() {
+        updateTable(totalPages);
+      });
+
+      $("#show-less").on("click", function() {
+        if (visiblePages > 1) {
+          updateTable(visiblePages - 1);
+        }
+      });
+
+      // Trigger initial table update
+      updateTable(visiblePages);
     }
   </script>
 </body>
