@@ -487,6 +487,9 @@
       const map = L.map(
         mapId,
         {
+          // Disable single-finger scroll interactions on mobile. Because
+          // touchZoom is enabled by default, the user will still be able to
+          // use two fingers to scroll and zoom
           dragging: !L.Browser.mobile,
           tap: !L.Browser.mobile
         }
@@ -536,6 +539,10 @@
           propertyLabel,
           {
             permanent: true,
+            // Propagate click events from the marker to its tooltip so that
+            // users can open the detail popup by clicking on the tooltip.
+            // This is particularly helpful on mobile since it can be hard
+            // to tap precisely on the circle marker
             interactive: true,
             direction: "top",
             offset: [0, -4],
@@ -634,7 +641,7 @@
       };
       legend.addTo(map);
 
-      // Add note control
+      // Add note control on mobile with prompt to use two fingers on the map
       if (L.Browser.mobile) {
         const noteControl = L.control({ position: "topright" });
         noteControl.onAdd = function() {
@@ -650,7 +657,7 @@
       }
 
       // Hide the note control whenever a popup is displayed, since otherwise
-      // the note control will obscure the popup
+      // the note control can obscure the popup
       const noteControlDiv = document.querySelector(".leaflet-control.info.note");
       map.on("popupopen", function() {
         if (noteControlDiv) noteControlDiv.style.display = "none";
