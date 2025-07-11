@@ -145,7 +145,6 @@
         into the larger card, we don't want to render a single tabset, this boolean prevents
         that
       -->
-      {{ $is_multicard_render_tabset := and (gt .Params.pin_num_cards 1) (not .Params.special_case_multi_card) }}
 
         <!-- Handle multi-card message output -->
         {{ if $is_multicard }}
@@ -173,7 +172,7 @@
         {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
-      {{ if $is_multicard_render_tabset }}
+      {{ if $is_multicard }}
         <!-- Multicard: Create a tab for each card to show its comps -->
         <ul class="nav nav-tabs" id="propertyCardTabs" role="tablist">
           {{ range $index, $card := .Params.cards }}
@@ -471,7 +470,7 @@
 
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
-      {{ if $is_multicard_render_tabset }}
+      {{ if $is_multicard }}
         {{ range $index, $card := .Params.cards }}
           initializeMap("map-{{ $card.card_num }}", {{ $index }});
           initializeTable("comp-table-{{ $card.card_num }}");

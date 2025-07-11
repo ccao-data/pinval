@@ -162,10 +162,6 @@ def build_front_matter(
     """
     special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
 
-    if special_multi:
-        # keep only the Frankencard already flagged by the view
-        df_target_pin = df_target_pin[df_target_pin["is_frankencard"]].copy()
-
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
@@ -217,6 +213,11 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
+        # Keep the original building-SF for the subject only
+        # (shown in the “Your Home’s Characteristics” table), while the
+        # comps and all downstream logic continue to use combined_bldg_sf
+        if special_multi and "char_bldg_sf" in card_df:
+            subject_chars["char_bldg_sf"] = card_df["char_bldg_sf"]
 
         # Comps
         comps_list = []
