@@ -203,8 +203,9 @@
           >
             {{ template "card-content"
             (dict "card" $card
-                  "var_labels" $.Params.var_labels
-                  "is_multicard" true)}}
+                  "Params" $.Params
+                  "is_multicard" true
+                  "special_case_multi_card" $.Params.special_case_multi_card) }}
           </div>
           {{ end }}
         </div>
@@ -214,7 +215,7 @@
         {{ $card := index .Params.cards 0 }}
         {{ template "card-content"
           (dict "card" $card
-          "var_labels" .Params.var_labels
+          "Params" $.Params
           "is_multicard" false
           "special_case_multi_card" .Params.special_case_multi_card) }}
       {{ end }}
@@ -287,17 +288,10 @@
               <td><strong>Year Built</strong></td>
               <td>{{ .card.chars.char_yrblt }}</td>
             </tr>
-            {{ if .special_case_multi_card }}
-              <tr>
-                <td><strong>Combined Bldg. Sq. Ft.</strong></td>
-                <td>{{ .card.chars.combined_bldg_sf }}</td>
-              </tr>
-            {{ else }}
               <tr>
                 <td><strong>Building Square Footage</strong></td>
                 <td>{{ .card.chars.char_bldg_sf }}</td>
               </tr>
-            {{ end }}
             <tr>
               <td><strong>Land Square Footage</strong></td>
               <td>{{ .card.chars.char_land_sf }}</td>
@@ -387,7 +381,7 @@
         <!-- Regular rows -->
         {{ range $char := .card.predictors }}
         <tr>
-          <td class="char-name">{{ index $.var_labels $char }}</td>
+          <td class="char-name">{{ index $.Params.var_labels $char }}</td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
@@ -405,6 +399,17 @@
     The model usually considers past sales of a home to be important for its value,
     even if those sales are older than sales of other homes.
   </p>
+  {{ end }}
+
+  {{ if .special_case_multi_card }}
+    <p>
+    <strong><span class="asterisk">*</span></strong> Since this property has
+    {{ .Params.pin_num_cards }} cards, we estimate its value using
+    a slightly different method than other properties. We use the characteristics of
+    the largest card for estimation, but we adjust the building square footage of
+    that card to reflect the combined building square footage of all cards on the
+    property. The characteristics below reflect this difference.
+    </p>
   {{ end }}
 
   <h2 class="mb-3">Summary of the Top 5 Most Important Sales</h2>
