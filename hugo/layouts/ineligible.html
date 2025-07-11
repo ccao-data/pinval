@@ -25,10 +25,10 @@
         </p>
         {{ else if eq .Params.reason_report_ineligible "non_regression_class" }}
         <p>
-          This property has class code <strong>{{ .Params.parcel_class }}</strong>.
-          {{ if .Params.parcel_class_description }}
+          This property has class code <strong>{{ .Params.char_class }}</strong>.
+          {{ if .Params.char_class_desc }}
             Properties with this code should fit the description
-            <strong>"{{ .Params.parcel_class_description }}"</strong>.
+            <strong>"{{ .Params.char_class_desc }}"</strong>.
           {{ end }}
         </p>
         <p>
@@ -41,7 +41,7 @@
           The Assessor did not reassess this home in
           {{ .Params.assessment_year }}. In {{ .Params.assessment_year }},
           the Assessor reassessed the <strong>{{ title .Params.assessment_triad_name }}</strong>
-          triad, but this home is in the <strong>{{ title .Params.parcel_triad_name }}</strong>
+          triad, but this home is in the <strong>{{ title .Params.meta_triad_name }}</strong>
           triad.
         </p>
         {{ else if eq .Params.reason_report_ineligible "missing_card" }}
