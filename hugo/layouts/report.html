@@ -295,7 +295,7 @@
   <!-- Comp map -->
   <h2 class="mb-3">Top 5 Most Important Sales</h2>
   <div
-    id="map-{{ if .is_multicard }}{{ .card.card_num }}{{ else }}main{{ end }}"
+    id="map-{{ .card.card_num }}"
     class="map-container"
   >
   </div>
@@ -304,7 +304,7 @@
   <div class="table-responsive mb-2">
     <table
       class="table table-striped table-bordered characteristic-comparison-table"
-      id="comp-table-{{ if .is_multicard }}{{ .card.card_num }}{{ else }}main{{ end }}"
+      id="comp-table-{{ .card.card_num }}"
     >
       <thead>
         <tr>
@@ -373,17 +373,29 @@
       <tfoot>
         <tr>
           <th>
-            <button type="button" class="btn btn-light" id="show-more">
+            <button
+              type="button"
+              class="btn btn-light"
+              id="show-more-{{ .card.card_num }}"
+            >
               🠛 <strong>Show more</strong> characteristics
             </button>
           </th>
           <th>
-            <button type="button" class="btn btn-light" id="show-less">
+            <button
+              type="button"
+              class="btn btn-light"
+              id="show-less-{{ .card.card_num }}"
+            >
               🠙 <strong>Show fewer</strong> characteristics
             </button>
           </th>
           <th colspan="5" style="text-align:left">
-            <button type="button" class="btn btn-light" id="show-all">
+            <button
+              type="button"
+              class="btn btn-light"
+              id="show-all-{{ .card.card_num }}"
+            >
               🠛 <strong>Show all</strong><br>characteristics
             </button>
           </th>
@@ -469,16 +481,11 @@
 
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
-      {{ if $is_multicard }}
-        {{ range $index, $card := .Params.cards }}
-          initializeMap("map-{{ $card.card_num }}", {{ $index }});
-          initializeTable("comp-table-{{ $card.card_num }}");
-        {{ end }}
-        renderMapsOnDisplay(mapRegistry);
-      {{ else }}
-        initializeMap("map-main", 0);
-        initializeTable("comp-table-main");
+      {{ range $index, $card := .Params.cards }}
+        initializeMap("{{ $card.card_num }}", {{ $index }});
+        initializeTable("{{ $card.card_num }}", {{ $index }});
       {{ end }}
+        renderMapsOnDisplay(mapRegistry);
     });
 
     // Fit map bounds only once they are visible. This is important because
@@ -506,14 +513,14 @@
     }
 
     // Initialize map for a specific card
-    function initializeMap(mapId, cardIndex) {
+    function initializeMap(cardNum, cardIndex) {
       const pin = {{ .Params.pin }};
       const pinPretty = {{ .Params.pin_pretty }};
       const mapData = {{ .Params.cards }};
       const cardData = mapData[cardIndex];
 
       // Create map centered on subject property
-      const map = L.map(mapId).setView(
+      const map = L.map(`map-${cardNum}`).setView(
         [cardData.location.loc_latitude, cardData.location.loc_longitude],
         14
       );
@@ -690,9 +697,9 @@
     }
 
     // Initialize the characteristic comparison table
-    function initializeTable(tableId) {
+    function initializeTable(cardNum, cardIndex) {
       // Extract and store frozen rows
-      const $table = $(`#${tableId}`);
+      const $table = $(`#table-${cardNum}`);
       const $frozenRows = $table.find("tr.frozen-row").clone(); // Store clones
 
       // Remove original frozen rows from DOM so they don't get indexed
@@ -719,22 +726,26 @@
         }
       });
 
-      // Implement custom pagination that is friendlier on mobile
+      // Implement custom pagination that is friendlier on mobile.
+      // Start with some constants that we'll use to determine which
+      // rows to show when a user clicks a pagination control button
       const pageSize = 10; // rows per page
       const totalRows = dt.rows().count();
       const totalPages = Math.ceil(totalRows / pageSize);
 
-      // Use this global state variable to track page state
-      let visiblePages = 1; // start with the first page
+      // Use this global state variable to track the page we're on.
+      // Avoid mutating this state anywhere outside the `updateTable()`
+      // function, to reduce to possibility for state-related bugs
+      let visiblePages = 1;
 
-      function updateTable(numPages, size = pageSize) {
-        // Save new page count to state. Avoid mutating this state anywhere
-        // outside this function to reduce the possibility for state-related
-        // bugs
+      // Function to update the visible rows in a table based on a new
+      // pagination request
+      function updateTable(numPages, numRowsPerPage = pageSize) {
+        // Save new page count to state
         visiblePages = numPages;
         // Show rows if they fit within the current visible pageset
         dt.rows().every(function(rowIdx, tableLoop, rowLoop) {
-          if (rowIdx < numPages * size) {
+          if (rowIdx < numPages * numRowsPerPage) {
             $(this.node()).show();
           } else {
             $(this.node()).hide();
@@ -743,23 +754,31 @@
         updateButtons(numPages);
       }
 
+      const $showMoreBtn = $(`#show-more-${card_num}`);
+      const $showAllBtn = $(`#show-all-${card_num}`);
+      const $showLessBtn = $(`#show-less-${card_num}`);
+
+      // Function to update the clickability of pagination buttons depending
+      // on the table state
       function updateButtons(numPages) {
-        $("#show-more").prop("disabled", numPages >= totalPages);
-        $("#show-all").prop("disabled", numPages >= totalPages);
-        $("#show-less").prop("disabled", numPages <= 1);
+        // Don't allow users to show more rows on the last page of rows.
+        // We don't expect `numPages` to ever be greater than `totalPages`,
+        // but handle that possibility defensively in case of bugs
+        $showMoreBtn.prop("disabled", numPages >= totalPages);
+        $showAllBtn.prop("disabled", numPages >= totalPages);
+        // Don't allow users to show fewer rows on the first page of rows
+        $showLessBtn.prop("disabled", numPages <= 1);
       }
 
-      $("#show-more").on("click", function() {
+      $showMoreBtn.on("click", function() {
         if (visiblePages < totalPages) {
           updateTable(visiblePages + 1);
         }
       });
-
-      $("#show-all").on("click", function() {
+      $showAllBtn.on("click", function() {
         updateTable(totalPages);
       });
-
-      $("#show-less").on("click", function() {
+      $showLessBtn.on("click", function() {
         if (visiblePages > 1) {
           updateTable(visiblePages - 1);
         }
