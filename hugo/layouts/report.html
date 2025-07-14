@@ -294,6 +294,7 @@
 
   <!-- Comp map -->
   <h2 class="mb-3">Top 5 Most Important Sales</h2>
+  <p>Tap or click on a home to see more details.</p>
   <div
     id="map-{{ .card.card_num }}"
     class="map-container"
@@ -520,7 +521,16 @@
       const cardData = mapData[cardIndex];
 
       // Create map centered on subject property
-      const map = L.map(`map-${cardNum}`).setView(
+      const map = L.map(
+        `map-${cardNum}`,
+        {
+          // Disable single-finger scroll interactions on mobile. Because
+          // touchZoom is enabled by default, the user will still be able to
+          // use two fingers to scroll and zoom
+          dragging: !L.Browser.mobile,
+          tap: !L.Browser.mobile
+        }
+      ).setView(
         [cardData.location.loc_latitude, cardData.location.loc_longitude],
         14
       );
@@ -566,6 +576,11 @@
           propertyLabel,
           {
             permanent: true,
+            // Propagate click events from the marker to its tooltip so that
+            // users can open the detail popup by clicking on the tooltip.
+            // This is particularly helpful on mobile since it can be hard
+            // to tap precisely on the circle marker
+            interactive: true,
             direction: "top",
             offset: [0, -4],
             className: "subject-tooltip"
@@ -611,6 +626,7 @@
           tooltipText,
           {
             permanent: true,
+            interactive: true,
             direction: "top",
             offset: [0, -4],
             className: "comp-tooltip"
@@ -662,18 +678,29 @@
       };
       legend.addTo(map);
 
-      // Add note control
-      const noteControl = L.control({ position: "topright" });
-      noteControl.onAdd = function() {
-        const div = L.DomUtil.create("div", "info note");
-        div.innerHTML = `
-          <div style="background-color: white; padding: 5px 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);">
-            Tap or click on a dot for more details
-          </div>
-        `;
-        return div;
-      };
-      noteControl.addTo(map);
+      // Add note control on mobile with prompt to use two fingers on the map
+      if (L.Browser.mobile) {
+        const noteControl = L.control({ position: "topright" });
+        noteControl.onAdd = function() {
+          const div = L.DomUtil.create("div", "info note");
+          div.innerHTML = `
+            <div style="background-color: white; padding: 5px 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);">
+              Use two fingers to scroll or zoom the map
+            </div>
+          `;
+          return div;
+        };
+        noteControl.addTo(map);
+      }
+
+      // Hide the note control whenever a popup is displayed, since otherwise
+      // the note control can obscure the popup
+      const noteControlDiv = document.querySelector(".leaflet-control.info.note");
+      map.on("popupopen", function() {
+        if (noteControlDiv) noteControlDiv.style.display = "none";
+      }).on("popupclose", function() {
+        if (noteControlDiv) noteControlDiv.style.display = "";
+      });
 
       // Fit bounds with a small buffer
       const boundsPadding = 0.001;
