@@ -698,13 +698,7 @@
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex) {
-      // Extract and store frozen rows
-      const $table = $(`#table-${cardNum}`);
-      const $frozenRows = $table.find("tr.frozen-row").clone(); // Store clones
-
-      // Remove original frozen rows from DOM so they don't get indexed
-      $table.find("tr.frozen-row").remove();
-
+      const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
         paging: false,
         scrollX: true,
@@ -712,8 +706,7 @@
         fixedHeader: true,
         searching: true,
         info: true,
-        ordering: true,
-        order: [], // Disable default ordering
+        ordering: false,
         lengthChange: false,
         language: {
           search: "Filter characteristics:",
@@ -754,18 +747,18 @@
         updateButtons(numPages);
       }
 
-      const $showMoreBtn = $(`#show-more-${card_num}`);
-      const $showAllBtn = $(`#show-all-${card_num}`);
-      const $showLessBtn = $(`#show-less-${card_num}`);
+      const $showMoreBtn = $(`#show-more-${cardNum}`);
+      const $showAllBtn = $(`#show-all-${cardNum}`);
+      const $showLessBtn = $(`#show-less-${cardNum}`);
 
       // Function to update the clickability of pagination buttons depending
       // on the table state
-      function updateButtons(numPages) {
+      function updateButtons(numPages, maxPages = totalPages) {
         // Don't allow users to show more rows on the last page of rows.
         // We don't expect `numPages` to ever be greater than `totalPages`,
         // but handle that possibility defensively in case of bugs
-        $showMoreBtn.prop("disabled", numPages >= totalPages);
-        $showAllBtn.prop("disabled", numPages >= totalPages);
+        $showMoreBtn.prop("disabled", numPages >= maxPages);
+        $showAllBtn.prop("disabled", numPages >= maxPages);
         // Don't allow users to show fewer rows on the first page of rows
         $showLessBtn.prop("disabled", numPages <= 1);
       }
