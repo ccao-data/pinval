@@ -213,9 +213,8 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
-        # Keep the original building-SF for the subject only
-        # (shown in the “Your Home’s Characteristics” table), while the
-        # comps and all downstream logic continue to use combined_bldg_sf
+        # Keep the original building-SF for the subject only, while the
+        # comps and all downstream outputs use the combined building sqft
         if special_multi and "char_bldg_sf" in card_df:
             subject_chars["char_bldg_sf"] = card_df["char_bldg_sf"]
 
