@@ -702,20 +702,20 @@
       const dt = $table.DataTable({
         paging: false,
         scrollX: true,
-        fixedColumns: true,
+        fixedColumns: !L.Browser.mobile,
         fixedHeader: true,
         searching: true,
         info: true,
         ordering: false,
         lengthChange: false,
         language: {
-          search: "Filter characteristics:",
+          search: "<b>Search</b> characteristics:",
           info: "Scroll to the right to see more sales ➜"
         },
         layout: {
-          topStart: "search",
+          bottomStart: "search",
           topEnd: L.Browser.mobile ? "info" : null,
-          bottomStart: null
+          topStart: null
         }
       });
 
