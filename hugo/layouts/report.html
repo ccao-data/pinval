@@ -311,7 +311,7 @@
         <tr>
           <th>Characteristic</th>
           <th>
-            Your home{{ if .special_case_multi_card }}<span class="asterisk">*</span><span class="asterisk">*</span>{{ end }}
+            Your home{{ if .special_case_multi_card }}<span class="asterisk">**</span>{{ end }}
           </th>
           {{ range $index, $comp := .card.comps }}
           <th>Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">*</span>{{ end }}</th>
