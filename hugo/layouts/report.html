@@ -399,7 +399,7 @@
         <tr>
           <th>
             <a
-              href="#sales-summary"
+              href="#sales-summary-{{ .card.card_num }}"
               type="button"
               class="btn btn-light"
             >
@@ -436,7 +436,7 @@
 
   <h2
     class="mb-3"
-    id="sales-summary"
+    id="sales-summary-{{ .card.card_num }}"
   >
     Summary of the Top 5 Most Important Sales
   </h2>
