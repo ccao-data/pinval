@@ -377,15 +377,18 @@
         {{ end }}
       </tbody>
       <tfoot>
-        <tr class="d-lg-none">
+        <tr>
           <th>
             <a
               href="#sales-summary"
               type="button"
               class="btn btn-light"
             >
-              🠛 <strong>Skip</strong> to next section
+              ▼ Skip to next section
             </a>
+          </th>
+          <th colspan="6" style="font-weight: normal" >
+            🠛 Scroll down on the table to see more characteristics
           </th>
         </tr>
       </tfoot>
@@ -723,34 +726,28 @@
     function initializeTable(cardNum, cardIndex) {
       const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
-        paging: false,
-        scrollX: true,
-        scrollY: "500px",
-        scrollCollapse: true,
-        fixedColumns: !L.Browser.mobile,
+        paging: false,  // Disable pagination to display all chars at once
+        scrollX: true,  // Allow the table to scroll horizontally on narrow screens
+        scrollY: "500px",  // Force the table to scroll vertically with a fixed height
+        scrollCollapse: true,  // Collapse the table size below the fixed height when there are few rows
+        fixedColumns: true,  // Freeze the leftmost column (chars) during horizontal scroll
         fixedHeader: {
-          header: true,
-          footer: true
+          header: true,  // Make the header row sticky during scroll
+          footer: true  // Make the footer sticky during scroll
         },
-        searching: true,
-        info: true,
-        ordering: false,
-        lengthChange: false,
-        language: {
-          search: "<b>Search</b> characteristics:",
-          info: "<span class='d-lg-none'><strong>Scroll right</strong> to see more sales ➜</span>",
-          infoFiltered: "",
-          infoEmpty: "",
+        searching: true,  // Enable a search box to filter rows
+        info: true,  // Enable info text (defined under the `language` key below)
+        ordering: false,  // Disable sorting by column
+        language: {  // Custom text
+          search: "<b>Search</b> characteristics:",  // Search input label
+          info: "<span class='d-lg-none'>Scroll right to see more sales ➜</span>",
+          infoFiltered: "",  // Disable searched row count text
+          infoEmpty: "",  // Disable text that shows when no rows match search
         },
         layout: {
-          topStart: "search",
-          topEnd: "info",
-          bottomStart: {
-            div: {
-              html: "🠛 <strong>Scroll down</strong> on the table to see more characteristics",
-              className: "d-none d-lg-block"
-            }
-          },
+          topStart: "search",  // Top left: Search box
+          topEnd: "info",  // Top right: Horizontal scroll prompt
+          bottomStart: null,  // Disable bottom text, since we use a frozen footer
         }
       });
     }
