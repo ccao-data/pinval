@@ -315,7 +315,12 @@
   <!-- Comp map -->
   <h2 class="mb-3">Top 5 Most Important Sales</h2>
   <p>
-    <i class="bi bi-hand-index-thumb" aria-hidden="true"></i> Tap or click on a home to see more details
+    This map shows your home alongside the 5 sales that the model thought
+    were most important when valuing your home.
+  </p>
+  <p>
+    <i class="bi bi-hand-index-thumb" aria-hidden="true"></i>
+    Tap or click on a home or a sale to see more details about it.
   </p>
   <div
     id="map-{{ .card.card_num }}"
@@ -324,7 +329,14 @@
   </div>
 
   <!-- Comp chars -->
-  <div class="mb-4">
+  <h3 class="mt-4">Characteristics for Top 5 Most Important Sales</h3>
+  <p>
+    "Characteristics" are data points about a home that help the model
+    compare it to recent sales. This table shows all of the characteristics
+    that the model used to value your home compared to the characteristics
+    for its top 5 sales.
+  </p>
+  <div class="mb-3">
     <table
       class="display characteristic-comparison-table"
       id="comp-table-{{ .card.card_num }}"
@@ -397,13 +409,13 @@
       </tbody>
       <tfoot>
         <tr>
-          <th>
+          <th class="d-lg-none">
             <a
               href="#sales-summary-{{ .card.card_num }}"
               type="button"
               class="btn btn-light"
             >
-              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Skip to next section
+              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Jump to next section
             </a>
           </th>
           <th colspan="6" style="font-weight: normal" >
@@ -412,9 +424,8 @@
         </tr>
       </tfoot>
     </table>
-  </div>
 
-  {{ if .special_case_multi_card }}
+    {{ if .special_case_multi_card }}
     <p>
       <strong><span class="asterisk">*</span></strong> Since this property has
       {{ .Params.pin_num_cards }} cards, we estimate its value using
@@ -424,15 +435,16 @@
       property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
       <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
     </p>
-  {{ end }}
+    {{ end }}
 
-  {{ if .card.has_subject_pin_sale }}
-  <p>
-    <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
-    The model usually considers past sales of a home to be important for its value,
-    even if those sales are older than sales of other homes.
-  </p>
-  {{ end }}
+    {{ if .card.has_subject_pin_sale }}
+    <p>
+      <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
+      The model usually considers past sales of a home to be important for its value,
+      even if those sales are older than sales of other homes.
+    </p>
+    {{ end }}
+  </div>
 
   <h2
     class="mb-3"
@@ -762,6 +774,7 @@
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex) {
+      const specialMulti = {{ if .Params.special_case_multi_card }}true{{ else }}false{{ end }};
       const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
         paging: false,  // Disable pagination to display all chars at once
@@ -778,7 +791,9 @@
         ordering: false,  // Disable sorting by column
         language: {  // Custom text
           search: "<i class='bi bi-search' aria-hidden='true'></i> <b>Search</b> characteristics:",  // Search input label
-          info: "<span class='d-lg-none'>Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'></i></span>",
+          info: (specialMulti ?  // Always show scroll prompt for multicards, since the table will be narrower
+            "Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'>" :
+            "<span class='d-lg-none'>Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'></i></span>"),
           infoFiltered: "",  // Disable searched row count text
           infoEmpty: "",  // Disable text that shows when no rows match search
         },
