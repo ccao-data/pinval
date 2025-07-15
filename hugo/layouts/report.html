@@ -141,18 +141,17 @@
 
       {{ $is_multicard := gt .Params.pin_num_cards 1 }}
 
-        <!-- Handle multi-card message output -->
-        {{ if $is_multicard }}
-          <p>
-            This property has multiple "cards", which is an assessment term for a
-            building or an improvement on a property.
-          </p>
-          <p>
-            Each card on a property can have different characteristics, so the Assessor's
-            model estimates different values for each card. Toggle between the tabs below to
-            view characteristics and similar sales for each card.
-          </p>
-        {{ end }}
+      {{ if $is_multicard }}
+        <p>
+          This property has multiple "cards", which is an assessment term for a
+          building or an improvement on a property.
+        </p>
+        <p>
+          Each card on a property can have different characteristics, so the Assessor's
+          model estimates different values for each card. Toggle between the tabs below to
+          view characteristics and similar sales for each card.
+        </p>
+      {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
       {{ if $is_multicard }}
