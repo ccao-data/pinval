@@ -502,7 +502,7 @@
       const pinPretty = {{ .Params.pin_pretty }};
       const mapData = {{ .Params.cards }};
       const cardData = mapData[cardIndex];
-      const specialCase = {{ if .Params.special_case_multi_card }}true{{ else }}false{{ end }};
+      const specialMulti = {{ if .Params.special_case_multi_card }}true{{ else }}false{{ end }};
 
       // Create map centered on subject property
       const map = L.map(mapId).setView(
@@ -558,8 +558,8 @@
         );
 
         // Define subjectPopupContent dynamically depending on 2-3 card case
-        const bldgLabel = specialCase ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
-        const bldgValue = specialCase ? cardData.chars.combined_bldg_sf : cardData.chars.char_bldg_sf;
+        const bldgLabel = specialMulti ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
+        const bldgValue = specialMulti ? cardData.chars.combined_bldg_sf : cardData.chars.char_bldg_sf;
 
         // Create popup content
         const subjectPopupContent = `
@@ -591,9 +591,8 @@
           }
         ).addTo(map);
 
-        const compBldgLabel = comp.combined_bldg_sf ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
-        const compBldgValue = comp.combined_bldg_sf || comp.char_bldg_sf;
-
+        const compBldgLabel = specialMulti ? "Combined Bldg. Sq. Ft." : "Bldg S.F.";
+        const compBldgValue = specialMulti ? comp.combined_bldg_sf : comp.char_bldg_sf;
         // Add tooltip
         const tooltipText = comp.is_subject_pin_sale
           ? `${cardData.is_multicard ? "Subject card" : "Subject property"} [${comp.sale_price_short} (${comp.sale_date})]`
