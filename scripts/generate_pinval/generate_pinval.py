@@ -160,10 +160,17 @@ def build_front_matter(
     pretty_fn : Callable[[str], str]
         Function that converts a raw model column name → human-readable label.
     """
+    special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
 
     # Header
     tp = df_target_pin.iloc[0]  # all cards share the same PIN-level chars
     preds_cleaned: list[str] = _clean_predictors(tp["model_predictor_all_name"])
+
+    # swap out the original sqft column for the combined version
+    if special_multi:
+        preds_cleaned = [
+            "combined_bldg_sf" if p == "char_bldg_sf" else p for p in preds_cleaned
+        ]
 
     front: dict = {
         "layout": "report",
@@ -175,8 +182,10 @@ def build_front_matter(
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
+        "pin_num_cards": tp["ap_meta_pin_num_cards"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "special_case_multi_card": special_multi,
     }
 
     # Exit early if this PIN is ineligible for a report, in which case we
@@ -207,6 +216,10 @@ def build_front_matter(
         subject_chars = {
             pred: card_df[pred] for pred in preds_cleaned if pred in card_df
         }
+        # Keep the original building-SF for the subject only, while the
+        # comps and all downstream outputs use the combined building sqft
+        if special_multi and "char_bldg_sf" in card_df:
+            subject_chars["char_bldg_sf"] = card_df["char_bldg_sf"]
 
         # Comps
         comps_list = []
@@ -243,7 +256,6 @@ def build_front_matter(
             "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
             "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
         }
-
         # Complete the card
         front["cards"].append(
             {
@@ -374,6 +386,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         "time_sale_day",
         "acs5_median_household_total_occupied_year_built",
         "char_yrblt",
+        "meta_pin_num_cards",
     }
 
     # Columns that should be preserved as numeric
@@ -590,6 +603,9 @@ def main() -> None:
     )
 
     key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
+    # Manually define mapping for the "Combined Bldg. SF" label, which is not
+    # part of `ccao.vars_dict`
+    key_map["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
     PRESERVE = {"loc_latitude", "loc_longitude"}
 
