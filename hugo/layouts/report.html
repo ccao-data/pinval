@@ -307,7 +307,7 @@
   </div>
 
   <!-- Comp chars -->
-  <div class="mb-2">
+  <div class="mb-4">
     <table
       class="display characteristic-comparison-table"
       id="comp-table-{{ .card.card_num }}"
@@ -377,33 +377,15 @@
         {{ end }}
       </tbody>
       <tfoot>
-        <tr>
+        <tr class="d-lg-none">
           <th>
-            <button
+            <a
+              href="#sales-summary"
               type="button"
               class="btn btn-light"
-              id="show-more-{{ .card.card_num }}"
             >
-              🠛 <strong>Show more</strong> characteristics
-            </button>
-          </th>
-          <th>
-            <button
-              type="button"
-              class="btn btn-light"
-              id="show-less-{{ .card.card_num }}"
-            >
-              🠙 <strong>Show fewer</strong> characteristics
-            </button>
-          </th>
-          <th colspan="5" style="text-align:left">
-            <button
-              type="button"
-              class="btn btn-light"
-              id="show-all-{{ .card.card_num }}"
-            >
-              🠛 <strong>Show all</strong><br>characteristics
-            </button>
+              🠛 <strong>Skip</strong> to next section
+            </a>
           </th>
         </tr>
       </tfoot>
@@ -418,7 +400,12 @@
   </p>
   {{ end }}
 
-  <h2 class="mb-3">Summary of the Top 5 Most Important Sales</h2>
+  <h2
+    class="mb-3"
+    id="sales-summary"
+  >
+    Summary of the Top 5 Most Important Sales
+  </h2>
   <p>
     The top 5 comparable sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
@@ -751,120 +738,21 @@
         lengthChange: false,
         language: {
           search: "<b>Search</b> characteristics:",
-          info: "Scroll to the right to see more sales ➜"
+          info: "<span class='d-lg-none'><strong>Scroll right</strong> to see more sales ➜</span>",
+          infoFiltered: "",
+          infoEmpty: "",
         },
         layout: {
-          bottomStart: "search",
-          topEnd: L.Browser.mobile ? "info" : null,
-          topStart: null
-        }
-      });
-
-      // Implement custom pagination that is friendlier on mobile.
-      // Start with some constants that we'll use to determine which
-      // rows to show when a user clicks a pagination control button
-      const pageSize = 10; // rows per page
-      const totalRows = dt.rows().count();
-      const totalPages = Math.ceil(totalRows / pageSize);
-
-      // Use this global state variable to track the page we're on.
-      // Avoid mutating this state anywhere outside the `updateTable()`
-      // function, to reduce to possibility for state-related bugs
-      let visiblePages = 1;
-
-      // Function to update the visible rows in a table based on a new
-      // pagination request
-      function updateTable(numPages, numRowsPerPage = pageSize) {
-        // Save new page count to state
-        visiblePages = numPages;
-        // Show rows if they fit within the current visible pageset
-        dt.search(
-          function(str, data, rowIdx) {
-            return(rowIdx < numPages * numRowsPerPage)
-          }
-        ).draw();
-        updateButtons(numPages);
-      }
-
-      const $showMoreBtn = $(`#show-more-${cardNum}`);
-      const $showAllBtn = $(`#show-all-${cardNum}`);
-      const $showLessBtn = $(`#show-less-${cardNum}`);
-
-      // Function to update the clickability of pagination buttons depending
-      // on the table state
-      function updateButtons(numPages, maxPages = totalPages) {
-        // Don't allow users to show more rows on the last page of rows.
-        // We don't expect `numPages` to ever be greater than `totalPages`,
-        // but handle that possibility defensively in case of bugs
-        $showMoreBtn.prop("disabled", numPages >= maxPages);
-        $showAllBtn.prop("disabled", numPages >= maxPages);
-        // Don't allow users to show fewer rows on the first page of rows
-        $showLessBtn.prop("disabled", numPages <= 1);
-      }
-
-      $showMoreBtn.on("click", function() {
-        if (visiblePages < totalPages) {
-          const newPageCount = visiblePages + 1;
-          updateTable(newPageCount);
-
-          // After showing more, scroll to the first newly visible row
-          setTimeout(
-            function() {
-              const targetRowIdxOffset = 2
-              const targetRowIdx = ((newPageCount - 1) * pageSize) - targetRowIdxOffset
-              const $targetRow = dt.row(targetRowIdx).node();
-              $targetRow.scrollIntoView({ behavior: "smooth" });
-            },
-            100  // slight delay to ensure DOM is updated
-          );
-        }
-      });
-
-      $showAllBtn.on("click", function() {
-        const newPageCount = totalPages;
-        updateTable(newPageCount);
-
-        setTimeout(
-          function() {
-            // Scroll to first row in the last page of records in the table.
-            // Subtract 1 to account for the fact that dt.row() uses 0-indexing
-            const targetRowIdx = totalRows - (pageSize + 1);
-            const $targetRow = dt.row(targetRowIdx).node();
-            console.log($targetRow);
-            $targetRow.scrollIntoView({ behavior: "smooth" });
+          topStart: "search",
+          topEnd: "info",
+          bottomStart: {
+            div: {
+              html: "🠛 <strong>Scroll down</strong> on the table to see more characteristics",
+              className: "d-none d-lg-block"
+            }
           },
-          100
-        );
-      });
-
-      $showLessBtn.on("click", function() {
-        if (visiblePages > 1) {
-          const oldPageCount = visiblePages;
-          const newPageCount = visiblePages - 1;
-          updateTable(newPageCount);
-
-          setTimeout(
-            function() {
-              // Scroll to first visible row in the new page.
-              // Do this before we update the table so that the scroll
-              // animation is smooth.
-              // Offset by 1 to account for the fact that the sticky header
-              // row will obscure the first row in the table, so we
-              // need to scroll to row N-1 to show row N as the first row.
-              // This offset doesn't work on the first page because we don't
-              // have any rows before the first one, so disable it on that page
-              const targetRowIdxOffset = newPageCount == 1 ? 0 : 2
-              const targetRowIdx = ((newPageCount - 1) * pageSize) - targetRowIdxOffset
-              const $targetRow = dt.row(targetRowIdx).node();
-              $targetRow.scrollIntoView({ behavior: "smooth" });
-            },
-            100
-          );
         }
       });
-
-      // Trigger initial table update
-      updateTable(visiblePages);
     }
   </script>
 </body>
