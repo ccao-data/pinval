@@ -377,14 +377,6 @@
     </table>
   </div>
 
-  {{ if .card.has_subject_pin_sale }}
-  <p>
-    <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
-    The model usually considers past sales of a home to be important for its value,
-    even if those sales are older than sales of other homes.
-  </p>
-  {{ end }}
-
   {{ if .special_case_multi_card }}
     <p>
       <strong><span class="asterisk">*</span></strong> Since this property has
@@ -395,6 +387,14 @@
       property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
       <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
     </p>
+  {{ end }}
+
+  {{ if .card.has_subject_pin_sale }}
+  <p>
+    <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
+    The model usually considers past sales of a home to be important for its value,
+    even if those sales are older than sales of other homes.
+  </p>
   {{ end }}
 
   <h2 class="mb-3">Summary of the Top 5 Most Important Sales</h2>
