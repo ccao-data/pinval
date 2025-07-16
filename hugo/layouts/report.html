@@ -32,7 +32,7 @@
   <div class="container">
 
     <div class="card-body">
-    <!-- Search again button that returns use to homepage -->
+    <!-- Search again button that returns user to homepage -->
     <p>
       {{- /* Determine the search‑page URL based on environment */ -}}
       {{ $searchHref := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
