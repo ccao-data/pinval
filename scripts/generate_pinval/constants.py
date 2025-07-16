@@ -9,7 +9,5 @@ RUN_ID_MAP = {"2025-02-11-charming-eric": "2025-02-11-charming-eric"}
 
 # It's helpful to factor these tables out into shared constants because we often
 # need to switch to dev tables for testing
-PINVAL_ASSESSMENT_CARD_TABLE = (
-    "z_ci_add_loc_property_city_for_downstream_pinval_output_pinval.vw_assessment_card"
-)
+PINVAL_ASSESSMENT_CARD_TABLE = "pinval.vw_assessment_card"
 PINVAL_COMP_TABLE = "pinval.vw_comp"
