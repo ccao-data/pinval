@@ -207,12 +207,14 @@ jobs:
       - name: Generate PINVAL reports
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
+          ENV_CODE: ${{ inputs.environment == 'Production bucket' && 'prod' || 'dev' }}
         run: |
           read -ra PINS <<< "${{ inputs.pins }}"
           python3 scripts/generate_pinval/generate_pinval.py \
             --run-id "$RUN_ID" \
             --township "$TOWNSHIP" \
-            --pin "${PINS[@]}"
+            --pin "${PINS[@]}" \
+            --environment "$ENV_CODE"
 
       - name: Sync reports to S3
         env:
