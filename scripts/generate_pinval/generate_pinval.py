@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Generate PINVAL report markdown (and optionally HTML) files for a given model
-run‑id. A user may ask for either **one or more explicit PINs** *or* for **all
+Generate PINVAL report markdown (and optionally HTML) files for a given comps
+model run ID. A user may ask for either **one or more explicit PINs** *or* for **all
 PINs that belong to a triad** (city, north, south). Exactly one of the two must
 be supplied. If the user passes an empty string for either of the --pin or --triad
 arguments, the script will ignore that argument.
@@ -10,12 +10,12 @@ Examples
 --------
 Generate two specific PINs:
     $ python3 generate_pinval.py \
-          --run-id 2025-02-11-charming-eric \
+          --run-id 2025-04-25-fancy-free-billy \
           --pin 01011000040000 10112040080000
 
 Generate every PIN in the north triad:
     $ python3 generate_pinval.py \
-          --run-id 2025-02-11-charming-eric \
+          --run-id 2025-04-25-fancy-free-billy \
           --triad north
 """
 
@@ -53,10 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--run-id",
         required=True,
-        choices=list(
-            constants.RUN_ID_MAP.keys()
-        ),  # Temporarily limits run_ids to those in the map
-        help="Model run‑ID used by the Athena PINVAL tables (e.g. 2025-02-11-charming-eric)",
+        help="Comps run ID used by the pinval.vw_comps view (e.g. 2025-04-25-fancy-free-billy)",
     )
 
     parser.add_argument(
@@ -530,8 +527,8 @@ def main() -> None:
 
     assessment_year = assessment_year_df.iloc[0]["assessment_year"]
 
-    assessment_clauses = ["run_id = %(run_id)s"]
-    params_assessment = {"run_id": args.run_id}
+    assessment_clauses = ["assessment_year = %(assessment_year)s"]
+    params_assessment = {"assessment_year": assessment_year}
 
     # Shard by township **only** in the assessment query
     if args.township:
@@ -566,10 +563,6 @@ def main() -> None:
             f"No assessment rows returned for the following params: {params_assessment}"
         )
 
-    # Get the comps
-    if (comps_run_id := constants.RUN_ID_MAP.get(args.run_id)) is None:
-        raise ValueError(f"No comps run ID found for assessment run ID {args.run_id}")
-
     comps_sql = f"""
         SELECT comp.*
         FROM {constants.PINVAL_COMP_TABLE} AS comp
@@ -579,11 +572,11 @@ def main() -> None:
             WHERE {where_assessment}
         ) AS card
           ON comp.pin = card.meta_pin
-        WHERE comp.run_id = %(comps_run_id)s
+        WHERE comp.run_id = %(run_id)s
     """
 
     params_comps = {
-        "comps_run_id": comps_run_id,
+        "run_id": args.run_id,
         **params_assessment,
     }
 
