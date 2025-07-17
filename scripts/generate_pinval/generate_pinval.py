@@ -83,6 +83,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
+    parser.add_argument(
+        "--environment",
+        choices=["dev", "prod"],
+        default="dev",
+        help="Deployment target",
+    )
+
     args = parser.parse_args()
 
     if args.pin == [""]:
@@ -147,6 +154,7 @@ def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
     pretty_fn: typing.Callable[[str], str],
+    environment: str,
 ) -> dict:
     """
     Assemble the front-matter dict for **one PIN**.
@@ -186,6 +194,7 @@ def build_front_matter(
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
+        "environment": environment,
     }
 
     # Exit early if this PIN is ineligible for a report, in which case we
@@ -266,15 +275,15 @@ def build_front_matter(
                     k: v
                     for k, v in {
                         "property_address": card_df["property_address"],
-                        "municipality": card_df.get("loc_tax_municipality_name"),
+                        "municipality": card_df["loc_property_city"],
                         "township": tp["meta_township_name"],
                         "meta_nbhd_code": card_df["meta_nbhd_code"],
-                        "loc_school_elementary_district_name": card_df.get(
+                        "loc_school_elementary_district_name": card_df[
                             "school_elementary_district_name"
-                        ),
-                        "loc_school_secondary_district_name": card_df.get(
+                        ],
+                        "loc_school_secondary_district_name": card_df[
                             "school_secondary_district_name"
-                        ),
+                        ],
                         "loc_latitude": card_df["loc_latitude"],
                         "loc_longitude": card_df["loc_longitude"],
                     }.items()
@@ -647,7 +656,12 @@ def main() -> None:
 
         df_comps = df_comps_by_pin.get(pin)
 
-        front = build_front_matter(df_target, df_comps, pretty_fn=pretty)
+        front = build_front_matter(
+            df_target,
+            df_comps,
+            pretty_fn=pretty,
+            environment=args.environment,
+        )
         front["url"] = f"/{assessment_year}/{pin}.html"
 
         write_json(front, md_path)

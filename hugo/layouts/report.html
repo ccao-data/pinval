@@ -50,7 +50,16 @@
 
   <!-- Body of the report -->
   <div class="container">
+
     <div class="card-body">
+    <!-- Search again button that returns user to homepage -->
+    <p>
+      {{- /* Determine the search‑page URL based on environment */ -}}
+      {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
+      <a href="{{ $search_ref }}" class="text-decoration-none fw-semibold">
+        ⬅Back to Search
+      </a>
+    </p>
 
       <!-- Contextual information -->
       <p>
