@@ -40,7 +40,16 @@
     integrity="sha384-MdjfIsy9elm9qOpK/KXJfYR9PmcQ47vcI0vij5V7nLUOBFvZqPwz0wKJ3q+Sg1RG"
     crossorigin="anonymous"
   />
+  <!-- DataTables Buttons CSS (for Copy/CSV/Print) -->
+  <link
+    href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.dataTables.min.css"
+    rel="stylesheet"
+    crossorigin="anonymous"
+  />
 
+  <style>
+    div.dt-container .dt-buttons { float: right; margin-top: .5rem; }
+  </style>
   {{ partial "head/favicons.html" . }}
 
   {{ partial "head/styles.html" . }}
@@ -519,6 +528,22 @@
     integrity="sha384-p66x0SWwSmqfafoeNRyHmaay6Z/zGSRc52U3aGc0gaseU1+CiGgSEyNHTM3gfcqg"
     crossorigin="anonymous"
   ></script>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"
+    crossorigin="anonymous"
+  ></script>
 
   <!-- Main script logic. -->
   <!-- There are two primary steps here: -->
@@ -806,10 +831,16 @@
           infoFiltered: "",  // Disable searched row count text
           infoEmpty: "",  // Disable text that shows when no rows match search
         },
+        buttons: [
+          { extend: 'copy',  text: '<i class="bi bi-clipboard"></i> Copy' },
+          { extend: 'csv',   text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV' },
+          { extend: 'print', text: '<i class="bi bi-printer"></i> Print' }
+        ],
         layout: {
-          topStart: "search",  // Top left: Search box
-          topEnd: "info",  // Top right: Horizontal scroll prompt
-          bottomStart: null,  // Disable bottom text, since we use a frozen footer
+          topStart:  "search",  // Top left: Search box
+          topEnd:    "info",    // Top right: Horizontal scroll prompt
+          bottomEnd: "buttons", // Bottom right: export buttons
+          bottomStart: null     // Keep bottomStart empty; sticky footer handles prompt
         }
       });
     }
