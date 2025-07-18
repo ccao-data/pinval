@@ -832,9 +832,21 @@
           infoEmpty: "",  // Disable text that shows when no rows match search
         },
         buttons: [
-          { extend: 'copy',  text: '<i class="bi bi-clipboard"></i> Copy' },
-          { extend: 'csv',   text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV' },
-          { extend: 'print', text: '<i class="bi bi-printer"></i> Print' }
+          {
+            extend: 'copy',
+            text: '<i class="bi bi-clipboard"></i> Copy',
+            footer: false
+          },
+          {
+            extend: 'csv',
+            text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV',
+            footer: false
+          },
+          {
+            extend: 'print',
+            text: '<i class="bi bi-printer"></i> Print',
+            footer: false
+          }
         ],
         layout: {
           topStart:  "search",  // Top left: Search box
