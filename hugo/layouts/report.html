@@ -40,16 +40,13 @@
     integrity="sha384-MdjfIsy9elm9qOpK/KXJfYR9PmcQ47vcI0vij5V7nLUOBFvZqPwz0wKJ3q+Sg1RG"
     crossorigin="anonymous"
   />
-  <!-- DataTables Buttons CSS (for Copy/CSV/Print) -->
   <link
-    href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.dataTables.min.css"
     rel="stylesheet"
+    href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.dataTables.min.css"
+    integrity="sha384-bmRGZjM60LuyQcBG51pH+swEjyknoKhaKYJcm871tz9jtbe/TkKueOcoi27/ROBG"
     crossorigin="anonymous"
   />
 
-  <style>
-    div.dt-container .dt-buttons { float: right; margin-top: .5rem; }
-  </style>
   {{ partial "head/favicons.html" . }}
 
   {{ partial "head/styles.html" . }}
@@ -529,10 +526,6 @@
     crossorigin="anonymous"
   ></script>
   <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
-    crossorigin="anonymous"
-  ></script>
-  <script
     src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"
     crossorigin="anonymous"
   ></script>
@@ -833,25 +826,25 @@
         },
         buttons: [
           {
-            extend: 'copy',
+            extend: 'copy',  // Button to copy table to clipboard
             text: '<i class="bi bi-clipboard"></i> Copy',
-            footer: false
+            footer: false  // Exclude table footer from export
           },
           {
-            extend: 'csv',
+            extend: 'csv',  // Button to export table as CSV
             text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV',
             footer: false
           },
           {
-            extend: 'print',
+            extend: 'print',  // Button to open a print view for the table
             text: '<i class="bi bi-printer"></i> Print',
             footer: false
           }
         ],
         layout: {
-          topStart:  "search",  // Top left: Search box
-          topEnd:    "info",    // Top right: Horizontal scroll prompt
-          bottomEnd: "buttons", // Bottom right: Export buttons
+          top1Start:  "search",  // Top left, above everything: Search box
+          topStart: "buttons", // Top left, below search: Export buttons
+          topEnd:    "info",    // Top right, below search: Horizontal scroll prompt
           bottomStart: null     // Disable bottom text, since we use a frozen footer
         }
       });
