@@ -430,12 +430,13 @@
               type="button"
               class="btn btn-light"
             >
-              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Jump to next section
+              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Next section
             </a>
           </th>
-          <th colspan="6" style="font-weight: normal" >
-            <i class="bi bi-arrow-down" aria-hidden="true"></i> Scroll down on the table to see more characteristics
+          <th colspan="2" style="font-weight: normal" >
+            <i class="bi bi-arrow-down" aria-hidden="true"></i> Scroll down to see all characteristics
           </th>
+          <th colspan="4"></th>
         </tr>
       </tfoot>
     </table>
@@ -819,27 +820,36 @@
         language: {  // Custom text
           search: "<i class='bi bi-search' aria-hidden='true'></i> <b>Search</b> characteristics:",  // Search input label
           info: (specialMulti ?  // Always show scroll prompt for multicards, since the table will be narrower
-            "Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'>" :
-            "<span class='d-lg-none'>Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'></i></span>"),
+            "Scroll right to see all 5 sales <i class='bi bi-arrow-right' aria-hidden='true'>" :
+            "<span class='d-lg-none'>Scroll right to see all 5 sales <i class='bi bi-arrow-right' aria-hidden='true'></i></span>"),
           infoFiltered: "",  // Disable searched row count text
           infoEmpty: "",  // Disable text that shows when no rows match search
         },
         buttons: [
           {
-            extend: 'copy',  // Button to copy table to clipboard
-            text: '<i class="bi bi-clipboard"></i> Copy',
-            footer: false  // Exclude table footer from export
+            extend: "collection",  // Dropdown with selection of buttons
+            text: '<i class="bi bi-file-earmark-arrow-down"></i> Export',
+            autoClose: true,  // Automatically close when an option is clicked
+            fade: 50,  // Faster open/close animation
+            buttons: [
+              {
+                extend: "copy",  // Button to copy table to clipboard
+                text: '<i class="bi bi-clipboard"></i> Copy',
+                footer: false  // Exclude table footer from export
+              },
+              {
+                extend: "csv",  // Button to export table as CSV
+                text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV',
+                footer: false
+              },
+              {
+                extend: "print",  // Button to open a print view for the table
+                text: '<i class="bi bi-printer"></i> Print',
+                footer: false,
+                autoPrint: false  // Don't open print dialog box automatically
+              }
+            ]
           },
-          {
-            extend: 'csv',  // Button to export table as CSV
-            text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV',
-            footer: false
-          },
-          {
-            extend: 'print',  // Button to open a print view for the table
-            text: '<i class="bi bi-printer"></i> Print',
-            footer: false
-          }
         ],
         layout: {
           top1Start:  "search",  // Top left, above everything: Search box
