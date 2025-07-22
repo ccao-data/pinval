@@ -23,27 +23,33 @@
 
   <!-- Load Reactable equivalent (DataTables) CSS -->
   <link
-    href="https://cdn.datatables.net/2.3.2/css/dataTables.dataTables.min.css"
     rel="stylesheet"
-    integrity="sha384-gC2LYLqCExndkNE9hTLhmEXvk8ZgIf42nRengHFbC9uaws2Ho0TW+ENGe4w15AHy"
-    crossorigin="anonymous"
-  />
-  <link
-    href="https://cdn.datatables.net/fixedcolumns/5.0.4/css/fixedColumns.dataTables.min.css"
-    rel="stylesheet"
-    integrity="sha384-hVwUvP9o6t5F4NTn4bygFte7oSFXkYfWMBqENXuJC6xlX2T0lg94klu9D4bHyzUE"
-    crossorigin="anonymous"
-  />
-  <link
-    href="https://cdn.datatables.net/fixedheader/4.0.3/css/fixedHeader.dataTables.min.css"
-    rel="stylesheet"
-    integrity="sha384-MdjfIsy9elm9qOpK/KXJfYR9PmcQ47vcI0vij5V7nLUOBFvZqPwz0wKJ3q+Sg1RG"
+    href="https://cdn.datatables.net/2.3.2/css/dataTables.bootstrap5.min.css"
+    integrity="sha384-e4/pU/7fdyaPKtXkqAgHNgoYAb2LNmChhpSuSp8o6saYtS2sP+JZsu8Wy/7mGV7w"
     crossorigin="anonymous"
   />
   <link
     rel="stylesheet"
-    href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.dataTables.min.css"
-    integrity="sha384-bmRGZjM60LuyQcBG51pH+swEjyknoKhaKYJcm871tz9jtbe/TkKueOcoi27/ROBG"
+    href="https://cdn.datatables.net/fixedcolumns/5.0.4/css/fixedColumns.bootstrap5.min.css"
+    integrity="sha384-StUfKBL80ZWBFxSXA89vIUJ85yyOsUA5Gi6oLYEPaJd8WPvS1D9jIqLQDLWAO6jc"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.datatables.net/fixedheader/4.0.3/css/fixedHeader.bootstrap5.min.css"
+    integrity="sha384-OpjrOKWHgAo4SFhzmU3mBpqt+bXpISGTDqlG7KNsjknJnp72nQdpiQaPKzi1NkjR"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css"
+    integrity="sha384-jLTiAKkdA88PBGxmn/h+7/fk32gM79JnvX4VznimEOrCQxbbxnnfXRcde8Z7UEEr"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdn.datatables.net/responsive/3.0.5/css/responsive.bootstrap5.min.css"
+    integrity="sha384-seyUnB//1QOFEqox9uI7YTLBgz9jBwFRqZvsEPFrTw6NAsFEo70nhBWsQfODqiYA"
     crossorigin="anonymous"
   />
 
@@ -157,8 +163,8 @@
               be most important for your estimated home value in {{ .Params.assessment_year }}.
               The top of the report shows the location and characteristics of your home. The
               middle section of the report compares the location and characteristics of the
-              top 5 sales to your home’s location and characteristics. At the end,
-              the report summarizes the prices of the top 5 sales and compares them
+              top five sales to your home’s location and characteristics. At the end,
+              the report summarizes the prices of the top five sales and compares them
               to your home’s estimated value.
             </p>
             <p>
@@ -168,7 +174,7 @@
                 Finding comparables with LightGBM
               </a>.
               This article provides technical details about how we used the model to
-              find the top 5 most important sales for every home.
+              find the top five most important sales for every home.
             </p>
           </div>
         </div>
@@ -330,7 +336,7 @@
   <!-- Comp map -->
   <h2 class="mb-3">Top 5 Most Important Sales</h2>
   <p>
-    This map shows your home alongside the 5 sales that were most important
+    This map shows your home alongside the five sales that were most important
     for the model's estimation of your home value.
   </p>
   <p>
@@ -349,11 +355,17 @@
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top 5 sales.
+    characteristics for the top five sales.
   </p>
+  <div class='d-lg-none'>
+    <p>
+      <i class='bi-hand-index-thumb'></i>
+      Click on a characteristic below to expand the row and show all five sales.
+    </p>
+  </div>
   <div class="mb-3">
     <table
-      class="display characteristic-comparison-table"
+      class="table table-striped table-hover display characteristic-comparison-table"
       id="comp-table-{{ .card.card_num }}"
     >
       <thead>
@@ -424,52 +436,48 @@
       </tbody>
       <tfoot>
         <tr>
-          <th class="d-lg-none">
+          <th>
             <a
-              href="#sales-summary-{{ .card.card_num }}"
+              href="#post-table-{{ .card.card_num }}"
               type="button"
-              class="btn btn-light"
+              class="btn btn-outline-dark"
             >
-              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Next section
+              <i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Next section
             </a>
           </th>
-          <th colspan="2" style="font-weight: normal" >
-            <i class="bi bi-arrow-down" aria-hidden="true"></i> Scroll down to see all characteristics
-          </th>
-          <th colspan="4"></th>
+          <th colspan="6"></th>
         </tr>
       </tfoot>
     </table>
 
-    {{ if .special_case_multi_card }}
-    <p>
-      <strong><span class="asterisk">*</span></strong> Since this property has
-      {{ .Params.pin_num_cards }} cards, we estimate its value using
-      a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
-      the largest card to estimate the property's value, but we adjust the building square footage of
-      that card to use the combined building square footage of all cards on the
-      property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
-      <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
-    </p>
-    {{ end }}
+    <div id="post-table-{{ .card.card_num }}">
+      {{ if .special_case_multi_card }}
+      <p>
+        <strong><span class="asterisk">*</span></strong> Since this property has
+        {{ .Params.pin_num_cards }} cards, we estimate its value using
+        a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
+        the largest card to estimate the property's value, but we adjust the building square footage of
+        that card to use the combined building square footage of all cards on the
+        property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
+        <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
+      </p>
+      {{ end }}
 
-    {{ if .card.has_subject_pin_sale }}
-    <p>
-      <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
-      The model usually considers past sales of a home to be important for its value,
-      even if those sales are older than sales of other homes.
-    </p>
-    {{ end }}
+      {{ if .card.has_subject_pin_sale }}
+      <p>
+        <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
+        The model usually considers past sales of a home to be important for its value,
+        even if those sales are older than sales of other homes.
+      </p>
+      {{ end }}
+    </div>
   </div>
 
-  <h2
-    class="mb-3"
-    id="sales-summary-{{ .card.card_num }}"
-  >
+  <h2 class="mb-3">
     Summary of the Top 5 Most Important Sales
   </h2>
   <p>
-    The top 5 comparable sales took place
+    The top five comparable sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
     <strong>{{ .card.comp_summary.sale_year_range }}</strong>.
     The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong>
@@ -522,12 +530,28 @@
     crossorigin="anonymous"
   ></script>
   <script
+    src="https://cdn.datatables.net/fixedcolumns/5.0.4/js/fixedColumns.bootstrap5.min.js"
+    integrity="sha384-Ejuk6FrDTcABybV7rodVXns5f0OJu2zLkNYq3fYUtL23MBF4NL/deKJmtnwbl2hP"
+    crossorigin="anonymous"
+  ></script>
+  <script
     src="https://cdn.datatables.net/fixedheader/4.0.3/js/dataTables.fixedHeader.min.js"
     integrity="sha384-p66x0SWwSmqfafoeNRyHmaay6Z/zGSRc52U3aGc0gaseU1+CiGgSEyNHTM3gfcqg"
     crossorigin="anonymous"
   ></script>
   <script
+    src="https://cdn.datatables.net/fixedheader/4.0.3/js/fixedHeader.bootstrap5.min.js"
+    integrity="sha384-FI5HTBdvJePSuh1yv866YyuZgfWPLETn8fkGB3QGnM6mMlIKDO9ih+hvd6WlcDp+"
+    crossorigin="anonymous"
+  >
+  </script>
+  <script
     src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/buttons/3.2.4/js/buttons.bootstrap5.min.js"
+    integrity="sha384-BdedgzbgcQH1hGtNWLD56fSa7LYUCzyRMuDzgr5+9etd1/W7eT0kHDrsADMmx60k"
     crossorigin="anonymous"
   ></script>
   <script
@@ -536,6 +560,16 @@
   ></script>
   <script
     src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/responsive/3.0.5/js/dataTables.responsive.min.js"
+    integrity="sha384-rX/xvPOvZbMdJ+5bu02AkpJyyp3A8jx433IcgvJAU7QihlzldIv94BoMYOpUqFkN"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://cdn.datatables.net/responsive/3.0.5/js/responsive.bootstrap5.min.js"
+    integrity="sha384-VdUZen/UKzp4O+wnInvMeDymYoESBoFxn8hXwJcu+3QTKXC0Ewzr1Wj+17lPUrtn"
     crossorigin="anonymous"
   ></script>
 
@@ -802,12 +836,10 @@
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex) {
-      const specialMulti = {{ if .Params.special_case_multi_card }}true{{ else }}false{{ end }};
       const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
+        responsive: true,
         paging: false,  // Disable pagination to display all chars at once
-        scrollX: true,  // Allow the table to scroll horizontally on narrow screens
-        scrollY: "500px",  // Force the table to scroll vertically with a fixed height
         scrollCollapse: true,  // Collapse the table size below the fixed height when there are few rows
         fixedColumns: true,  // Freeze the leftmost column (chars) during horizontal scroll
         fixedHeader: {
@@ -819,18 +851,20 @@
         ordering: false,  // Disable sorting by column
         language: {  // Custom text
           search: "<i class='bi bi-search' aria-hidden='true'></i> <b>Search</b> characteristics:",  // Search input label
-          info: (specialMulti ?  // Always show scroll prompt for multicards, since the table will be narrower
-            "Scroll right to see all 5 sales <i class='bi bi-arrow-right' aria-hidden='true'>" :
-            "<span class='d-lg-none'>Scroll right to see all 5 sales <i class='bi bi-arrow-right' aria-hidden='true'></i></span>"),
+          info: "",
           infoFiltered: "",  // Disable searched row count text
           infoEmpty: "",  // Disable text that shows when no rows match search
         },
         buttons: [
           {
             extend: "collection",  // Dropdown with selection of buttons
-            text: '<i class="bi bi-file-earmark-arrow-down"></i> Export',
+            text: '<i class="bi bi-file-earmark-arrow-down"></i> Export ',
+            className: "btn btn-outline-dark",
             autoClose: true,  // Automatically close when an option is clicked
             fade: 50,  // Faster open/close animation
+            attr: {
+              class: "btn btn-outline-dark buttons-collection"
+            },
             buttons: [
               {
                 extend: "copy",  // Button to copy table to clipboard
@@ -839,12 +873,12 @@
               },
               {
                 extend: "csv",  // Button to export table as CSV
-                text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV',
+                text: '<i class="bi bi-file-earmark-spreadsheet"></i> Excel',
                 footer: false
               },
               {
                 extend: "print",  // Button to open a print view for the table
-                text: '<i class="bi bi-printer"></i> Print',
+                text: '<i class="bi bi-printer"></i> Print View',
                 footer: false,
                 autoPrint: false  // Don't open print dialog box automatically
               }
@@ -852,10 +886,8 @@
           },
         ],
         layout: {
-          top1Start:  "search",  // Top left, above everything: Search box
-          topStart: "buttons", // Top left, below search: Export buttons
-          topEnd:    "info",    // Top right, below search: Horizontal scroll prompt
-          bottomStart: null     // Disable bottom text, since we use a frozen footer
+          topStart: "search",
+          topEnd: "buttons",
         }
       });
     }
