@@ -424,19 +424,42 @@
       </tbody>
       <tfoot>
         <tr>
-          <th class="d-lg-none">
-            <a
-              href="#sales-summary-{{ .card.card_num }}"
-              type="button"
-              class="btn btn-light"
-            >
-              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Next section
-            </a>
+          <th>
+            <!--
+              Bootstrap dropdown for export actions.
+            - We implement this in the footer so we can make it sticky using
+              the fixedHeader plugin
+            -->
+            <div class="dropup">
+              <button
+                class="btn btn-outline-secondary dropdown-toggle"
+                type="button"
+                id="export-dropdown-{{ .card.card_num }}"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="bi bi-file-earmark-arrow-down"></i> Export
+              </button>
+              <ul class="dropdown-menu" data-bs-boundary="body" data-bs-container="body" aria-labelledby="export-dropdown-{{ .card.card_num }}">
+                <li>
+                  <button class="dropdown-item" id="dt-copy-{{ .card.card_num }}">
+                    <i class="bi bi-clipboard"></i> Copy
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item" id="dt-csv-{{ .card.card_num }}">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Excel
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item" id="dt-print-{{ .card.card_num }}">
+                    <i class="bi bi-printer"></i> Print View
+                  </button>
+                </li>
+              </ul>
+            </div>
           </th>
-          <th colspan="2" style="font-weight: normal" >
-            <i class="bi bi-arrow-down" aria-hidden="true"></i> Scroll down to see all characteristics
-          </th>
-          <th colspan="4"></th>
+          <th colspan="6"></th>
         </tr>
       </tfoot>
     </table>
@@ -462,10 +485,7 @@
     {{ end }}
   </div>
 
-  <h2
-    class="mb-3"
-    id="sales-summary-{{ .card.card_num }}"
-  >
+  <h2 class="mb-3">
     Summary of the Top 5 Most Important Sales
   </h2>
   <p>
@@ -509,11 +529,6 @@
   <script
     src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"
     integrity="sha384-ehaRe3xJ0fffAlDr3p72vNw3wWV01C1/Z19X6s//i6hiF8hee+c+rabqObq8YlOk"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"
-    integrity="sha384-G85lmdZCo2WkHaZ8U1ZceHekzKcg37sFrs4St2+u/r2UtfvSDQmQrkMsEx4Cgv/W"
     crossorigin="anonymous"
   ></script>
   <script
@@ -827,37 +842,53 @@
         },
         buttons: [
           {
-            extend: "collection",  // Dropdown with selection of buttons
-            text: '<i class="bi bi-file-earmark-arrow-down"></i> Export',
-            autoClose: true,  // Automatically close when an option is clicked
-            fade: 50,  // Faster open/close animation
-            buttons: [
-              {
-                extend: "copy",  // Button to copy table to clipboard
-                text: '<i class="bi bi-clipboard"></i> Copy',
-                footer: false  // Exclude table footer from export
-              },
-              {
-                extend: "csv",  // Button to export table as CSV
-                text: '<i class="bi bi-file-earmark-arrow-down"></i> CSV',
-                footer: false
-              },
-              {
-                extend: "print",  // Button to open a print view for the table
-                text: '<i class="bi bi-printer"></i> Print',
-                footer: false,
-                autoPrint: false  // Don't open print dialog box automatically
-              }
-            ]
+            extend: "copy",  // Button to copy table to clipboard
+            footer: false  // Exclude table footer from export
           },
+          {
+            extend: "csv",  // Button to export table as CSV
+            footer: false
+          },
+          {
+            extend: "print",  // Button to open a print view for the table
+            footer: false,
+            autoPrint: false  // Don't open print dialog box automatically
+          }
         ],
         layout: {
-          top1Start:  "search",  // Top left, above everything: Search box
-          topStart: "buttons", // Top left, below search: Export buttons
+          topStart:  "search",  // Top left, above everything: Search box
           topEnd:    "info",    // Top right, below search: Horizontal scroll prompt
-          bottomStart: null     // Disable bottom text, since we use a frozen footer
+          bottomStart: null
         }
       });
+
+      // Use Bootstrap buttons in the table footer to trigger
+      // DataTables button events
+      $(`#dt-copy-${cardNum}`).on("click", function() {
+        dt.button(".buttons-copy").trigger();
+      });
+      $(`#dt-csv-${cardNum}`).on("click", function() {
+        dt.button(".buttons-csv").trigger();
+      });
+      $(`#dt-print-${cardNum}`).on("click", function() {
+        dt.button(".buttons-print").trigger();
+      });
+
+      // Under normal conditions, the table footer will obscure the popover
+      // that the Export button launches due to the overflow styling on the
+      // footer when the DataTable has `scrollY` set. We can't permanently
+      // disable this overflow styling, however, without breaking the table's
+      // horizontal scroll.
+      //
+      // In order to work around this issue, we hook into the Bootstrap events
+      // that fire when the user opens or closes the Export button to
+      // temporarily disable the overflow style while the Export menu is open
+        $(`#export-dropdown-${cardNum}`).on("show.bs.dropdown", function () {
+          $(".dt-scroll-foot").css("overflow", "inherit");
+        });
+        $(`#export-dropdown-${cardNum}`).on("hidden.bs.dropdown", function () {
+          $(".dt-scroll-foot").css("overflow", "hidden");
+        });
     }
   </script>
 </body>
