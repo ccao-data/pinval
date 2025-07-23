@@ -30,12 +30,6 @@
   />
   <link
     rel="stylesheet"
-    href="https://cdn.datatables.net/fixedcolumns/5.0.4/css/fixedColumns.bootstrap5.min.css"
-    integrity="sha384-StUfKBL80ZWBFxSXA89vIUJ85yyOsUA5Gi6oLYEPaJd8WPvS1D9jIqLQDLWAO6jc"
-    crossorigin="anonymous"
-  />
-  <link
-    rel="stylesheet"
     href="https://cdn.datatables.net/fixedheader/4.0.3/css/fixedHeader.bootstrap5.min.css"
     integrity="sha384-OpjrOKWHgAo4SFhzmU3mBpqt+bXpISGTDqlG7KNsjknJnp72nQdpiQaPKzi1NkjR"
     crossorigin="anonymous"
@@ -64,18 +58,16 @@
   <div class="container">
 
     <div class="card-body">
-    <!-- Search again button that returns user to homepage -->
-    <p>
-      {{- /* Determine the search‑page URL based on environment */ -}}
-      {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
-      <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
-        <i class="bi bi-arrow-left"></i> Back to Search
-      </a>
-    </p>
-
-      <!-- Contextual information -->
+      <!-- Search again button that returns user to homepage -->
       <p>
+        {{- /* Determine the search‑page URL based on environment */ -}}
+        {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
+        <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
+          <i class="bi bi-arrow-left"></i> Back to Search
+        </a>
+      </p>
 
+      <p>
         The goal of this report is to explain how the Cook County Assessor’s statistical
         model estimated the value of the home with Parcel Identification Number
         (PIN) <strong>{{ .Params.pin_pretty }}</strong> in tax year
@@ -84,7 +76,6 @@
         leading up to {{ .Params.assessment_year }}. Then, it used what it learned to
         estimate what this home could have sold for on <strong>January 1,
         {{ .Params.assessment_year }}</strong> if it had sold on that date in a fair, open-market transaction.
-
       </p>
       <div class="info-box border">
         <div
@@ -94,26 +85,11 @@
           aria-expanded="true"
           aria-controls="info-content"
         >
-          <span class="info-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="24"
-              height="24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </span>
-          <h5 class="mb-0 mx-2">Click to read more about this report</h5>
+          <h5 class="mb-0">
+            <i id="info-caret" class="bi bi-caret-down-fill"></i>
+            Click to read more about this report
+          </h5>
         </div>
-
 
         <div class="collapse" id="info-content">
           <div class="p-3 bg-light">
@@ -180,23 +156,37 @@
         </div>
       </div>
 
+      <h2 class="mb-3">About Your Home</h2>
+      <p>
+        The tables below show some basic facts about your home
+        in tax year {{ .Params.assessment_year }}.
+      </p>
+
       {{ $is_multicard := gt .Params.pin_num_cards 1 }}
 
       {{ if $is_multicard }}
-        <p>
-          This property has multiple "cards", which is an assessment term for a
-          building or an improvement on a property.
-        </p>
-        <p>
-          Each card on a property can have different characteristics, so the Assessor's
-          model estimates different values for each card. Toggle between the tabs below to
-          view characteristics and similar sales for each card.
-        </p>
+        <div class="alert alert-primary">
+          <p>
+            <i class="bi bi-info-circle"></i>
+            Your home has multiple "cards", which is an assessment term for a
+            building or an improvement on a property.
+            Each card on a property can have different characteristics.
+            {{ if not .Params.special_case_multi_card }}
+              To account for these differences, the Assessor's model estimates
+              different values for each card.
+            {{ end }}
+            Toggle between the tabs below to view characteristics
+            {{ if not .Params.special_case_multi_card }}
+              and similar sales
+            {{ end }}
+            for each card.
+          </p>
+        </div>
       {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
       {{ if $is_multicard }}
-        <!-- Multicard: Create a tab for each card to show its comps -->
+        <!-- Multicard: Create a tab for each card to show its characteristics -->
         <ul class="nav nav-tabs" id="propertyCardTabs" role="tablist">
           {{ range $index, $card := .Params.cards }}
           <li class="nav-item" role="presentation">
@@ -224,49 +214,103 @@
             role="tabpanel"
             aria-labelledby="card-{{ $index }}-tab"
           >
-            {{ template "card-content"
-            (dict "card" $card
+            {{
+              template "card-characteristics"
+              (dict
+                "card" $card
+                "Params" $.Params
+                "is_multicard" true
+                "special_case_multi_card" $.Params.special_case_multi_card
+              )
+            }}
+
+            {{ if not $.Params.special_case_multi_card }}
+              {{
+                template "card-comps"
+                (dict
+                  "card" $card
                   "Params" $.Params
                   "is_multicard" true
-                  "special_case_multi_card" $.Params.special_case_multi_card) }}
+                  "special_case_multi_card" $.Params.special_case_multi_card
+                )
+              }}
+            {{ end }}
           </div>
           {{ end }}
         </div>
 
+        {{ if .Params.special_case_multi_card }}
+          {{ $card := index .Params.cards 0 }}
+          {{
+            template "card-comps"
+            (dict
+              "card" $card
+              "Params" $.Params
+              "is_multicard" true
+              "special_case_multi_card" $.Params.special_case_multi_card
+            )
+          }}
+        {{ end }}
+
       {{ else }}
         <!-- Single-card: No tabs required -->
         {{ $card := index .Params.cards 0 }}
-        {{ template "card-content"
-          (dict "card" $card
-          "Params" $.Params
-          "is_multicard" false
-          "special_case_multi_card" .Params.special_case_multi_card) }}
+        {{
+          template "card-characteristics"
+          (dict
+            "card" $card
+            "Params" $.Params
+            "is_multicard" false
+            "special_case_multi_card" .Params.special_case_multi_card
+          )
+        }}
+        {{
+          template "card-comps"
+          (dict
+            "card" $card
+            "Params" $.Params
+            "is_multicard" true
+            "special_case_multi_card" $.Params.special_case_multi_card
+          )
+        }}
       {{ end }}
 
-      <h2>Final Model Estimate</h2>
+      <h3>Final Model Estimate</h3>
       <p>
         After rounding and other processing, the model's final estimate for the value of this property
         on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
         <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
       </p>
+      <div class="alert alert-warning">
+        <p>
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          The model's estimated value for this property is not necessarily the final valuation during a
+          reassessment. Analysts at the Assessor's Office can review the model's estimate and make
+          adjustments. To see this property's most recent valuation, visit the
+          <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" class="alert-link" target="_blank">Assessor's website</a>.
+        </p>
+      </div>
       <p>
-        The model's estimated value for this property is not necessarily the final valuation during a
-        reassessment. Analysts at the Assessor's Office can review the model's estimate and make
-        adjustments. To see this property's most recent valuation, visit the
-        <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">Assessor's website</a>.
+        <a
+          href="#banner"
+          type="button"
+          class="btn btn-outline-dark"
+        >
+          <i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Back to top
+        </a>
       </p>
 
     </div>
   </div>
 
-  <!-- Define a template for card content -->
-  {{ define "card-content" }}
+  {{/* Define a template for high-level card characteristics */}}
+  {{ define "card-characteristics" }}
 
   <!-- Wrap Location and Characteristics tables in a row so they appear side-by-side on desktop -->
   <div class="row">
     <div class="col-12 col-lg-6">
-      <h2 class="mb-3">Your Home's Location</h2>
-      <div class="table-responsive mb-3">
+      <h3 class="mb-3">Location</h3>
+      <div class="table-responsive">
         <table class="table table-bordered location-table">
           <tbody>
             <tr>
@@ -299,8 +343,8 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <h2 class="mb-3">Your Home's Top Characteristics</h2>
-      <div class="table-responsive mb-3">
+      <h3 class="mb-3">Top Characteristics</h3>
+      <div class="table-responsive">
         <table class="table table-bordered characteristic-table">
           <tbody>
             <tr>
@@ -333,6 +377,11 @@
     </div>
   </div>
 
+  {{ end }}
+
+  {{/* Define a template for the comps map */}}
+  {{ define "card-comps" }}
+
   <!-- Comp map -->
   <h2 class="mb-3">Top 5 Most Important Sales</h2>
   <p>
@@ -350,7 +399,12 @@
   </div>
 
   <!-- Comp chars -->
-  <h3 class="mt-4">Characteristics for Top 5 Most Important Sales</h3>
+  <h3
+    class="mt-4"
+    id="sale-characteristics-{{ .card.card_num }}"
+  >
+    Characteristics for Top 5 Most Important Sales
+  </h3>
   <p>
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
@@ -436,7 +490,7 @@
       </tbody>
       <tfoot>
         <tr>
-          <th>
+          <th colspan="7">
             <a
               href="#post-table-{{ .card.card_num }}"
               type="button"
@@ -444,8 +498,14 @@
             >
               <i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Next section
             </a>
+            <a
+              href="#sale-characteristics-{{ .card.card_num }}"
+              type="button"
+              class="btn btn-outline-dark"
+            >
+              <i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Previous section
+            </a>
           </th>
-          <th colspan="6"></th>
         </tr>
       </tfoot>
     </table>
@@ -473,9 +533,9 @@
     </div>
   </div>
 
-  <h2 class="mb-3">
+  <h3 class="mb-3">
     Summary of the Top 5 Most Important Sales
-  </h2>
+  </h3>
   <p>
     The top five comparable sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
@@ -484,7 +544,7 @@
     at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
   </p>
 
-  <h2 class="mb-3">Initial Model Estimate</h2>
+  <h3 class="mb-3">Initial Model Estimate</h3>
   <p>
     Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
     initially estimated that the value of this {{ if .is_multicard }}card{{ else }}property{{ end }}
@@ -522,16 +582,6 @@
   <script
     src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"
     integrity="sha384-G85lmdZCo2WkHaZ8U1ZceHekzKcg37sFrs4St2+u/r2UtfvSDQmQrkMsEx4Cgv/W"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/fixedcolumns/5.0.4/js/dataTables.fixedColumns.min.js"
-    integrity="sha384-pTT0DCmQdJKH1Vz2e0adpu+1Tp4tiIYm+vF6e+b+YAywojOEf3TR2WyIGdICT5Gy"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/fixedcolumns/5.0.4/js/fixedColumns.bootstrap5.min.js"
-    integrity="sha384-Ejuk6FrDTcABybV7rodVXns5f0OJu2zLkNYq3fYUtL23MBF4NL/deKJmtnwbl2hP"
     crossorigin="anonymous"
   ></script>
   <script
@@ -581,40 +631,65 @@
     // Initialize an object to track map render metadata. This is important
     // because some elements of the maps, such as zoom level, need to be
     // set only once the map is displayed to the user, such as through
-    // a tab selection
+    // a tab selection in the multicard case
     const mapRegistry = {}; // cardIndex -> { map: ..., bounds: ..., fitDone: false }
 
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
-      {{ range $index, $card := .Params.cards }}
+      {{/*
+        Check if this is a large or old multicard, in which case the map and
+        characteristic table will be tabbed, and we need to define extra
+        logic to tweak element display when tabs change
+      */}}
+      {{ $map_is_tabbed := and $is_multicard (not .Params.special_case_multi_card) }}
+      {{ $cards_to_map := cond $map_is_tabbed .Params.cards (first 1 .Params.cards) }}
+      {{ range $index, $card := $cards_to_map }}
         initializeMap("{{ $card.card_num }}", {{ $index }});
-        initializeTable("{{ $card.card_num }}", {{ $index }});
+        initializeTable(
+          "{{ $card.card_num }}",
+          {{ $index }},
+          {{ $map_is_tabbed }}
+        );
       {{ end }}
-        renderMapsOnDisplay(mapRegistry);
+        renderMapsOnDisplay(mapRegistry, {{ $map_is_tabbed }});
+
+
+      // Flip icons on collapsible infobox depending on whether the content is
+      // shown or not
+      $("#info-content").on("show.bs.collapse", function () {
+        $("#info-caret").removeClass("bi-caret-down-fill").addClass("bi-caret-up-fill");
+      });
+      $("#info-content").on("hide.bs.collapse", function () {
+        $("#info-caret").removeClass("bi-caret-up-fill").addClass("bi-caret-down-fill");
+      });
     });
 
     // Fit map bounds only once they are visible. This is important because
     // the Leaflet fitBounds() call will only work if the map is visible,
     // but multi-card reports can have maps that are hidden until the
     // nav tab corresponding to their card is active
-    function renderMapsOnDisplay(mapRegistry) {
-      // Trigger a map fitBounds() call when a new card tab is shown.
-      // Note that this means that any zooming a user does will be reset
-      // any time they switch card tabs, which may not be desirable
-      $('#propertyCardTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
-        const tabId = $(e.target).attr('id');
-        const entry = mapRegistry[tabId];
+    function renderMapsOnDisplay(mapRegistry, isTabbed) {
+      // Map rendering only needs to be adjusted if the map is contained in
+      // a tabset, so treat this function as a noop otherwise
+      if (isTabbed) {
+        // Trigger a map fitBounds() call when a new card tab is shown.
+        // Note that this means that any zooming a user does will be reset
+        // any time they switch card tabs, which may not be desirable
+        $('#propertyCardTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+          const tabId = $(e.target).attr('id');
+          const entry = mapRegistry[tabId];
 
-        if (entry) {
-          entry.map.invalidateSize();
-          entry.map.fitBounds(entry.bounds);
-        } else {
-          // Print some debugging info if the map metadata does not exist
-          console.log(`No map registry entry for ${tabId}`);
-          console.log(`Map registry object:`);
-          console.log(mapRegistry);
-        }
-      });
+          if (entry) {
+            entry.map.invalidateSize();
+            entry.map.fitBounds(entry.bounds);
+          } else {
+            // Print some debugging info if the map metadata does not exist
+            console.log(`No map registry entry for ${tabId}`);
+            console.log(`Map registry object:`);
+            console.log(mapRegistry);
+          }
+        });
+      }
     }
 
     // Initialize map for a specific card
@@ -835,13 +910,12 @@
     }
 
     // Initialize the characteristic comparison table
-    function initializeTable(cardNum, cardIndex) {
+    function initializeTable(cardNum, cardIndex, isTabbed) {
       const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
         responsive: true,
         paging: false,  // Disable pagination to display all chars at once
         scrollCollapse: true,  // Collapse the table size below the fixed height when there are few rows
-        fixedColumns: true,  // Freeze the leftmost column (chars) during horizontal scroll
         fixedHeader: {
           header: true,  // Make the header row sticky during scroll
           footer: true  // Make the footer sticky during scroll
@@ -890,6 +964,27 @@
           topEnd: "buttons",
         }
       });
+
+      // The `fixedHeader` plugin seems to neglect to disable the sticky footer
+      // when switching between Bootstrap tabsets. The following code fixes that
+      // bug by hooking into the tabset events to manually enable and disable
+      // sticky headers and footers when switching tabs
+      if (isTabbed) {
+        // On initial render, all sticky headers and footers except the first
+        // table should be disabled
+        if (cardIndex !== 0) {
+          dt.fixedHeader.disable();
+        }
+
+        // Enable sticky headers and footers when showing a tab, and disable
+        // when hiding the tab
+        $(`#card-${cardIndex}-tab`).on("show.bs.tab", function(event) {
+          dt.fixedHeader.enable();
+        });
+        $(`#card-${cardIndex}-tab`).on("hide.bs.tab", function(event) {
+          dt.fixedHeader.disable();
+        });
+      }
     }
   </script>
 </body>
