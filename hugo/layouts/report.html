@@ -6,46 +6,13 @@
   {{ partial "head/css-link-bootstrap.html" . }}
 
   <!-- Load Bootstrap icons -->
-  <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
-    integrity="sha384-CK2SzKma4jA5H/MXDUU7i1TqZlCFaD4T01vtyDFvPlD97JQyS+IsSh1nI2EFbpyk"
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="/static/css/bootstrap-icons@1.13.1.min.css" />
 
   <!-- Load Leaflet CSS -->
-  <link
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    rel="stylesheet"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="/static/css/leaflet@1.9.4.css" />
 
   <!-- Load Reactable equivalent (DataTables) CSS -->
-  <link
-    rel="stylesheet"
-    href="https://cdn.datatables.net/2.3.2/css/dataTables.bootstrap5.min.css"
-    integrity="sha384-e4/pU/7fdyaPKtXkqAgHNgoYAb2LNmChhpSuSp8o6saYtS2sP+JZsu8Wy/7mGV7w"
-    crossorigin="anonymous"
-  />
-  <link
-    rel="stylesheet"
-    href="https://cdn.datatables.net/fixedheader/4.0.3/css/fixedHeader.bootstrap5.min.css"
-    integrity="sha384-OpjrOKWHgAo4SFhzmU3mBpqt+bXpISGTDqlG7KNsjknJnp72nQdpiQaPKzi1NkjR"
-    crossorigin="anonymous"
-  />
-  <link
-    rel="stylesheet"
-    href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css"
-    integrity="sha384-jLTiAKkdA88PBGxmn/h+7/fk32gM79JnvX4VznimEOrCQxbbxnnfXRcde8Z7UEEr"
-    crossorigin="anonymous"
-  />
-  <link
-    rel="stylesheet"
-    href="https://cdn.datatables.net/responsive/3.0.5/css/responsive.bootstrap5.min.css"
-    integrity="sha384-seyUnB//1QOFEqox9uI7YTLBgz9jBwFRqZvsEPFrTw6NAsFEo70nhBWsQfODqiYA"
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="/static/css/datatables@2.3.2.min.css" />
 
   {{ partial "head/favicons.html" . }}
 
@@ -555,72 +522,14 @@
   {{ end }}
 
   <!-- Load Bootstrap JS -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq"
-    crossorigin="anonymous"
-  ></script>
+  <script src="/static/js/jquery@3.7.1.min.js"></script>
+  <script src="/static/js/bootstrap@5.3.7.bundle.min.js"></script>
 
   <!-- Load Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="anonymous"
-  ></script>
+  <script src="/static/js/leaflet@1.9.4.min.js" ></script>
 
   <!-- Load DataTables JS -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
-    integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"
-    integrity="sha384-ehaRe3xJ0fffAlDr3p72vNw3wWV01C1/Z19X6s//i6hiF8hee+c+rabqObq8YlOk"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"
-    integrity="sha384-G85lmdZCo2WkHaZ8U1ZceHekzKcg37sFrs4St2+u/r2UtfvSDQmQrkMsEx4Cgv/W"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/fixedheader/4.0.3/js/dataTables.fixedHeader.min.js"
-    integrity="sha384-p66x0SWwSmqfafoeNRyHmaay6Z/zGSRc52U3aGc0gaseU1+CiGgSEyNHTM3gfcqg"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/fixedheader/4.0.3/js/fixedHeader.bootstrap5.min.js"
-    integrity="sha384-FI5HTBdvJePSuh1yv866YyuZgfWPLETn8fkGB3QGnM6mMlIKDO9ih+hvd6WlcDp+"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/buttons/3.2.4/js/buttons.bootstrap5.min.js"
-    integrity="sha384-BdedgzbgcQH1hGtNWLD56fSa7LYUCzyRMuDzgr5+9etd1/W7eT0kHDrsADMmx60k"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/responsive/3.0.5/js/dataTables.responsive.min.js"
-    integrity="sha384-rX/xvPOvZbMdJ+5bu02AkpJyyp3A8jx433IcgvJAU7QihlzldIv94BoMYOpUqFkN"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/responsive/3.0.5/js/responsive.bootstrap5.min.js"
-    integrity="sha384-VdUZen/UKzp4O+wnInvMeDymYoESBoFxn8hXwJcu+3QTKXC0Ewzr1Wj+17lPUrtn"
-    crossorigin="anonymous"
-  ></script>
+  <script src="/static/js/datatables@2.3.2.min.js"></script>
 
   <!-- Main script logic. -->
   <!-- There are two primary steps here: -->
