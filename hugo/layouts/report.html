@@ -912,7 +912,7 @@
     function initializeTable(cardNum, cardIndex, isTabbed) {
       const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
-        responsive: true,
+        responsive: true,  // Fold extra columns into row dropdown on small viewports
         paging: false,  // Disable pagination to display all chars at once
         scrollCollapse: true,  // Collapse the table size below the fixed height when there are few rows
         fixedHeader: {
