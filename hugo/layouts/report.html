@@ -471,9 +471,17 @@
         </tr>
         <tr>
           <td class="char-name">PIN</td>
-          <td>{{ $.card.pin_pretty }}</td>
+          <td>
+            <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
+              {{ .card.pin_pretty }}
+            </a>
+          </td>
           {{ range $comp := $.card.comps }}
-            <td>{{ $comp.pin_pretty }}</td>
+            <td>
+              <a href="https://www.cookcountyassessor.com/pin/{{ $comp.pin }}" target="_blank">
+                {{ $comp.pin_pretty }}
+              </a>
+            </td>
           {{ end }}
         </tr>
         <!-- Regular rows -->
