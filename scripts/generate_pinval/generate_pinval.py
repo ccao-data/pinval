@@ -8,15 +8,19 @@ arguments, the script will ignore that argument.
 
 Examples
 --------
+Generate every PIN:
+    $ python3 generate_pinval.py \
+          --run-id 2025-04-25-fancy-free-billy \
+
 Generate two specific PINs:
     $ python3 generate_pinval.py \
           --run-id 2025-04-25-fancy-free-billy \
           --pin 01011000040000 10112040080000
 
-Generate every PIN in the north triad:
+Generate every PIN in towns 10 and 11:
     $ python3 generate_pinval.py \
           --run-id 2025-04-25-fancy-free-billy \
-          --triad north
+          --township 10 11
 """
 
 from __future__ import annotations
@@ -62,7 +66,7 @@ def parse_args() -> argparse.Namespace:
         metavar="PIN",
         help=(
             "One or more Cook County PINs to generate reports for. When empty, "
-            "generates reports for all PINs in the reassessment triad"
+            "generates reports for all PINs in the assessment year"
         ),
     )
 
