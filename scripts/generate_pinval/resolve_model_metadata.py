@@ -82,10 +82,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_township_codes(
-    run_id: str, townships: list[str], pins: list[str], write_github_output: bool
+    year: str, townships: list[str], pins: list[str], write_github_output: bool
 ) -> list[str]:
     """
-    Given a model run ID, return all the township codes for that run.
+    Given an assessment year, return all the township codes for that year.
+    We use assessment year instead of run ID because an assessment year can
+    have different final models for different townships.
 
     If `townships` is non-empty, return it as-is and skip querying altogether.
 
@@ -111,15 +113,15 @@ def get_township_codes(
                 f"""
                     SELECT DISTINCT meta_township_code
                     FROM {constants.PINVAL_ASSESSMENT_CARD_TABLE}
-                    WHERE run_id = %(run_id)s
+                    WHERE assessment_year = %(year)s
                     ORDER BY meta_township_code
                 """,
-                {"run_id": run_id},
+                {"year": year},
             )
         ]
 
         if not codes:
-            raise ValueError(f"No township codes found for model run ID '{run_id}'")
+            raise ValueError(f"No township codes found for assessment year '{year}'")
 
     return codes
 
@@ -151,7 +153,8 @@ def get_run_id(run_id: str, year: str) -> str:
         if not run_id_is_valid:
             raise ValueError(
                 f"Run ID {run_id} not found in view "
-                f"{constants.PINVAL_ASSESSMENT_CARD_TABLE}"
+                f"{constants.PINVAL_COMP_TABLE}. "
+                "Double-check to make sure this is a comps run ID."
             )
     else:
         # Get the latest run ID for the assessment year in the comps
@@ -209,7 +212,7 @@ def main() -> None:
     run_id = get_run_id(args.run_id, args.year)
     metadata = get_model_metadata(run_id)
     township_codes = get_township_codes(
-        run_id, args.township, args.pin, args.write_github_output
+        metadata["assessment_year"], args.township, args.pin, args.write_github_output
     )
 
     matrix = json.dumps({"township": township_codes})
