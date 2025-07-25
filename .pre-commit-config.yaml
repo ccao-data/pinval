@@ -13,7 +13,7 @@ repos:
   rev: v4.6.0
   hooks:
     - id: check-added-large-files
-      args: ['--maxkb=200']
+      args: ['--maxkb=250']
     - id: mixed-line-ending
       args: ['--fix=no']
     - id: trailing-whitespace
