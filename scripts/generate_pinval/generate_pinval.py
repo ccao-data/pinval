@@ -191,7 +191,7 @@ def build_front_matter(
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
-        "pin_num_cards": tp["ap_meta_pin_num_cards"],
+        "meta_pin_num_cards": tp["meta_pin_num_cards"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
         "special_case_multi_card": special_multi,
