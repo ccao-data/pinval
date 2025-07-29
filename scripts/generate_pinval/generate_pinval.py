@@ -271,6 +271,7 @@ def build_front_matter(
             {
                 "pin_pretty": pin_pretty(tp["meta_pin"]),
                 "card_num": int(card_num),
+                "is_frankencard": card_df["is_frankencard"],
                 "char_class_detailed": card_df["char_class_detailed"],
                 "location": {
                     k: v
