@@ -6,40 +6,13 @@
   {{ partial "head/css-link-bootstrap.html" . }}
 
   <!-- Load Bootstrap icons -->
-  <link
-    rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
-    integrity="sha384-CK2SzKma4jA5H/MXDUU7i1TqZlCFaD4T01vtyDFvPlD97JQyS+IsSh1nI2EFbpyk"
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="/static/css/bootstrap-icons@1.13.1.min.css" />
 
   <!-- Load Leaflet CSS -->
-  <link
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    rel="stylesheet"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="/static/css/leaflet@1.9.4.css" />
 
   <!-- Load Reactable equivalent (DataTables) CSS -->
-  <link
-    href="https://cdn.datatables.net/2.3.2/css/dataTables.dataTables.min.css"
-    rel="stylesheet"
-    integrity="sha384-gC2LYLqCExndkNE9hTLhmEXvk8ZgIf42nRengHFbC9uaws2Ho0TW+ENGe4w15AHy"
-    crossorigin="anonymous"
-  />
-  <link
-    href="https://cdn.datatables.net/fixedcolumns/5.0.4/css/fixedColumns.dataTables.min.css"
-    rel="stylesheet"
-    integrity="sha384-hVwUvP9o6t5F4NTn4bygFte7oSFXkYfWMBqENXuJC6xlX2T0lg94klu9D4bHyzUE"
-    crossorigin="anonymous"
-  />
-  <link
-    href="https://cdn.datatables.net/fixedheader/4.0.3/css/fixedHeader.dataTables.min.css"
-    rel="stylesheet"
-    integrity="sha384-MdjfIsy9elm9qOpK/KXJfYR9PmcQ47vcI0vij5V7nLUOBFvZqPwz0wKJ3q+Sg1RG"
-    crossorigin="anonymous"
-  />
+  <link rel="stylesheet" href="/static/css/datatables@2.3.2.min.css" />
 
   {{ partial "head/favicons.html" . }}
 
@@ -52,18 +25,16 @@
   <div class="container">
 
     <div class="card-body">
-    <!-- Search again button that returns user to homepage -->
-    <p>
-      {{- /* Determine the search‑page URL based on environment */ -}}
-      {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
-      <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
-        <i class="bi bi-arrow-left"></i> Back to Search
-      </a>
-    </p>
-
-      <!-- Contextual information -->
+      <!-- Search again button that returns user to homepage -->
       <p>
+        {{- /* Determine the search‑page URL based on environment */ -}}
+        {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
+        <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
+          <i class="bi bi-arrow-left"></i> Back to Search
+        </a>
+      </p>
 
+      <p>
         The goal of this report is to explain how the Cook County Assessor’s statistical
         model estimated the value of the home with Parcel Identification Number
         (PIN) <strong>{{ .Params.pin_pretty }}</strong> in tax year
@@ -72,7 +43,6 @@
         leading up to {{ .Params.assessment_year }}. Then, it used what it learned to
         estimate what this home could have sold for on <strong>January 1,
         {{ .Params.assessment_year }}</strong> if it had sold on that date in a fair, open-market transaction.
-
       </p>
       <div class="info-box border">
         <div
@@ -82,26 +52,11 @@
           aria-expanded="true"
           aria-controls="info-content"
         >
-          <span class="info-icon">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              width="24"
-              height="24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </span>
-          <h5 class="mb-0 mx-2">Click to read more about this report</h5>
+          <h5 class="mb-0">
+            <i id="info-caret" class="bi bi-caret-down-fill"></i>
+            Click to read more about this report
+          </h5>
         </div>
-
 
         <div class="collapse" id="info-content">
           <div class="p-3 bg-light">
@@ -151,8 +106,8 @@
               be most important for your estimated home value in {{ .Params.assessment_year }}.
               The top of the report shows the location and characteristics of your home. The
               middle section of the report compares the location and characteristics of the
-              top 5 sales to your home’s location and characteristics. At the end,
-              the report summarizes the prices of the top 5 sales and compares them
+              top five sales to your home’s location and characteristics. At the end,
+              the report summarizes the prices of the top five sales and compares them
               to your home’s estimated value.
             </p>
             <p>
@@ -162,29 +117,43 @@
                 Finding comparables with LightGBM
               </a>.
               This article provides technical details about how we used the model to
-              find the top 5 most important sales for every home.
+              find the top five most important sales for every home.
             </p>
           </div>
         </div>
       </div>
 
+      <h2 class="mb-3">About Your Home</h2>
+      <p>
+        The tables below show some basic facts about your home
+        in tax year {{ .Params.assessment_year }}.
+      </p>
+
       {{ $is_multicard := gt .Params.meta_pin_num_cards 1 }}
 
       {{ if $is_multicard }}
-        <p>
-          This property has multiple "cards", which is an assessment term for a
-          building or an improvement on a property.
-        </p>
-        <p>
-          Each card on a property can have different characteristics, so the Assessor's
-          model estimates different values for each card. Toggle between the tabs below to
-          view characteristics and similar sales for each card.
-        </p>
+        <div class="alert alert-primary">
+          <p>
+            <i class="bi bi-info-circle"></i>
+            Your home has multiple "cards", which is an assessment term for a
+            building or an improvement on a property.
+            Each card on a property can have different characteristics.
+            {{ if not .Params.special_case_multi_card }}
+              To account for these differences, the Assessor's model estimates
+              different values for each card.
+            {{ end }}
+            Toggle between the tabs below to view characteristics
+            {{ if not .Params.special_case_multi_card }}
+              and similar sales
+            {{ end }}
+            for each card.
+          </p>
+        </div>
       {{ end }}
 
       <!-- Report contents. This is structured differently depending on whether the parcel is multicard. -->
       {{ if $is_multicard }}
-        <!-- Multicard: Create a tab for each card to show its comps -->
+        <!-- Multicard: Create a tab for each card to show its characteristics -->
         <ul class="nav nav-tabs" id="propertyCardTabs" role="tablist">
           {{ range $index, $card := .Params.cards }}
           <li class="nav-item" role="presentation">
@@ -212,49 +181,103 @@
             role="tabpanel"
             aria-labelledby="card-{{ $index }}-tab"
           >
-            {{ template "card-content"
-            (dict "card" $card
+            {{
+              template "card-characteristics"
+              (dict
+                "card" $card
+                "Params" $.Params
+                "is_multicard" true
+                "special_case_multi_card" $.Params.special_case_multi_card
+              )
+            }}
+
+            {{ if not $.Params.special_case_multi_card }}
+              {{
+                template "card-comps"
+                (dict
+                  "card" $card
                   "Params" $.Params
                   "is_multicard" true
-                  "special_case_multi_card" $.Params.special_case_multi_card) }}
+                  "special_case_multi_card" $.Params.special_case_multi_card
+                )
+              }}
+            {{ end }}
           </div>
           {{ end }}
         </div>
 
+        {{ if .Params.special_case_multi_card }}
+          {{ $card := index .Params.cards 0 }}
+          {{
+            template "card-comps"
+            (dict
+              "card" $card
+              "Params" $.Params
+              "is_multicard" true
+              "special_case_multi_card" $.Params.special_case_multi_card
+            )
+          }}
+        {{ end }}
+
       {{ else }}
         <!-- Single-card: No tabs required -->
         {{ $card := index .Params.cards 0 }}
-        {{ template "card-content"
-          (dict "card" $card
-          "Params" $.Params
-          "is_multicard" false
-          "special_case_multi_card" .Params.special_case_multi_card) }}
+        {{
+          template "card-characteristics"
+          (dict
+            "card" $card
+            "Params" $.Params
+            "is_multicard" false
+            "special_case_multi_card" .Params.special_case_multi_card
+          )
+        }}
+        {{
+          template "card-comps"
+          (dict
+            "card" $card
+            "Params" $.Params
+            "is_multicard" true
+            "special_case_multi_card" $.Params.special_case_multi_card
+          )
+        }}
       {{ end }}
 
-      <h2>Final Model Estimate</h2>
+      <h3>Final Model Estimate</h3>
       <p>
         After rounding and other processing, the model's final estimate for the value of this property
         on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
         <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
       </p>
+      <div class="alert alert-warning">
+        <p>
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          The model's estimated value for this property is not necessarily the final valuation during a
+          reassessment. Analysts at the Assessor's Office can review the model's estimate and make
+          adjustments. To see this property's most recent valuation, visit the
+          <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" class="alert-link" target="_blank">Assessor's website</a>.
+        </p>
+      </div>
       <p>
-        The model's estimated value for this property is not necessarily the final valuation during a
-        reassessment. Analysts at the Assessor's Office can review the model's estimate and make
-        adjustments. To see this property's most recent valuation, visit the
-        <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">Assessor's website</a>.
+        <a
+          href="#banner"
+          type="button"
+          class="btn btn-outline-dark"
+        >
+          <i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Back to top
+        </a>
       </p>
 
     </div>
   </div>
 
-  <!-- Define a template for card content -->
-  {{ define "card-content" }}
+  {{/* Define a template for high-level card characteristics */}}
+  {{ define "card-characteristics" }}
 
   <!-- Wrap Location and Characteristics tables in a row so they appear side-by-side on desktop -->
   <div class="row">
     <div class="col-12 col-lg-6">
-      <h2 class="mb-3">Your Home's Location</h2>
-      <div class="table-responsive mb-3">
+      <h3 class="mb-3">Location</h3>
+      <div class="table-responsive">
         <table class="table table-bordered location-table">
           <tbody>
             <tr>
@@ -287,8 +310,8 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <h2 class="mb-3">Your Home's Top Characteristics</h2>
-      <div class="table-responsive mb-3">
+      <h3 class="mb-3">Top Characteristics</h3>
+      <div class="table-responsive">
         <table class="table table-bordered characteristic-table">
           <tbody>
             <tr>
@@ -321,10 +344,15 @@
     </div>
   </div>
 
+  {{ end }}
+
+  {{/* Define a template for the comps map */}}
+  {{ define "card-comps" }}
+
   <!-- Comp map -->
   <h2 class="mb-3">Top 5 Most Important Sales</h2>
   <p>
-    This map shows your home alongside the 5 sales that were most important
+    This map shows your home alongside the five sales that were most important
     for the model's estimation of your home value.
   </p>
   <p>
@@ -338,16 +366,27 @@
   </div>
 
   <!-- Comp chars -->
-  <h3 class="mt-4">Characteristics for Top 5 Most Important Sales</h3>
+  <h3
+    class="mt-4"
+    id="sale-characteristics-{{ .card.card_num }}"
+  >
+    Characteristics for Top 5 Most Important Sales
+  </h3>
   <p>
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top 5 sales.
+    characteristics for the top five sales.
   </p>
+  <div class='d-lg-none'>
+    <p>
+      <i class='bi-hand-index-thumb'></i>
+      Click on a characteristic below to expand the row and show all five sales.
+    </p>
+  </div>
   <div class="mb-3">
     <table
-      class="display characteristic-comparison-table"
+      class="table table-striped table-hover display characteristic-comparison-table"
       id="comp-table-{{ .card.card_num }}"
     >
       <thead>
@@ -399,9 +438,17 @@
         </tr>
         <tr>
           <td class="char-name">PIN</td>
-          <td>{{ $.card.pin_pretty }}</td>
+          <td>
+            <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
+              {{ .card.pin_pretty }}
+            </a>
+          </td>
           {{ range $comp := $.card.comps }}
-            <td>{{ $comp.pin_pretty }}</td>
+            <td>
+              <a href="https://www.cookcountyassessor.com/pin/{{ $comp.pin }}" target="_blank">
+                {{ $comp.pin_pretty }}
+              </a>
+            </td>
           {{ end }}
         </tr>
         <!-- Regular rows -->
@@ -418,58 +465,61 @@
       </tbody>
       <tfoot>
         <tr>
-          <th class="d-lg-none">
+          <th colspan="7">
             <a
-              href="#sales-summary-{{ .card.card_num }}"
+              href="#post-table-{{ .card.card_num }}"
               type="button"
-              class="btn btn-light"
+              class="btn btn-outline-dark mb-1 me-1"
             >
-              <i class="bi bi-caret-down-fill" aria-hidden="true"></i> Jump to next section
+              <i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Next section
             </a>
-          </th>
-          <th colspan="6" style="font-weight: normal" >
-            <i class="bi bi-arrow-down" aria-hidden="true"></i> Scroll down on the table to see more characteristics
+            <a
+              href="#sale-characteristics-{{ .card.card_num }}"
+              type="button"
+              class="btn btn-outline-dark mb-1"
+            >
+              <i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Previous section
+            </a>
           </th>
         </tr>
       </tfoot>
     </table>
 
-    {{ if .special_case_multi_card }}
-    <p>
-      <strong><span class="asterisk">*</span></strong> Since this property has
-      {{ .Params.meta_pin_num_cards }} cards, we estimate its value using
-      a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
-      the largest card to estimate the property's value, but we adjust the building square footage of
-      that card to use the combined building square footage of all cards on the
-      property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
-      <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
-    </p>
-    {{ end }}
+    <div id="post-table-{{ .card.card_num }}">
+      {{ if .special_case_multi_card }}
+      <p>
+        <strong><span class="asterisk">*</span></strong> Since this property has
+        {{ .Params.meta_pin_num_cards }} cards, we estimate its value using
+        a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
+        the largest card to estimate the property's value, but we adjust the building square footage of
+        that card to use the combined building square footage of all cards on the
+        property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
+        <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
+      </p>
+      {{ end }}
 
-    {{ if .card.has_subject_pin_sale }}
-    <p>
-      <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
-      The model usually considers past sales of a home to be important for its value,
-      even if those sales are older than sales of other homes.
-    </p>
-    {{ end }}
+      {{ if .card.has_subject_pin_sale }}
+      <p>
+        <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
+        The model usually considers past sales of a home to be important for its value,
+        even if those sales are older than sales of other homes.
+      </p>
+      {{ end }}
+    </div>
   </div>
 
-  <h2
-    class="mb-3"
-    id="sales-summary-{{ .card.card_num }}"
-  >
+  <h3 class="mb-3">
     Summary of the Top 5 Most Important Sales
-  </h2>
+  </h3>
   <p>
-    The top 5 comparable sales took place
+    The top five comparable sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
     <strong>{{ .card.comp_summary.sale_year_range }}</strong>.
     The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong>
     at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
   </p>
 
-  <h2 class="mb-3">Initial Model Estimate</h2>
+  <h3 class="mb-3">Initial Model Estimate</h3>
   <p>
     Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
     initially estimated that the value of this {{ if .is_multicard }}card{{ else }}property{{ end }}
@@ -480,45 +530,14 @@
   {{ end }}
 
   <!-- Load Bootstrap JS -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-k6d4wzSIapyDyv1kpU366/PK5hCdSbCRGRCMv+eplOQJWyd1fbcAu9OCUj5zNLiq"
-    crossorigin="anonymous"
-  ></script>
+  <script src="/static/js/jquery@3.7.1.min.js"></script>
+  <script src="/static/js/bootstrap@5.3.7.bundle.min.js"></script>
 
   <!-- Load Leaflet JS -->
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin="anonymous"
-  ></script>
+  <script src="/static/js/leaflet@1.9.4.min.js" ></script>
 
   <!-- Load DataTables JS -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
-    integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/2.3.0/js/dataTables.min.js"
-    integrity="sha384-ehaRe3xJ0fffAlDr3p72vNw3wWV01C1/Z19X6s//i6hiF8hee+c+rabqObq8YlOk"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/2.3.0/js/dataTables.bootstrap5.min.js"
-    integrity="sha384-G85lmdZCo2WkHaZ8U1ZceHekzKcg37sFrs4St2+u/r2UtfvSDQmQrkMsEx4Cgv/W"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/fixedcolumns/5.0.4/js/dataTables.fixedColumns.min.js"
-    integrity="sha384-pTT0DCmQdJKH1Vz2e0adpu+1Tp4tiIYm+vF6e+b+YAywojOEf3TR2WyIGdICT5Gy"
-    crossorigin="anonymous"
-  ></script>
-  <script
-    src="https://cdn.datatables.net/fixedheader/4.0.3/js/dataTables.fixedHeader.min.js"
-    integrity="sha384-p66x0SWwSmqfafoeNRyHmaay6Z/zGSRc52U3aGc0gaseU1+CiGgSEyNHTM3gfcqg"
-    crossorigin="anonymous"
-  ></script>
+  <script src="/static/js/datatables@2.3.2.min.js"></script>
 
   <!-- Main script logic. -->
   <!-- There are two primary steps here: -->
@@ -528,40 +547,65 @@
     // Initialize an object to track map render metadata. This is important
     // because some elements of the maps, such as zoom level, need to be
     // set only once the map is displayed to the user, such as through
-    // a tab selection
+    // a tab selection in the multicard case
     const mapRegistry = {}; // cardIndex -> { map: ..., bounds: ..., fitDone: false }
 
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
-      {{ range $index, $card := .Params.cards }}
+      {{/*
+        Check if this is a large or old multicard, in which case the map and
+        characteristic table will be tabbed, and we need to define extra
+        logic to tweak element display when tabs change
+      */}}
+      {{ $map_is_tabbed := and $is_multicard (not .Params.special_case_multi_card) }}
+      {{ $cards_to_map := cond $map_is_tabbed .Params.cards (first 1 .Params.cards) }}
+      {{ range $index, $card := $cards_to_map }}
         initializeMap("{{ $card.card_num }}", {{ $index }});
-        initializeTable("{{ $card.card_num }}", {{ $index }});
+        initializeTable(
+          "{{ $card.card_num }}",
+          {{ $index }},
+          {{ $map_is_tabbed }}
+        );
       {{ end }}
-        renderMapsOnDisplay(mapRegistry);
+        renderMapsOnDisplay(mapRegistry, {{ $map_is_tabbed }});
+
+
+      // Flip icons on collapsible infobox depending on whether the content is
+      // shown or not
+      $("#info-content").on("show.bs.collapse", function () {
+        $("#info-caret").removeClass("bi-caret-down-fill").addClass("bi-caret-up-fill");
+      });
+      $("#info-content").on("hide.bs.collapse", function () {
+        $("#info-caret").removeClass("bi-caret-up-fill").addClass("bi-caret-down-fill");
+      });
     });
 
     // Fit map bounds only once they are visible. This is important because
     // the Leaflet fitBounds() call will only work if the map is visible,
     // but multi-card reports can have maps that are hidden until the
     // nav tab corresponding to their card is active
-    function renderMapsOnDisplay(mapRegistry) {
-      // Trigger a map fitBounds() call when a new card tab is shown.
-      // Note that this means that any zooming a user does will be reset
-      // any time they switch card tabs, which may not be desirable
-      $('#propertyCardTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
-        const tabId = $(e.target).attr('id');
-        const entry = mapRegistry[tabId];
+    function renderMapsOnDisplay(mapRegistry, isTabbed) {
+      // Map rendering only needs to be adjusted if the map is contained in
+      // a tabset, so treat this function as a noop otherwise
+      if (isTabbed) {
+        // Trigger a map fitBounds() call when a new card tab is shown.
+        // Note that this means that any zooming a user does will be reset
+        // any time they switch card tabs, which may not be desirable
+        $('#propertyCardTabs button[data-bs-toggle="tab"]').on('shown.bs.tab', function (e) {
+          const tabId = $(e.target).attr('id');
+          const entry = mapRegistry[tabId];
 
-        if (entry) {
-          entry.map.invalidateSize();
-          entry.map.fitBounds(entry.bounds);
-        } else {
-          // Print some debugging info if the map metadata does not exist
-          console.log(`No map registry entry for ${tabId}`);
-          console.log(`Map registry object:`);
-          console.log(mapRegistry);
-        }
-      });
+          if (entry) {
+            entry.map.invalidateSize();
+            entry.map.fitBounds(entry.bounds);
+          } else {
+            // Print some debugging info if the map metadata does not exist
+            console.log(`No map registry entry for ${tabId}`);
+            console.log(`Map registry object:`);
+            console.log(mapRegistry);
+          }
+        });
+      }
     }
 
     // Initialize map for a specific card
@@ -782,15 +826,12 @@
     }
 
     // Initialize the characteristic comparison table
-    function initializeTable(cardNum, cardIndex) {
-      const specialMulti = {{ if .Params.special_case_multi_card }}true{{ else }}false{{ end }};
+    function initializeTable(cardNum, cardIndex, isTabbed) {
       const $table = $(`#comp-table-${cardNum}`);
       const dt = $table.DataTable({
+        responsive: true,  // Fold extra columns into row dropdown on small viewports
         paging: false,  // Disable pagination to display all chars at once
-        scrollX: true,  // Allow the table to scroll horizontally on narrow screens
-        scrollY: "500px",  // Force the table to scroll vertically with a fixed height
         scrollCollapse: true,  // Collapse the table size below the fixed height when there are few rows
-        fixedColumns: true,  // Freeze the leftmost column (chars) during horizontal scroll
         fixedHeader: {
           header: true,  // Make the header row sticky during scroll
           footer: true  // Make the footer sticky during scroll
@@ -800,18 +841,66 @@
         ordering: false,  // Disable sorting by column
         language: {  // Custom text
           search: "<i class='bi bi-search' aria-hidden='true'></i> <b>Search</b> characteristics:",  // Search input label
-          info: (specialMulti ?  // Always show scroll prompt for multicards, since the table will be narrower
-            "Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'>" :
-            "<span class='d-lg-none'>Scroll right to see more sales <i class='bi bi-arrow-right' aria-hidden='true'></i></span>"),
+          info: "",
           infoFiltered: "",  // Disable searched row count text
           infoEmpty: "",  // Disable text that shows when no rows match search
         },
+        buttons: [
+          {
+            extend: "collection",  // Dropdown with selection of buttons
+            text: '<i class="bi bi-file-earmark-arrow-down"></i> Export ',
+            className: "btn btn-outline-dark",
+            autoClose: true,  // Automatically close when an option is clicked
+            fade: 50,  // Faster open/close animation
+            attr: {
+              class: "btn btn-outline-dark buttons-collection"
+            },
+            buttons: [
+              {
+                extend: "copy",  // Button to copy table to clipboard
+                text: '<i class="bi bi-clipboard"></i> Copy',
+                footer: false  // Exclude table footer from export
+              },
+              {
+                extend: "csv",  // Button to export table as CSV
+                text: '<i class="bi bi-file-earmark-spreadsheet"></i> Excel',
+                footer: false
+              },
+              {
+                extend: "print",  // Button to open a print view for the table
+                text: '<i class="bi bi-printer"></i> Print View',
+                footer: false,
+                autoPrint: false  // Don't open print dialog box automatically
+              }
+            ]
+          },
+        ],
         layout: {
-          topStart: "search",  // Top left: Search box
-          topEnd: "info",  // Top right: Horizontal scroll prompt
-          bottomStart: null,  // Disable bottom text, since we use a frozen footer
+          topStart: "search",
+          topEnd: "buttons",
         }
       });
+
+      // The `fixedHeader` plugin seems to neglect to disable the sticky footer
+      // when switching between Bootstrap tabsets. The following code fixes that
+      // bug by hooking into the tabset events to manually enable and disable
+      // sticky headers and footers when switching tabs
+      if (isTabbed) {
+        // On initial render, all sticky headers and footers except the first
+        // table should be disabled
+        if (cardIndex !== 0) {
+          dt.fixedHeader.disable();
+        }
+
+        // Enable sticky headers and footers when showing a tab, and disable
+        // when hiding the tab
+        $(`#card-${cardIndex}-tab`).on("show.bs.tab", function(event) {
+          dt.fixedHeader.enable();
+        });
+        $(`#card-${cardIndex}-tab`).on("hide.bs.tab", function(event) {
+          dt.fixedHeader.disable();
+        });
+      }
     }
   </script>
 </body>
