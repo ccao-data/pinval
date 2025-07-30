@@ -614,10 +614,8 @@ def main() -> None:
     # part of `ccao.vars_dict`
     key_map["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
 
-    PRESERVE = {"loc_latitude", "loc_longitude"}
-
     def pretty(k: str) -> str:
-        return k if k in PRESERVE else key_map.get(k, k)
+        return key_map.get(k, k)
 
     # Declare outputs paths
     md_outdir = project_root / "hugo" / "content" / "pinval-reports"
