@@ -401,7 +401,8 @@
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top five sales.
+    characteristics for the top five sales. Each characteristic has a rank
+    according to how important it was for the model's estimate.
   </p>
   <div class='d-lg-none'>
     <p>
@@ -417,6 +418,7 @@
       <thead>
         <tr>
           <th>Characteristic</th>
+          <th>Rank</th>
           <th>
             Your home{{ if .special_case_multi_card }}<span class="asterisk">*</span>{{ end }}
           </th>
@@ -429,12 +431,14 @@
         <tr>
           <td class="char-name">Sale Price</td>
           <td></td>
+          <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_price }}</td>
           {{ end }}
         </tr>
         <tr>
           <td class="char-name">Sale $/sqft</td>
+          <td></td>
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_price_per_sq_ft }}</td>
@@ -443,6 +447,7 @@
         <tr>
           <td class="char-name">Sale Date</td>
           <td></td>
+          <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_date }}</td>
           {{ end }}
@@ -450,12 +455,14 @@
         <tr>
           <td class="char-name">Sale Doc. Num.</td>
           <td></td>
+          <td></td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.document_num }}</td>
           {{ end }}
         </tr>
         <tr>
           <td class="char-name">Address</td>
+          <td></td>
           <td>{{ $.card.location.property_address }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.property_address }}</td>
@@ -463,6 +470,7 @@
         </tr>
         <tr>
           <td class="char-name">PIN</td>
+          <td></td>
           <td>
             <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
               {{ .card.pin_pretty }}
@@ -476,10 +484,11 @@
             </td>
           {{ end }}
         </tr>
-        <!-- Regular rows -->
-        {{ range $char := .card.predictors }}
+        <!-- Predictors -->
+        {{ range $index, $char := .card.predictors }}
         <tr>
           <td class="char-name">{{ index $.Params.var_labels $char }}</td>
+          <td>{{ add $index 1 }}</td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
