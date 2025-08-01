@@ -231,17 +231,17 @@ def build_front_matter(
         if special_multi and "char_bldg_sf" in card_df:
             subject_chars["char_bldg_sf"] = card_df["char_bldg_sf"]
 
-        # Extract rankings for all features
-        subject_char_ranks = {
-            pred: card_df[f"rank_{pred}"]
+        # Extract scores for all features
+        subject_char_terciles = {
+            pred: card_df[f"terc_{pred}"]
             for pred in preds_cleaned
-            if f"rank_{pred}" in card_df
+            if f"terc_{pred}" in card_df
         }
-        if special_multi and "rank_char_bldg_sf" in card_df:
-            subject_char_ranks["char_bldg_sf"] = card_df["rank_char_bldg_sf"]
-            # Combined value rank doesn't exist in the view, so construct it
+        if special_multi and "terc_char_bldg_sf" in card_df:
+            subject_char_terciles["char_bldg_sf"] = card_df["terc_char_bldg_sf"]
+            # Combined value tercile doesn't exist in the view, so construct it
             # artificially
-            subject_char_ranks["combined_bldg_sf"] = card_df["rank_char_bldg_sf"]
+            subject_char_terciles["combined_bldg_sf"] = card_df["terc_char_bldg_sf"]
 
         # Comps
         comps_list = []
@@ -303,7 +303,7 @@ def build_front_matter(
                     }.items()
                 },
                 "chars": subject_chars,
-                "char_ranks": subject_char_ranks,
+                "char_terciles": subject_char_terciles,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
                 "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
                 "pred_card_initial_fmv_per_sqft": card_df[

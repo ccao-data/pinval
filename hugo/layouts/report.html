@@ -401,8 +401,9 @@
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top five sales. Each characteristic has a rank
-    according to how important it was for the model's estimate.
+    characteristics for the top five sales. Each characteristic has a score
+    from one to three stars (<i style="font-size:0.9em" class="bi bi-star-fill text-muted"></i>)
+    indicating how important it was for the model's estimate.
   </p>
   <div class='d-lg-none'>
     <p>
@@ -418,8 +419,8 @@
       <thead>
         <tr>
           <th data-orderable="false">Characteristic</th>
-          <th data-orderable="true" id="comp-table-rank-col-{{ .card.card_num }}">
-            Rank
+          <th data-orderable="true" id="comp-table-score-col-{{ .card.card_num }}">
+            Score
           </th>
           <th data-orderable="false">
             Your home{{ if .special_case_multi_card }}<span class="asterisk">*</span>{{ end }}
@@ -492,7 +493,22 @@
         {{ range $char := .card.predictors }}
         <tr>
           <td class="char-name">{{ index $.Params.var_labels $char }}</td>
-          <td>{{ index $.card.char_ranks $char }}</td>
+          {{ $char_terc := index $.card.char_terciles $char }}
+          <td>
+            {{ if or (eq $char_terc "1") (eq $char_terc "2") (eq $char_terc "3") }}
+              <span class="d-none" aria-hidden="true">{{ $char_terc }}</span>
+              {{ range seq (int $char_terc) }}<i style="font-size:0.9em" class="bi bi-star-fill text-muted"></i>{{ end }}
+            {{ else }}
+              {{/* Currently no-op to support old reports; enable if we go live with this approach */}}
+              {{/*
+                errorf
+                "Got unexpected value for characteristic tercile for feature %q in PIN %q: $q"
+                $char
+                $.Params.pin
+                $char_terc
+              */}}
+            {{ end }}
+          </td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
@@ -904,7 +920,7 @@
         order: [], // Disable ordering on initialization to use the same order as the HTML table
         columnDefs: [
           {
-            targets: `#comp-table-rank-col-${cardNum}`,  // Rank column
+            targets: `#comp-table-score-col-${cardNum}`,  // Rank column
             className: "dt-left",  // Force left alignment, since numeric cols are right aligned by default
             orderable: true,  // Redundant with data-orderable above, but duplicated here for clarity
           },
