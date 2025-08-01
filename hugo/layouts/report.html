@@ -417,13 +417,17 @@
     >
       <thead>
         <tr>
-          <th>Characteristic</th>
-          <th>Rank</th>
-          <th>
+          <th data-orderable="false">Characteristic</th>
+          <th data-orderable="true" id="comp-table-rank-col-{{ .card.card_num }}">
+            Rank
+          </th>
+          <th data-orderable="false">
             Your home{{ if .special_case_multi_card }}<span class="asterisk">*</span>{{ end }}
           </th>
           {{ range $index, $comp := .card.comps }}
-          <th>Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">**</span>{{ end }}</th>
+          <th data-orderable="false">
+            Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">**</span>{{ end }}
+          </th>
           {{ end }}
         </tr>
       </thead>
@@ -485,10 +489,10 @@
           {{ end }}
         </tr>
         <!-- Predictors -->
-        {{ range $index, $char := .card.predictors }}
+        {{ range $char := .card.predictors }}
         <tr>
           <td class="char-name">{{ index $.Params.var_labels $char }}</td>
-          <td>{{ add $index 1 }}</td>
+          <td>{{ index $.card.char_ranks $char }}</td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
@@ -897,7 +901,14 @@
         },
         searching: true,  // Enable a search box to filter rows
         info: true,  // Enable info text (defined under the `language` key below)
-        ordering: false,  // Disable sorting by column
+        order: [], // Disable ordering on initialization to use the same order as the HTML table
+        columnDefs: [
+          {
+            targets: `#comp-table-rank-col-${cardNum}`,  // Rank column
+            className: "dt-left",  // Force left alignment, since numeric cols are right aligned by default
+            orderable: true,  // Redundant with data-orderable above, but duplicated here for clarity
+          },
+        ],
         language: {  // Custom text
           search: "<i class='bi bi-search' aria-hidden='true'></i> <b>Search</b> characteristics:",  // Search input label
           info: "",
