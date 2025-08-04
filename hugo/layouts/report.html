@@ -493,14 +493,20 @@
         {{ range $char := .card.predictors }}
         <tr>
           <td class="char-name">{{ index $.Params.var_labels $char }}</td>
-          {{ $char_wt := index $.card.char_weights $char }}
+          {{ $char_terc := index $.card.char_terciles $char }}
           <td>
-            <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
-            {{ if eq $char_wt "0"}}
-              {{/* Less than 1% gets truncated to 0% in the source data */}}
-              <1%
+            {{ if or (eq $char_terc "1") (eq $char_terc "2") (eq $char_terc "3") }}
+              <span class="d-none" aria-hidden="true">{{ $char_terc }}</span>
+              {{ range seq (int $char_terc) }}<i style="font-size:0.9em" class="bi bi-star-fill text-muted"></i>{{ end }}
             {{ else }}
-              {{ printf "%.0f%%" (mul (float $char_wt) 100) }}
+              {{/* Currently no-op to support old reports; enable if we go live with this approach */}}
+              {{/*
+                errorf
+                "Got unexpected value for characteristic tercile for feature %q in PIN %q: $q"
+                $char
+                $.Params.pin
+                $char_terc
+              */}}
             {{ end }}
           </td>
           <td>{{ index $.card.chars $char }}</td>
@@ -915,7 +921,7 @@
         columnDefs: [
           {
             targets: `#comp-table-score-col-${cardNum}`,  // Rank column
-            className: "dt-right",  // Force right alignment for numeric comparison
+            className: "dt-left",  // Force left alignment, since numeric cols are right aligned by default
             orderable: true,  // Redundant with data-orderable above, but duplicated here for clarity
           },
         ],
