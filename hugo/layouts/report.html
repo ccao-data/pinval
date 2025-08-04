@@ -402,7 +402,7 @@
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
     characteristics for the top five sales. Each characteristic has a score
-    from one to three stars (<i style="font-size:0.9em" class="bi bi-star-fill text-muted"></i>)
+    from one to four stars (<i class="bi bi-star-fill text-muted char-score-star"></i>)
     indicating how important it was for the model's estimate.
   </p>
   <div class='d-lg-none'>
@@ -493,19 +493,19 @@
         {{ range $char := .card.predictors }}
         <tr>
           <td class="char-name">{{ index $.Params.var_labels $char }}</td>
-          {{ $char_terc := index $.card.char_terciles $char }}
+          {{ $char_quart := index $.card.char_quartiles $char }}
           <td>
-            {{ if or (eq $char_terc "1") (eq $char_terc "2") (eq $char_terc "3") }}
-              <span class="d-none" aria-hidden="true">{{ $char_terc }}</span>
-              {{ range seq (int $char_terc) }}<i style="font-size:0.9em" class="bi bi-star-fill text-muted"></i>{{ end }}
+            {{ if and (ge (int $char_quart) 1) (le (int $char_quart) 4) }}
+              <span class="d-none" aria-hidden="true">{{ $char_quart }}</span>
+              {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
             {{ else }}
               {{/* Currently no-op to support old reports; enable if we go live with this approach */}}
               {{/*
                 errorf
-                "Got unexpected value for characteristic tercile for feature %q in PIN %q: $q"
+                "Got unexpected value for characteristic quartile for feature %q in PIN %q: $q"
                 $char
                 $.Params.pin
-                $char_terc
+                $char_quart
               */}}
             {{ end }}
           </td>
@@ -519,7 +519,7 @@
       </tbody>
       <tfoot>
         <tr>
-          <th colspan="7">
+          <th colspan="8">
             <a
               href="#post-table-{{ .card.card_num }}"
               type="button"
@@ -922,7 +922,6 @@
           {
             targets: `#comp-table-score-col-${cardNum}`,  // Rank column
             className: "dt-left",  // Force left alignment, since numeric cols are right aligned by default
-            orderable: true,  // Redundant with data-orderable above, but duplicated here for clarity
           },
         ],
         language: {  // Custom text
