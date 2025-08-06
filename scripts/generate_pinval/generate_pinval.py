@@ -29,6 +29,7 @@ import argparse
 import os
 import subprocess as sp
 import gc
+import re
 import time
 import typing
 from pathlib import Path
@@ -312,6 +313,7 @@ def build_front_matter(
                 },
                 "chars": subject_chars,
                 "char_quartiles": subject_char_quartiles,
+                "char_weights": subject_char_weights,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
                 "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
                 "pred_card_initial_fmv_per_sqft": card_df[
@@ -411,20 +413,61 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
     Format the DataFrame for frontmatter output.
     """
 
-    # Columns like year shouldn't be formatted with commas,
-    # so we preserve them as integers
-    INT_COLS = {
-        "time_sale_year",
-        "time_sale_day",
-        "acs5_median_household_total_occupied_year_built",
-        "char_yrblt",
-        "meta_pin_num_cards",
-    }
+    def _get_display_dtype(col: str) -> str | None:
+        """Helper function that takes a column name and returns a string
+        representing the data type for that column, which indicates how we
+        should format the column for display.
 
-    # Columns that should be preserved as numeric
-    NUMERIC_PRESERVE = {"loc_latitude", "loc_longitude"}
+        Returns None if no data type is specified for this column."""
+        INT_COLS = {
+            # Columns like year shouldn't be formatted with commas,
+            # so we preserve them as integers
+            "time_sale_year",
+            "time_sale_day",
+            "acs5_median_household_total_occupied_year_built",
+            "char_yrblt",
+            "meta_pin_num_cards",
+        }
 
-    def _fmt(x):
+        # Columns that should be formatted as dollar amounts
+        DOLLAR_COLS = {
+            "comps_avg_sale_price",
+            "comps_avg_price_per_sqft",
+            "meta_sale_price",
+            "sale_price_per_sq_ft",
+            "acs5_median_household_renter_occupied_gross_rent",
+            "pred_pin_final_fmv_round",
+            "pred_card_initial_fmv",
+            "pred_card_initial_fmv_per_sqft",
+        }
+
+        # Columns that should be rounded to 5 significant digits
+        ROUND_TO_5_COLS = {"loc_latitude", "loc_longitude"}
+
+        if col in INT_COLS or col.startswith("quart_"):
+            return "int"
+
+        if col in DOLLAR_COLS or col.startswith("acs5_median_income"):
+            return "dollar"
+
+        if col in ROUND_TO_5_COLS:
+            return "round_to_5"
+
+        if col.startswith("acs5_percent"):
+            return "percent"
+
+        if col.startswith("wt_"):
+            # We'll exclude these columns from formatting
+            return "raw"
+
+        # None indicates no specified dtype, in which case we may still
+        # format the column based on the dataframe configuration (e.g.
+        # we convert all unspecified numerics to comma-separated strings)
+        return None
+
+    def _fmt_generic_numeric(x):
+        """Helper function for generic formatting of numeric columns as
+        comma-separated strings."""
         if isinstance(x, (int, np.integer)):
             return f"{x:,}"
         if isinstance(x, (float, np.floating)):
@@ -457,67 +500,80 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         ].transform("mean")
 
     formatted_df = (
-        # Convert data to INT for columns that should be integers (year, etc)
+        # Convert columns based on their configured data type
         df.pipe(
             lambda d: d.assign(
                 **{
                     col: pd.to_numeric(d[col], errors="raise").astype("Int64")
-                    for col in INT_COLS
-                    if col in d.columns
+                    for col in d.columns
+                    if _get_display_dtype(col) == "int"
                 }
             )
         )
-        # Round lat/long to 5 decimal places, a balance between precision and
-        # readability
-        .pipe(
-            lambda d: d.assign(
-                loc_latitude=d["loc_latitude"].apply(round, ndigits=5),
-                loc_longitude=d["loc_longitude"].apply(round, ndigits=5),
-            )
-        )
-        # Format percentage columns
         .pipe(
             lambda d: d.assign(
                 **{
-                    c: label_percent(d[c])
-                    for c in d.filter(regex=r"^acs5_percent").columns
+                    col: d[col].apply(round, ndigits=5)
+                    for col in d.columns
+                    if _get_display_dtype(col) == "round_to_5"
                 }
             )
         )
-        # Format $ columns
         .pipe(
             lambda d: d.assign(
                 **{
-                    c: label_dollar(d[c])
-                    for c in d.columns
-                    if c
-                    in {
-                        "comps_avg_sale_price",
-                        "comps_avg_price_per_sqft",
-                        "meta_sale_price",
-                        "sale_price_per_sq_ft",
-                        "acs5_median_household_renter_occupied_gross_rent",
-                        "pred_pin_final_fmv_round",
-                        "pred_card_initial_fmv",
-                        "pred_card_initial_fmv_per_sqft",
-                    }
-                    or c.startswith("acs5_median_income")
+                    col: label_percent(d[col])
+                    for col in d.columns
+                    if _get_display_dtype(col) == "percent"
                 }
             )
         )
-        # Generic numerics → comma-separated strings (except preserved cols)
         .pipe(
             lambda d: d.assign(
                 **{
-                    c: d[c].apply(_fmt)
-                    for c in d.select_dtypes(include="number").columns
-                    if c not in NUMERIC_PRESERVE and c not in INT_COLS
+                    col: label_dollar(d[col])
+                    for col in d.columns
+                    if _get_display_dtype(col) == "dollar"
+                }
+            )
+        )
+        # Convert generic numerics → comma-separated strings (except cols with
+        # a specified data type)
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    col: d[col].apply(_fmt_generic_numeric)
+                    for col in d.select_dtypes(include="number").columns
+                    if _get_display_dtype(col) is None
                 }
             )
         )
     )
 
     return formatted_df
+
+
+def compute_shap_weights(df: pd.DataFrame) -> pd.DataFrame:
+    shap_cols = [col for col in df.columns if col.startswith("shap_")]
+    sum_df = df[shap_cols].abs().sum(axis=1)
+    weights_df = df[shap_cols].abs().div(sum_df, axis=0)
+
+    quartile_df = weights_df.apply(
+        lambda row: pd.qcut(row.rank(method="first"), 4, labels=list(range(1, 5))),
+        axis=1,
+    )
+
+    df = df.drop(shap_cols, axis=1)
+    df = pd.concat(
+        [
+            df,
+            weights_df.rename(columns=lambda col: re.sub("^shap_", "wt_", col)),
+            quartile_df.rename(columns=lambda col: re.sub("^shap_", "quart_", col)),
+        ],
+        axis=1,
+    )
+
+    return df
 
 
 def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
@@ -578,16 +634,19 @@ def main() -> None:
     """
 
     print("Querying data from Athena ...")
-    df_assessment_all = format_df(
-        run_athena_query(cursor, assessment_sql, params_assessment),
-        chars_recode=False,
-    )
+    df_assessment_all = run_athena_query(cursor, assessment_sql, params_assessment)
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
     if df_assessment_all.empty:
         raise ValueError(
             f"No assessment rows returned for the following params: {params_assessment}"
         )
+
+    print("Computing SHAP weights for feature ranking")
+    df_assessment_all = compute_shap_weights(df_assessment_all)
+
+    print("Formatting assessment dataframe for display")
+    df_assessment_all = format_df(df_assessment_all, chars_recode=False)
 
     comps_sql = f"""
         SELECT comp.*
