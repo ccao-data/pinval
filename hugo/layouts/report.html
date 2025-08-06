@@ -139,7 +139,7 @@
         in tax year {{ .Params.assessment_year }}.
       </p>
 
-      {{ $is_multicard := gt .Params.pin_num_cards 1 }}
+      {{ $is_multicard := gt .Params.meta_pin_num_cards 1 }}
 
       {{ if $is_multicard }}
         <div class="alert alert-primary">
@@ -208,7 +208,7 @@
                   "card" $card
                   "Params" $.Params
                   "is_multicard" true
-                  "special_case_multi_card" $.Params.special_case_multi_card
+                  "special_case_multi_card" false
                 )
               }}
             {{ end }}
@@ -216,17 +216,42 @@
           {{ end }}
         </div>
 
+        {{/*
+          Use the global store for frankencard assignment so that we can update
+          it within the scope of conditional branches and loops below
+        */}}
+        {{ $.Store.Set "frankencard" false }}
+
         {{ if .Params.special_case_multi_card }}
-          {{ $card := index .Params.cards 0 }}
-          {{
-            template "card-comps"
-            (dict
-              "card" $card
-              "Params" $.Params
-              "is_multicard" true
-              "special_case_multi_card" $.Params.special_case_multi_card
-            )
-          }}
+          {{/*
+            Extract frankencard to use as base for comps and values in the
+            small recent multicard case
+          */}}
+          {{ range .Params.cards }}
+            {{ if .is_frankencard }}
+              {{ $.Store.Set "frankencard" . }}
+            {{ end }}
+          {{ end }}
+
+          {{ $frankencard := $.Store.Get "frankencard" }}
+
+          {{ if not $frankencard }}
+            {{
+              errorf
+              "No card with is_frankencard == true found in .Params.cards for small multicard PIN %q"
+              .Params.pin
+            }}
+          {{ else }}
+            {{
+              template "card-comps"
+              (dict
+                "card" $frankencard
+                "Params" $.Params
+                "is_multicard" true
+                "special_case_multi_card" true
+              )
+            }}
+          {{ end }}
         {{ end }}
 
       {{ else }}
@@ -238,7 +263,7 @@
             "card" $card
             "Params" $.Params
             "is_multicard" false
-            "special_case_multi_card" .Params.special_case_multi_card
+            "special_case_multi_card" false
           )
         }}
         {{
@@ -246,15 +271,15 @@
           (dict
             "card" $card
             "Params" $.Params
-            "is_multicard" true
-            "special_case_multi_card" $.Params.special_case_multi_card
+            "is_multicard" false
+            "special_case_multi_card" false
           )
         }}
       {{ end }}
 
       <h3>Final Model Estimate</h3>
       <p>
-        After rounding and other processing, the model's final estimate for the value of this property
+        After rounding and other processing, the model's final estimate for the value of your home
         on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
         <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
       </p>
@@ -498,8 +523,15 @@
     <div id="post-table-{{ .card.card_num }}">
       {{ if .special_case_multi_card }}
       <p>
-        <strong><span class="asterisk">*</span></strong> Since this property has
-        {{ .Params.pin_num_cards }} cards, we estimate its value using
+        <strong><span class="asterisk">*</span></strong> Since your home has
+        {{ if eq (int .Params.meta_pin_num_cards) 2 }}
+          two
+        {{ else if eq (int .Params.meta_pin_num_cards) 3 }}
+          three
+        {{ else }}
+          {{ .Params.meta_pin_num_cards }}
+        {{ end }}
+        cards, we estimate its value using
         a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
         the largest card to estimate the property's value, but we adjust the building square footage of
         that card to use the combined building square footage of all cards on the
@@ -532,7 +564,12 @@
   <h3 class="mb-3">Initial Model Estimate</h3>
   <p>
     Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
-    initially estimated that the value of this {{ if .is_multicard }}card{{ else }}property{{ end }}
+    initially estimated that the value of
+    {{ if and .is_multicard (not .special_case_multi_card) }}
+      this card
+    {{ else }}
+      your home
+    {{ end }}
     as of lien date <strong>January 1, {{ .Params.assessment_year }}</strong> should be
     <strong>{{ .card.pred_card_initial_fmv }}</strong> at
     <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
@@ -565,10 +602,24 @@
       {{/*
         Check if this is a large or old multicard, in which case the map and
         characteristic table will be tabbed, and we need to define extra
-        logic to tweak element display when tabs change
+        logic to tweak element display when tabs change.
+
+        We also want to only map the frankencard for small recent multicards
       */}}
-      {{ $map_is_tabbed := and $is_multicard (not .Params.special_case_multi_card) }}
-      {{ $cards_to_map := cond $map_is_tabbed .Params.cards (first 1 .Params.cards) }}
+      {{ $.Store.Set "map_is_tabbed" false }}
+      {{ $.Store.Set "cards_to_map" (first 1 .Params.cards) }}
+      {{ if $is_multicard }}
+        {{ if $.Params.special_case_multi_card }}
+          {{ $.Store.Set "map_is_tabbed" false }}
+          {{ $.Store.Set "cards_to_map" (slice ($.Store.Get "frankencard")) }}
+        {{ else }}
+          {{ $.Store.Set "map_is_tabbed" true }}
+          {{ $.Store.Set "cards_to_map" .Params.cards }}
+        {{ end }}
+      {{ end }}
+      {{ $map_is_tabbed := $.Store.Get "map_is_tabbed" }}
+      {{ $cards_to_map := $.Store.Get "cards_to_map" }}
+
       {{ range $index, $card := $cards_to_map }}
         initializeMap("{{ $card.card_num }}", {{ $index }});
         initializeTable(
@@ -577,8 +628,7 @@
           {{ $map_is_tabbed }}
         );
       {{ end }}
-        renderMapsOnDisplay(mapRegistry, {{ $map_is_tabbed }});
-
+      renderMapsOnDisplay(mapRegistry, {{ $map_is_tabbed }});
 
       // Flip icons on collapsible infobox depending on whether the content is
       // shown or not
