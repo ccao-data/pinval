@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Resolve model metadata based on a run ID or assessment year.
+Resolve model metadata based on a comps run ID or assessment year.
 
 If the --write-github-output flag is present, the script will write metadata to a
 GITHUB_OUTPUT environment variable such that metadata can be used in subsequent
@@ -22,7 +22,9 @@ def parse_args() -> argparse.Namespace:
     """Parse command‑line arguments and perform basic validation"""
 
     parser = argparse.ArgumentParser(
-        description=("Resolve model metadata for a model run by ID or assessment year"),
+        description=(
+            "Resolve model metadata for a model run by comps run ID or assessment year"
+        ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -30,7 +32,7 @@ def parse_args() -> argparse.Namespace:
         "--run-id",
         required=False,
         default="",
-        help="Model run ID, mutually exclusive with --year",
+        help="Comps model run ID, mutually exclusive with --year",
     )
 
     parser.add_argument(
@@ -38,7 +40,7 @@ def parse_args() -> argparse.Namespace:
         required=False,
         default="",
         help=(
-            "Assessment year to use to derive a final model run, mutually "
+            "Assessment year to use to derive a comps model run, mutually "
             "exclusive with --run-id"
         ),
     )
@@ -80,10 +82,12 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_township_codes(
-    run_id: str, townships: list[str], pins: list[str], write_github_output: bool
+    year: str, townships: list[str], pins: list[str], write_github_output: bool
 ) -> list[str]:
     """
-    Given a model run ID, return all the township codes for that run.
+    Given an assessment year, return all the township codes for that year.
+    We use assessment year instead of run ID because an assessment year can
+    have different final models for different townships.
 
     If `townships` is non-empty, return it as-is and skip querying altogether.
 
@@ -109,45 +113,70 @@ def get_township_codes(
                 f"""
                     SELECT DISTINCT meta_township_code
                     FROM {constants.PINVAL_ASSESSMENT_CARD_TABLE}
-                    WHERE run_id = %(run_id)s
+                    WHERE assessment_year = %(year)s
                     ORDER BY meta_township_code
                 """,
-                {"run_id": run_id},
+                {"year": year},
             )
         ]
 
         if not codes:
-            raise ValueError(f"No township codes found for model run ID '{run_id}'")
+            raise ValueError(f"No township codes found for assessment year '{year}'")
 
     return codes
 
 
 def get_run_id(run_id: str, year: str) -> str:
-    """Return a model run ID derived from two optional arguments, a run ID and
-    an assessment year.
+    """Return a comps model run ID derived from two optional arguments, a run
+    ID and an assessment year.
 
-    If the run ID is non-empty, return it directly. Otherwise, query the
-    final model for the given assessment year, and return that model's
-    run ID."""
-    if not run_id:
+    If the run ID is non-empty, check to make sure it's valid and return it
+    directly if so. Otherwise, query the comps view for the given assessment
+    year, and return that year's comps run ID."""
+    if run_id:
+        run_id_is_valid = bool(
+            [
+                row[0]
+                for row in connect(region_name="us-east-1")
+                .cursor()
+                .execute(
+                    f"""
+                    SELECT 1
+                    FROM {constants.PINVAL_COMP_TABLE}
+                    WHERE run_id = %(run_id)s
+                    LIMIT 1
+                """,
+                    {"run_id": run_id},
+                )
+            ]
+        )
+        if not run_id_is_valid:
+            raise ValueError(
+                f"Run ID {run_id} not found in view "
+                f"{constants.PINVAL_COMP_TABLE}. "
+                "Double-check to make sure this is a comps run ID."
+            )
+    else:
+        # Get the latest run ID for the assessment year in the comps
+        # view. This works because currently there is only ever one
+        # comps run per year in that view, but if that ever changes
+        # we'll need to adjust this code
         run_ids = [
             row[0]
             for row in connect(region_name="us-east-1")
             .cursor()
             .execute(
-                """
-                    SELECT run_id
-                    FROM model.final_model
-                    WHERE year = %(year)s
-                        AND is_final
-                        AND type = 'res'
+                f"""
+                    SELECT MAX(run_id)
+                    FROM {constants.PINVAL_COMP_TABLE}
+                    WHERE assessment_year = %(year)s
                 """,
                 {"year": year},
             )
         ]
 
         if not run_ids:
-            raise ValueError(f"No final model run found for year '{year}'")
+            raise ValueError(f"No comps model run found for year '{year}'")
 
         run_id = run_ids[0]
 
@@ -183,7 +212,7 @@ def main() -> None:
     run_id = get_run_id(args.run_id, args.year)
     metadata = get_model_metadata(run_id)
     township_codes = get_township_codes(
-        run_id, args.township, args.pin, args.write_github_output
+        metadata["assessment_year"], args.township, args.pin, args.write_github_output
     )
 
     matrix = json.dumps({"township": township_codes})
