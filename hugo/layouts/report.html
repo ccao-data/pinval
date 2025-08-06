@@ -494,9 +494,10 @@
         <tr>
           <td class="char-name">{{ index $.Params.var_labels $char }}</td>
           {{ $char_quart := index $.card.char_quartiles $char }}
+          {{ $char_wt := index $.card.char_weights $char }}
           <td>
             {{ if and (ge (int $char_quart) 1) (le (int $char_quart) 4) }}
-              <span class="d-none" aria-hidden="true">{{ $char_quart }}</span>
+              <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
               {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
             {{ else }}
               {{/* Currently no-op to support old reports; enable if we go live with this approach */}}

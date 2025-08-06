@@ -453,12 +453,11 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         if col in ROUND_TO_5_COLS:
             return "round_to_5"
 
+        if col.startswith("wt_"):
+            return "round_to_10"
+
         if col.startswith("acs5_percent"):
             return "percent"
-
-        if col.startswith("wt_"):
-            # We'll exclude these columns from formatting
-            return "raw"
 
         # None indicates no specified dtype, in which case we may still
         # format the column based on the dataframe configuration (e.g.
@@ -516,6 +515,15 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
                     col: d[col].apply(round, ndigits=5)
                     for col in d.columns
                     if _get_display_dtype(col) == "round_to_5"
+                }
+            )
+        )
+        .pipe(
+            lambda d: d.assign(
+                **{
+                    col: d[col].apply(round, ndigits=10)
+                    for col in d.columns
+                    if _get_display_dtype(col) == "round_to_10"
                 }
             )
         )
