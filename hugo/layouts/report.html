@@ -500,14 +500,13 @@
               <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
               {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
             {{ else }}
-              {{/* Currently no-op to support old reports; enable if we go live with this approach */}}
-              {{/*
+              {{
                 errorf
                 "Got unexpected value for characteristic quartile for feature %q in PIN %q: $q"
                 $char
                 $.Params.pin
                 $char_quart
-              */}}
+              }}
             {{ end }}
           </td>
           <td>{{ index $.card.chars $char }}</td>
@@ -922,7 +921,7 @@
         columnDefs: [
           {
             targets: `#comp-table-score-col-${cardNum}`,  // Rank column
-            className: "dt-left",  // Force left alignment, since numeric cols are right aligned by default
+            className: "dt-left",  // Force left alignment
           },
         ],
         language: {  // Custom text
