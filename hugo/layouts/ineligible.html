@@ -19,8 +19,10 @@
         {{ if eq .Params.reason_report_ineligible "condo" }}
         <p>
           This property is a <strong>condominium unit</strong>. The Assessor uses a separate
-          valuation model for condos, and that model is not yet compatible with
-          this report. We hope to add support for condo units soon. Sorry for
+          valuation model for condos: Each condo unit is part of a larger building, and its
+          assessment depends on its percentage of ownership of the building and the
+          building's total value. This report is not yet compatible with explaining
+          the condo model, but we hope to add support for condo units soon. Sorry for
           the inconvenience!
         </p>
         {{ else if eq .Params.reason_report_ineligible "non_regression_class" }}
