@@ -187,7 +187,9 @@ def build_front_matter(
         "assessment_year": tp["assessment_year"],
         "final_model_run_date": pd.to_datetime(tp["final_model_run_date"]).strftime(
             "%B %d, %Y"
-        ),
+        )
+        if tp["final_model_run_date"]
+        else None,
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
