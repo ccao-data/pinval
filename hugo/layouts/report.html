@@ -382,6 +382,25 @@
 
   {{ end }}
 
+  {{/* Renders a field label with an info tooltip if a description exists */}}
+  {{ define "label-with-tooltip" }}
+    {{- $code := .code -}}
+    {{- $labels := .Params.var_labels -}}
+    {{- $descs := .Params.var_descriptions -}}
+    {{- $label := index $labels $code | default $code -}}
+    {{- $desc := index $descs $code -}}
+
+    {{- if $desc }}
+      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
+        <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
+          {{ $label }}
+        </span>
+      </span>
+    {{- else -}}
+      {{ $label }}
+    {{- end -}}
+  {{ end }}
+
   {{/* Define a template for the comps map */}}
   {{ define "card-comps" }}
 
@@ -490,7 +509,9 @@
         <!-- Regular rows -->
         {{ range $char := .card.predictors }}
         <tr>
-          <td class="char-name">{{ index $.Params.var_labels $char }}</td>
+          <td class="char-name">
+            {{ template "label-with-tooltip" (dict "code" $char "Params" $.Params) }}
+          </td>
           <td>{{ index $.card.chars $char }}</td>
 
           {{ range $comp := $.card.comps }}
@@ -598,6 +619,14 @@
     // a tab selection in the multicard case
     const mapRegistry = {}; // cardIndex -> { map: ..., bounds: ..., fitDone: false }
 
+    function setupTooltips(root = document) {
+      const nodes = root.querySelectorAll('[data-bs-toggle="tooltip"]');
+      nodes.forEach(el => {
+        const existing = bootstrap.Tooltip.getInstance(el);
+        if (existing) existing.dispose();
+        new bootstrap.Tooltip(el, { container: 'body' });
+      });
+    }
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
       {{/*
@@ -884,6 +913,12 @@
       // event handler defined in the `renderMapsOnDisplay` function will fit
       // the bounds for all subsequent cards when the user selects their tab
       map.fitBounds(bounds);
+
+      // Enable Bootstrap tooltips globally
+      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+      tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl)
+      })
     }
 
     // Initialize the characteristic comparison table

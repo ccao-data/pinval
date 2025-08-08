@@ -33,7 +33,6 @@ import time
 import typing
 from pathlib import Path
 
-import ccao
 import numpy as np
 import pandas as pd
 import orjson
@@ -155,6 +154,7 @@ def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
     pretty_fn: typing.Callable[[str], str],
+    desc_fn: typing.Callable[[str], str],
     environment: str,
 ) -> dict:
     """
@@ -196,6 +196,7 @@ def build_front_matter(
         "meta_pin_num_cards": tp["meta_pin_num_cards"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "var_descriptions": {k: d for k in preds_cleaned if (d := desc_fn(k))},
         "special_case_multi_card": special_multi,
         "environment": environment,
     }
@@ -387,7 +388,7 @@ def label_dollar(s: pd.Series) -> pd.Series:
     return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
 
 
-def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
+def format_df(df: pd.DataFrame) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
@@ -412,20 +413,6 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             txt = f"{x:,.2f}".rstrip("0").rstrip(".")
             return txt
         return x
-
-    # Recode character columns to human-readable values
-    if chars_recode:
-        chars_to_recode = [
-            col for col in df.columns if col.startswith("char_") and col != "char_apts"
-        ]
-
-        df = ccao.vars_recode(
-            data=df.copy(),
-            cols=chars_to_recode,
-            code_type="long",
-            as_factor=False,
-            dictionary=ccao.vars_dict,
-        )
 
     # Generate comps summary stats needed for frontmatter
     if "meta_sale_price" in df.columns:
@@ -506,6 +493,20 @@ def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     return cursor.as_pandas()
 
 
+def load_column_dictionary(cursor) -> pd.DataFrame:
+    """
+    Pull the crosswalk for labels and tooltips.
+    Expects columns: code, display_name, description.
+    """
+    sql = (
+        "SELECT code, display_name, description "
+        'FROM "z_ci_871_create_tooltip_seed_to_support_modval_tooltips_pinval"."column_dictionary"'
+    )
+    df = run_athena_query(cursor, sql)
+
+    return df
+
+
 def main() -> None:
     args = parse_args()
 
@@ -561,7 +562,6 @@ def main() -> None:
     print("Querying data from Athena ...")
     df_assessment_all = format_df(
         run_athena_query(cursor, assessment_sql, params_assessment),
-        chars_recode=False,
     )
     print("Shape of df_assessment_all:", df_assessment_all.shape)
 
@@ -598,26 +598,24 @@ def main() -> None:
     # We don't need to do it if the comps are empty, in which case we're
     # probably working on a township that was not reassessed
     if not df_comps_all.empty:
-        df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
+        df_comps_all = format_df(convert_dtypes(df_comps_all))
 
-    # Crosswalk for making column names human-readable
-    model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
-
-    pretty_vars: list[str] = ccao.vars_rename(
-        data=model_vars,
-        names_from="model",
-        names_to="pretty",
-        output_type="vector",
-        dictionary=ccao.vars_dict,
-    )
-
-    key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
-    # Manually define mapping for the "Combined Bldg. SF" label, which is not
-    # part of `ccao.vars_dict`
-    key_map["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
+    # Crosswalk for column labels + tooltips
+    col_dict = load_column_dictionary(cursor)
+    label_map: dict[str, str] = dict(zip(col_dict["code"], col_dict["display_name"]))
+    desc_map_all: dict[str, str] = {
+        row.code: row.description
+        for row in col_dict.itertuples(index=False)
+        if getattr(row, "description", None) not in (None, "", "nan")
+    }
+    # Fallback for columns not in the crosswalk (e.g., combined_bldg_sf)
+    label_map.setdefault("combined_bldg_sf", "Combined Bldg. Sq. Ft.")
 
     def pretty(k: str) -> str:
-        return key_map.get(k, k)
+        return label_map.get(k, k)
+
+    def desc_for(k: str) -> str:
+        return desc_map_all.get(k, "")
 
     # Declare outputs paths
     md_outdir = project_root / "hugo" / "content" / "pinval-reports"
@@ -658,6 +656,7 @@ def main() -> None:
             df_target,
             df_comps,
             pretty_fn=pretty,
+            desc_fn=desc_for,
             environment=args.environment,
         )
         front["url"] = f"/{assessment_year}/{pin}.html"
