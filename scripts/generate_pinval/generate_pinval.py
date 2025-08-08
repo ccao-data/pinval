@@ -244,10 +244,10 @@ def build_front_matter(
             if f"wt_{pred}" in card_df
         }
         if special_multi and "quart_char_bldg_sf" in card_df:
+            # Combined value doesn't exist in the view, so construct it artificially
             subject_char_quartiles["char_bldg_sf"] = subject_char_quartiles[
                 "combined_bldg_sf"
             ] = card_df["quart_char_bldg_sf"]
-            # Combined value doesn't exist in the view, so construct it artificially
             subject_char_weights["char_bldg_sf"] = subject_char_weights[
                 "combined_bldg_sf"
             ] = card_df["wt_char_bldg_sf"]
@@ -460,7 +460,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             return "percent"
 
         # None indicates no specified dtype, in which case we may still
-        # format the column based on the dataframe configuration (e.g.
+        # format the column based on the column data type (e.g.
         # we convert all unspecified numerics to comma-separated strings)
         return None
 
@@ -562,16 +562,41 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
 
 
 def compute_shap_weights(df: pd.DataFrame) -> pd.DataFrame:
+    """Given a dataframe containing SHAP values for all predictors, use those
+    SHAP values to compute importance weights for each predictor.
+
+    We define the "importance weight" of a predictor as the absolute magnitude
+    of its SHAP value in proportion to the summed absolute magnitude of all
+    SHAPs for all predictors (minus the SHAP baseline). This gives us a sense
+    of how much that predictor affects the prediction for an observation
+    compared to all other predictors that the model uses.
+
+    This function adds two new columns for each predictor. The columns follow
+    this naming convention:
+
+    - wt_<predictor>: The weight of the predictor, on the range [0, 1]
+    - quart_<predictor> The quartile of the weight, on the range [1, 4]
+
+    We use quartiles to display a "score" for each predictor in the report
+    that is easier for readers to interpret than the raw weight.
+    """
+
     shap_cols = [col for col in df.columns if col.startswith("shap_")]
     sum_df = df[shap_cols].abs().sum(axis=1)
     weights_df = df[shap_cols].abs().div(sum_df, axis=0)
 
+    # Cut the weights into quartiles so that we can display them using a
+    # simplified "score" on the range [1, 4]
     quartile_df = weights_df.apply(
         lambda row: pd.qcut(row.rank(method="first"), 4, labels=list(range(1, 5))),
         axis=1,
     )
 
+    # Drop SHAP columns since we don't need them in the report and they just
+    # take up space on disk
     df = df.drop(shap_cols, axis=1)
+
+    # Add weights and quartiles to the output dataframe
     df = pd.concat(
         [
             df,
