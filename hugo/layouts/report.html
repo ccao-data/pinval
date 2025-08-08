@@ -385,10 +385,9 @@
   {{/* Renders a field label with an info tooltip if a description exists */}}
   {{ define "label-with-tooltip" }}
     {{- $code := .code -}}
-    {{- $labels := .Params.var_labels -}}
-    {{- $descs := .Params.var_descriptions -}}
-    {{- $label := index $labels $code | default $code -}}
-    {{- $desc := index $descs $code -}}
+    {{- $info := index .Params.var_info $code -}}
+    {{- $label := cond (and $info (ne $info.label "")) $info.label $code -}}
+    {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
 
     {{- if $desc }}
       <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
