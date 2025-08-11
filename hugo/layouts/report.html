@@ -430,7 +430,9 @@
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top five sales.
+    characteristics for the top five sales. Each characteristic has a score
+    from one to four stars (<i class="bi bi-star-fill text-muted char-score-star"></i>)
+    indicating how important it was for the model's estimate.
   </p>
   <div class='d-lg-none'>
     <p>
@@ -445,18 +447,24 @@
     >
       <thead>
         <tr>
-          <th>Characteristic</th>
-          <th>
+          <th data-orderable="false">Characteristic</th>
+          <th data-orderable="true" id="comp-table-score-col-{{ .card.card_num }}">
+            Score
+          </th>
+          <th data-orderable="false">
             Your home{{ if .special_case_multi_card }}<span class="asterisk">*</span>{{ end }}
           </th>
           {{ range $index, $comp := .card.comps }}
-          <th>Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">**</span>{{ end }}</th>
+          <th data-orderable="false">
+            Sale {{ $comp.comp_num }}{{ if $comp.is_subject_pin_sale }}<span class="asterisk">**</span>{{ end }}
+          </th>
           {{ end }}
         </tr>
       </thead>
       <tbody>
         <tr>
           <td class="char-name">Sale Price</td>
+          <td></td>
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_price }}</td>
@@ -465,12 +473,14 @@
         <tr>
           <td class="char-name">Sale $/sqft</td>
           <td></td>
+          <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_price_per_sq_ft }}</td>
           {{ end }}
         </tr>
         <tr>
           <td class="char-name">Sale Date</td>
+          <td></td>
           <td></td>
           {{ range $index, $comp := .card.comps }}
           <td>{{ $comp.sale_date }}</td>
@@ -479,12 +489,14 @@
         <tr>
           <td class="char-name">Sale Doc. Num.</td>
           <td></td>
+          <td></td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.document_num }}</td>
           {{ end }}
         </tr>
         <tr>
           <td class="char-name">Address</td>
+          <td></td>
           <td>{{ $.card.location.property_address }}</td>
           {{ range $comp := $.card.comps }}
             <td>{{ $comp.property_address }}</td>
@@ -492,6 +504,7 @@
         </tr>
         <tr>
           <td class="char-name">PIN</td>
+          <td></td>
           <td>
             <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
               {{ .card.pin_pretty }}
@@ -505,11 +518,29 @@
             </td>
           {{ end }}
         </tr>
-        <!-- Regular rows -->
+        <!-- Predictors -->
         {{ range $char := .card.predictors }}
         <tr>
           <td class="char-name">
             {{ template "label-with-tooltip" (dict "code" $char "Params" $.Params) }}
+          </td>
+
+          {{ $char_quart := index $.card.char_quartiles $char }}
+          {{ $char_wt := index $.card.char_weights $char }}
+          <td>
+            {{ if and (ge (int $char_quart) 1) (le (int $char_quart) 4) }}
+              <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
+              {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
+            {{ else }}
+              {{
+                errorf
+                "Got unexpected value for characteristic quartile for feature %q in PIN %q: %q"
+                $char
+                $.Params.pin
+                $char_quart
+              }}
+            {{ end }}
+
           </td>
           <td>{{ index $.card.chars $char }}</td>
 
@@ -521,7 +552,7 @@
       </tbody>
       <tfoot>
         <tr>
-          <th colspan="7">
+          <th colspan="8">
             <a
               href="#post-table-{{ .card.card_num }}"
               type="button"
@@ -933,7 +964,13 @@
         },
         searching: true,  // Enable a search box to filter rows
         info: true,  // Enable info text (defined under the `language` key below)
-        ordering: false,  // Disable sorting by column
+        order: [], // Disable ordering on initialization to use the same order as the HTML table
+        columnDefs: [
+          {
+            targets: `#comp-table-score-col-${cardNum}`,  // Rank column
+            className: "dt-left",  // Force left alignment
+          },
+        ],
         language: {  // Custom text
           search: "<i class='bi bi-search' aria-hidden='true'></i> <b>Search</b> characteristics:",  // Search input label
           info: "",
