@@ -610,7 +610,7 @@ def main() -> None:
         if getattr(row, "description", None) not in (None, "", "nan")
     }
     # Fallback for columns not in the crosswalk (e.g., combined_bldg_sf)
-    label_map.setdefault("combined_bldg_sf", "Combined Bldg. Sq. Ft.")
+    # label_map.setdefault("combined_bldg_sf", "Combined Bldg. Sq. Ft.")
 
     def pretty(k: str) -> str:
         return label_map.get(k, k)
