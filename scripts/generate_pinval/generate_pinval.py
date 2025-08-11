@@ -683,7 +683,7 @@ def main() -> None:
     df_assessment_all = compute_shap_weights(df_assessment_all)
 
     print("Formatting assessment dataframe for display")
-    df_assessment_all = format_df(df_assessment_all, chars_recode=False)
+    df_assessment_all = format_df(df_assessment_all)
 
     comps_sql = f"""
         SELECT comp.*
