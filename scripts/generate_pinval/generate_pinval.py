@@ -498,10 +498,9 @@ def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
 def load_column_dictionary(cursor) -> pd.DataFrame:
     """
     Pull the crosswalk for labels and tooltips.
-    Expects columns: code, display_name, description.
     """
     sql = (
-        "SELECT code, display_name, description "
+        "SELECT * "
         'FROM "z_ci_871_create_tooltip_seed_to_support_modval_tooltips_pinval"."column_dictionary"'
     )
     df = run_athena_query(cursor, sql)
