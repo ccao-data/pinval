@@ -390,7 +390,7 @@
     {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
 
     {{- if $desc }}
-      <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
+      <span tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
         <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
           {{ $label }}
         </span>
