@@ -649,14 +649,6 @@
     // a tab selection in the multicard case
     const mapRegistry = {}; // cardIndex -> { map: ..., bounds: ..., fitDone: false }
 
-    function setupTooltips(root = document) {
-      const nodes = root.querySelectorAll('[data-bs-toggle="tooltip"]');
-      nodes.forEach(el => {
-        const existing = bootstrap.Tooltip.getInstance(el);
-        if (existing) existing.dispose();
-        new bootstrap.Tooltip(el, { container: 'body' });
-      });
-    }
     // Initialize maps once the DOM is loaded
     document.addEventListener("DOMContentLoaded", function() {
       {{/*
