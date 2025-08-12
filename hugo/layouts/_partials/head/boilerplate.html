@@ -3,3 +3,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>{{ .Title }}</title>
+
+{{ $social_card_url := "/static/images/social-card.jpg" }}
+{{ $description := "Explore the sales and characteristics that the Cook County Assessor's statistical model used to estimate your home value." }}
+
+<!-- General sharing tags -->
+<meta name="description" content="{{ .Title }}" />
+<meta name="author" content="Cook County Assessor's Office" />
+
+<!-- OpenGraph sharing tags -->
+<meta property="og:type" content="website">
+<meta property="og:description" content="{{ $description }}">
+<meta property="og:title" content="{{ .Title }}">
+<meta property="og:image" content="{{ $social_card_url }}">
+
+<!-- Twitter sharing tags -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:description" content="{{ $description }}">
+<meta name="twitter:title" content="{{ .Title }}">
+<meta name="twitter:image" content="{{ $social_card_url }}">
