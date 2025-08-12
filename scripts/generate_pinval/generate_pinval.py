@@ -31,7 +31,6 @@ import subprocess as sp
 import gc
 import re
 import time
-import typing
 from pathlib import Path
 
 import numpy as np
@@ -154,8 +153,7 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
-    pretty_fn: typing.Callable[[str], str],
-    desc_fn: typing.Callable[[str], str],
+    vars_dict: dict[str, dict],
     environment: str,
 ) -> dict:
     """
@@ -167,8 +165,8 @@ def build_front_matter(
         All assessment rows for this PIN (one per card).
     df_comps : DataFrame
         All comp rows for this PIN (across cards).
-    pretty_fn : Callable[[str], str]
-        Function that converts a raw model column name → human-readable label.
+    vars_dict : dict
+        Mapping of variable code for labels and tooltips.
     """
     special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
 
@@ -196,10 +194,7 @@ def build_front_matter(
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
         "meta_pin_num_cards": tp["meta_pin_num_cards"],
         "cards": [],
-        "var_info": {
-            k: {"label": pretty_fn(k), "description": (desc_fn(k) or "")}
-            for k in preds_cleaned
-        },
+        "var_info": vars_dict,
         "special_case_multi_card": special_multi,
         "environment": environment,
     }
@@ -605,14 +600,28 @@ def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     return cursor.as_pandas()
 
 
-def load_column_dictionary(cursor) -> pd.DataFrame:
+def load_vars_dict(cursor) -> dict[str, dict]:
     """
-    Pull the crosswalk for labels and tooltips.
+    Pull the crosswalk for labels and tooltips into a dict:
     """
-    sql = f"""SELECT * FROM {constants.PINVAL_DATA_DICT_TABLE}"""
+    sql = f"""SELECT code, display_name, description FROM {constants.PINVAL_DATA_DICT_TABLE}"""
     df = run_athena_query(cursor, sql)
-
-    return df
+    # Return a dict where each key is a column code and the value is a dict with label and description info
+    return {
+        row.code: {
+            "label": (
+                row.display_name
+                if getattr(row, "display_name", None)
+                else str(row.code)
+            ),
+            "description": (
+                row.description
+                if getattr(row, "description", None) not in (None, "", "nan")
+                else ""
+            ),
+        }
+        for row in df.itertuples(index=False)
+    }
 
 
 def main() -> None:
@@ -712,20 +721,8 @@ def main() -> None:
     if not df_comps_all.empty:
         df_comps_all = format_df(convert_dtypes(df_comps_all))
 
-    # Crosswalk for column labels + tooltips
-    col_dict = load_column_dictionary(cursor)
-    label_map: dict[str, str] = dict(zip(col_dict["code"], col_dict["display_name"]))
-    desc_map_all: dict[str, str] = {
-        row.code: row.description
-        for row in col_dict.itertuples(index=False)
-        if getattr(row, "description", None) not in (None, "", "nan")
-    }
-
-    def pretty(k: str) -> str:
-        return label_map.get(k, k)
-
-    def desc_for(k: str) -> str:
-        return desc_map_all.get(k, "")
+    # Variables dictionary for labels + tooltips
+    vars_dict = load_vars_dict(cursor)
 
     # Declare outputs paths
     md_outdir = project_root / "hugo" / "content" / "pinval-reports"
@@ -765,8 +762,7 @@ def main() -> None:
         front = build_front_matter(
             df_target,
             df_comps,
-            pretty_fn=pretty,
-            desc_fn=desc_for,
+            vars_dict,
             environment=args.environment,
         )
         front["url"] = f"/{assessment_year}/{pin}.html"
