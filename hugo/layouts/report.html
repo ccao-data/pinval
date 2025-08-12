@@ -45,6 +45,15 @@
         {{ .Params.assessment_year }}</strong> if it had sold on that date in a fair, open-market transaction.
       </p>
 
+      <p>
+        Click or tap on
+        {{ template "label-with-tooltip" (dict
+          "label" "words that looks like this"
+          "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
+        ) }}
+        to show a popup explaining what that text means.
+      </p>
+
       <div class="alert alert-warning">
         <p>
           <i class="bi bi-exclamation-triangle-fill"></i>
@@ -385,19 +394,43 @@
   {{/* Renders a field label with an info tooltip if a description exists */}}
   {{ define "label-with-tooltip" }}
     {{- $code := .code -}}
-    {{- $info := index .Params.var_info $code -}}
-    {{- $label := cond (and $info (ne $info.label "")) $info.label $code -}}
-    {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
+    {{- $labelArg := .label -}}
+    {{- $descArg := .description -}}
 
-    {{- if $desc }}
-      <span tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
-        <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
-          {{ $label }}
+    {{/* Look up in $.Params.var_info */}}
+    {{- if $code -}}
+      {{- $info := index $.Params.var_info $code -}}
+      {{- $label := cond (and $info (ne $info.label "")) $info.label $code -}}
+      {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
+      {{- if $desc }}
+        <span tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
+          <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
+            {{ $label }}
+          </span>
         </span>
-      </span>
-    {{- else -}}
-      {{ $label }}
-    {{- end -}}
+      {{- else -}}
+        {{ $label }}
+      {{- end -}}
+
+    {{/* Manual label/description */}}
+    {{- else if or $labelArg $descArg -}}
+      {{- if not $labelArg -}}
+        {{- errorf "label-with-tooltip: 'description' provided without 'label' (no 'code' supplied)" -}}
+      {{- end -}}
+      {{- if $descArg }}
+        <span tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $descArg }}">
+          <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
+            {{ $labelArg }}
+          </span>
+        </span>
+      {{- else -}}
+        {{ $labelArg }}
+      {{- end -}}
+
+   {{/* Invalid: neither code nor label/description */}}
+   {{- else -}}
+     {{- errorf "label-with-tooltip: provide either 'code' or ('label' with optional 'description')" -}}
+   {{- end -}}
   {{ end }}
 
   {{/* Define a template for the comps map */}}
@@ -940,7 +973,7 @@
       $('[data-bs-toggle="tooltip"]').each(function () {
         new bootstrap.Tooltip(this);
       });
-    }
+  }
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex, isTabbed) {
