@@ -937,10 +937,9 @@
       map.fitBounds(bounds);
 
       // Enable Bootstrap tooltips globally
-      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-      tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-        new bootstrap.Tooltip(tooltipTriggerEl)
-      })
+      $('[data-bs-toggle="tooltip"]').each(function () {
+        new bootstrap.Tooltip(this);
+      });
     }
 
     // Initialize the characteristic comparison table
