@@ -19,6 +19,17 @@
   {{ partial "head/styles.html" . }}
 </head>
 <body>
+
+  {{/* Tiny helper to render a tooltip underline span */}}
+  {{ define "tt" -}}
+    <span
+      class="tooltip-underline"
+      tabindex="0"
+      data-bs-toggle="tooltip"
+      data-bs-title="{{ .title }}"
+    >{{ .label }}</span>
+  {{- end }}
+
   {{ partial "banner/banner.html" . }}
 
   <!-- Body of the report -->
@@ -35,11 +46,16 @@
       </p>
 
       <p>
-        The goal of this report is to explain how the Cook County Assessor’s statistical
-        model estimated the value of the home with Parcel Identification Number
-        (PIN) <strong>{{ .Params.pin_pretty }}</strong> in tax year
+        The goal of this report is to explain how the Cook County Assessor’s
+        {{ template "tt" (dict "label" "statistical model" "title" .Params.var_info.model.description) }}
+        estimated the value of the home with Parcel Identification Number
+        ({{ template "tt" (dict "label" "PIN" "title" .Params.var_info.pin.description) }})
+        <strong>{{ .Params.pin_pretty }}</strong> in
+        {{ template "tt" (dict "label" "tax year" "title" .Params.var_info.tax_year.description) }}
         <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
-        sales and property characteristics to learn about the real estate market
+        sales and
+        {{ template "tt" (dict "label" "property characteristics" "title" .Params.var_info.characteristics.description) }}
+        to learn about the real estate market
         leading up to {{ .Params.assessment_year }}. Then, it used what it learned to
         estimate what this home could have sold for on <strong>January 1,
         {{ .Params.assessment_year }}</strong> if it had sold on that date in a fair, open-market transaction.
@@ -47,10 +63,14 @@
 
       <p>
         Click or tap on
-        {{ template "label-with-tooltip" (dict
-          "label" "words that looks like this"
-          "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
-        ) }}
+        <span
+          class="tooltip-underline"
+          tabindex="0"
+          data-bs-toggle="tooltip"
+          data-bs-title="Popups like this one will explain the meaning of the words that you clicked or tapped."
+        >
+          words that looks like this
+        </span>
         to show a popup explaining what that text means.
       </p>
 
@@ -81,7 +101,9 @@
           <div class="p-3 bg-light">
             <h5>What is the Assessor's model?</h5>
             <p>
-              The Assessor’s “statistical model” is a computer program that uses
+              The Assessor’s
+              {{ template "tt" (dict "label" "statistical model" "title" .Params.var_info.model.description) }}
+              is a computer program that uses
               past home sales to estimate current prices. The model combines past
               sales with “characteristics” that the Assessor collects about every
               home in Cook County over time, like square footage and location.
@@ -145,7 +167,9 @@
       <h2 class="mb-3">About Your Home</h2>
       <p>
         The tables below show some basic facts about your home
-        in tax year {{ .Params.assessment_year }}.
+        in
+        {{ template "tt" (dict "label" "tax year" "title" .Params.var_info.tax_year.description) }}
+        {{ .Params.assessment_year }}.
       </p>
 
       {{ $is_multicard := gt .Params.meta_pin_num_cards 1 }}
@@ -289,7 +313,9 @@
       <h3>Final Model Estimate</h3>
       <p>
         After rounding and other processing, the model's final estimate for the value of your home
-        on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
+        on
+        {{ template "tt" (dict "label" "lien date" "title" .Params.var_info.lien_date.description) }}
+        <strong>January 1st, {{ .Params.assessment_year }}</strong> was
         <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
       </p>
       <div class="alert alert-warning">
@@ -391,48 +417,6 @@
 
   {{ end }}
 
-  {{/* Renders a field label with an info tooltip if a description exists */}}
-  {{ define "label-with-tooltip" }}
-    {{- $code := .code -}}
-    {{- $labelArg := .label -}}
-    {{- $descArg := .description -}}
-
-    {{/* Look up in $.Params.var_info */}}
-    {{- if $code -}}
-      {{- $info := index $.Params.var_info $code -}}
-      {{- $label := cond (and $info (ne $info.label "")) $info.label $code -}}
-      {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
-      {{- if $desc }}
-        <span tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
-          <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
-            {{ $label }}
-          </span>
-        </span>
-      {{- else -}}
-        {{ $label }}
-      {{- end -}}
-
-    {{/* Manual label/description */}}
-    {{- else if or $labelArg $descArg -}}
-      {{- if not $labelArg -}}
-        {{- errorf "label-with-tooltip: 'description' provided without 'label' (no 'code' supplied)" -}}
-      {{- end -}}
-      {{- if $descArg }}
-        <span tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $descArg }}">
-          <span style="text-decoration: underline #294298; text-decoration-style: dotted; text-decoration-thickness: 2px">
-            {{ $labelArg }}
-          </span>
-        </span>
-      {{- else -}}
-        {{ $labelArg }}
-      {{- end -}}
-
-   {{/* Invalid: neither code nor label/description */}}
-   {{- else -}}
-     {{- errorf "label-with-tooltip: provide either 'code' or ('label' with optional 'description')" -}}
-   {{- end -}}
-  {{ end }}
-
   {{/* Define a template for the comps map */}}
   {{ define "card-comps" }}
 
@@ -460,10 +444,12 @@
     Characteristics for Top 5 Most Important Sales
   </h3>
   <p>
-    "Characteristics" are data points about a home that help the model
+    "{{ template "tt" (dict "label" "Characteristics" "title" .Params.var_info.characteristics.description) }}"
+    are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top five sales. Each characteristic has a score
+    characteristics for the top five sales. Each characteristic has a
+    {{ template "tt" (dict "label" "score" "title" .Params.var_info.score.description) }}
     from one to four stars (<i class="bi bi-star-fill text-muted char-score-star"></i>)
     indicating how important it was for the model's estimate.
   </p>
@@ -555,7 +541,16 @@
         {{ range $char := .card.predictors }}
         <tr>
           <td class="char-name">
-            {{ template "label-with-tooltip" (dict "code" $char "Params" $.Params) }}
+            {{- $info := index $.Params.var_info $char -}}
+            {{- $label := cond (and $info (ne $info.label "")) $info.label $char -}}
+            {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
+            {{- if $desc -}}
+              <span class="tooltip-underline" tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
+                {{ $label }}
+              </span>
+            {{- else -}}
+              {{ $label }}
+            {{- end -}}
           </td>
 
           {{ $char_quart := index $.card.char_quartiles $char }}
@@ -655,7 +650,9 @@
     {{ else }}
       your home
     {{ end }}
-    as of lien date <strong>January 1, {{ .Params.assessment_year }}</strong> should be
+    as of
+    {{ template "tt" (dict "label" "lien date" "title" .Params.var_info.lien_date.description) }}
+    <strong>January 1, {{ .Params.assessment_year }}</strong> should be
     <strong>{{ .card.pred_card_initial_fmv }}</strong> at
     <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
   </p>
