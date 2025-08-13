@@ -194,6 +194,7 @@ def build_front_matter(
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
+        "pred_pin_final_fmv_round_per_sqft": tp["pred_pin_final_fmv_round_per_sqft"],
         "meta_pin_num_cards": tp["meta_pin_num_cards"],
         "cards": [],
         "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
@@ -439,6 +440,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             "sale_price_per_sq_ft",
             "acs5_median_household_renter_occupied_gross_rent",
             "pred_pin_final_fmv_round",
+            "pred_pin_final_fmv_round_per_sqft",
             "pred_card_initial_fmv",
             "pred_card_initial_fmv_per_sqft",
         }

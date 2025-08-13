@@ -28,7 +28,11 @@
       <!-- Search again button that returns user to homepage -->
       <p>
         {{- /* Determine the search‑page URL based on environment */ -}}
-        {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
+        {{
+          $search_href := cond (eq .Params.environment "prod")
+            "https://cookcountyassessoril.gov/model-value-report"
+            "https://stage.cookcountyassessoril.gov/model-value-report"
+        }}
         <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
           <i class="bi bi-arrow-left"></i> Back to Search
         </a>
@@ -36,7 +40,7 @@
 
       <p>
         The goal of this report is to explain how the Cook County Assessor’s statistical
-        model estimated the value of the home with Parcel Identification Number
+        model estimated the value of the home with Property Index Number
         (PIN) <strong>{{ .Params.pin_pretty }}</strong> in tax year
         <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
         sales and property characteristics to learn about the real estate market
@@ -279,9 +283,14 @@
 
       <h3>Final Model Estimate</h3>
       <p>
-        After rounding and other processing, the model's final estimate for the value of your home
+        After rounding and other processing, the model's estimate for the value of your home
         on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
-        <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
+        {{ if .Params.pred_pin_final_fmv_round_per_sqft }}
+          <strong>{{ .Params.pred_pin_final_fmv_round }}</strong> at
+          <strong>{{ .Params.pred_pin_final_fmv_round_per_sqft }}/sq.ft.</strong>
+        {{ else }}
+          <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
+        {{ end }}
       </p>
       <div class="alert alert-warning">
         <p>
@@ -346,7 +355,7 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <h3 class="mb-3">Top Characteristics</h3>
+      <h3 class="mb-3">Size and Age</h3>
       <div class="table-responsive">
         <table class="table table-bordered characteristic-table">
           <tbody>
@@ -601,8 +610,12 @@
       your home
     {{ end }}
     as of lien date <strong>January 1, {{ .Params.assessment_year }}</strong> should be
-    <strong>{{ .card.pred_card_initial_fmv }}</strong> at
-    <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
+    {{ if (.card.pred_card_initial_fmv_per_sqft ) }}
+      <strong>{{ .card.pred_card_initial_fmv }}</strong> at
+      <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
+    {{ else }}
+      <strong>{{ .card.pred_card_initial_fmv }}</strong>.
+    {{ end }}
   </p>
   {{ end }}
 
