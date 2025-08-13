@@ -630,11 +630,15 @@
         {{ else }}
           {{ .Params.meta_pin_num_cards }}
         {{ end }}
-        cards, we estimate its value using
+        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }}
+        , we estimate its value using
         a slightly different method than the one we use for other properties. For properties like this one, we use the
         {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
-        of the largest card to estimate the property's value, but we adjust the building square footage of
-        that card to use the combined building square footage of all cards on the
+        of the largest
+        {{ template "tt" (dict "label" "card" "description" .Params.var_info.card.description) }}
+        to estimate the property's value, but we adjust the building square footage of
+        that card to use the combined building square footage of all
+        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }} on the
         property. The {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
         in the table above reflect this difference. For more information on multi-card value estimation, see our
         <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
