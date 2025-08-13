@@ -27,7 +27,7 @@
       tabindex="0"
       data-bs-toggle="tooltip"
       data-bs-trigger="focus"
-      data-bs-title="{{ .title }}"
+      data-bs-title="{{ .description }}"
     >{{ .label }}</span>
   {{- end }}
 
@@ -48,14 +48,14 @@
 
       <p>
         The goal of this report is to explain how the Cook County Assessor’s
-        {{ template "tt" (dict "label" "statistical model" "title" .Params.var_info.model.description) }}
+        {{ template "tt" (dict "label" "statistical model" "description" .Params.var_info.model.description) }}
         estimated the value of the home with Parcel Identification Number
-        ({{ template "tt" (dict "label" "PIN" "title" .Params.var_info.pin.description) }})
+        ({{ template "tt" (dict "label" "PIN" "description" .Params.var_info.pin.description) }})
         <strong>{{ .Params.pin_pretty }}</strong> in
-        {{ template "tt" (dict "label" "tax year" "title" .Params.var_info.tax_year.description) }}
+        {{ template "tt" (dict "label" "tax year" "description" .Params.var_info.tax_year.description) }}
         <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
         sales and
-        {{ template "tt" (dict "label" "property characteristics" "title" .Params.var_info.characteristics.description) }}
+        {{ template "tt" (dict "label" "property characteristics" "description" .Params.var_info.characteristics.description) }}
         to learn about the real estate market
         leading up to {{ .Params.assessment_year }}. Then, it used what it learned to
         estimate what this home could have sold for on <strong>January 1,
@@ -67,7 +67,7 @@
         ({{ template "tt" (
           dict
             "label" "words with dotted underlines"
-            "title" "Popups like this one will explain the meaning of the words that you clicked or tapped."
+            "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
           ) }})
         to show a popup explaining what those words mean.
         Then, click or tap anywhere on the page to close the popup.
@@ -165,7 +165,7 @@
       <p>
         The tables below show some basic facts about your home
         in
-        {{ template "tt" (dict "label" "tax year" "title" .Params.var_info.tax_year.description) }}
+        {{ template "tt" (dict "label" "tax year" "description" .Params.var_info.tax_year.description) }}
         {{ .Params.assessment_year }}.
       </p>
 
@@ -310,10 +310,10 @@
       <h3>Final Model Estimate</h3>
       <p>
         After rounding and other processing, the
-        {{ template "tt" (dict "label" "model's" "title" .Params.var_info.model.description) }}
+        {{ template "tt" (dict "label" "model's" "description" .Params.var_info.model.description) }}
         final estimate for the value of your home
         on
-        {{ template "tt" (dict "label" "lien date" "title" .Params.var_info.lien_date.description) }}
+        {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
         <strong>January 1st, {{ .Params.assessment_year }}</strong> was
         <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
       </p>
@@ -447,7 +447,7 @@
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
     characteristics for the top five sales. Each characteristic has a
-    {{ template "tt" (dict "label" "score" "title" .Params.var_info.score.description) }}
+    {{ template "tt" (dict "label" "score" "description" .Params.var_info.score.description) }}
     from one to four stars (<i class="bi bi-star-fill text-muted char-score-star"></i>)
     indicating how important it was for the model's estimate.
   </p>
@@ -649,7 +649,7 @@
       your home
     {{ end }}
     as of
-    {{ template "tt" (dict "label" "lien date" "title" .Params.var_info.lien_date.description) }}
+    {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
     <strong>January 1, {{ .Params.assessment_year }}</strong> should be
     <strong>{{ .card.pred_card_initial_fmv }}</strong> at
     <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
