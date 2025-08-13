@@ -8,11 +8,12 @@
 {{ $social_card_title := "Cook County Assessor's Model Value Report"}}
 {{
   $social_card_description := (
-    cond (.Params.pin)
+    cond (and .Params.pin .Params.assessment_year)
     (
       printf
-      "Explore sales and characteristics that the Cook County Assessor's model used to value PIN %s."
+      "Explore sales and characteristics that the Cook County Assessor's model used to value PIN %s in %s."
       .Params.pin
+      .Params.assessment_year
     )
     "Explore sales and characteristics that the Cook County Assessor's model used to value your home."
   )
