@@ -202,7 +202,6 @@
               id="card-{{ $index }}-tab"
               data-bs-toggle="tab"
               data-bs-target="#card-{{ $index }}"
-              data-bs-trigger="focus"
               type="button"
               role="tab"
               aria-controls="card-{{ $index }}"
@@ -544,7 +543,7 @@
             {{- $label := cond (and $info (ne $info.label "")) $info.label $char -}}
             {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
             {{- if $desc -}}
-              <span class="tooltip-underline" tabindex="0" data-bs-toggle="tooltip" data-bs-title="{{ $desc }}">
+              <span class="tooltip-underline" tabindex="0" data-bs-toggle="tooltip" data-bs-trigger="focus" data-bs-title="{{ $desc }}">
                 {{ $label }}
               </span>
             {{- else -}}
