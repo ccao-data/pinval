@@ -33,6 +33,8 @@ import re
 import time
 from pathlib import Path
 
+import ccao
+
 import numpy as np
 import pandas as pd
 import orjson
@@ -166,7 +168,7 @@ def build_front_matter(
     df_comps : DataFrame
         All comp rows for this PIN (across cards).
     vars_dict : dict
-        Mapping of variable code for labels and tooltips.
+        Mapping of variable code for labels and tooltips
     """
     special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
 
@@ -473,6 +475,18 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
             txt = f"{x:,.2f}".rstrip("0").rstrip(".")
             return txt
         return x
+
+    chars_to_recode = [
+        col for col in df.columns if col.startswith("char_") and col != "char_apts"
+    ]
+
+    df = ccao.vars_recode(
+        data=df.copy(),
+        cols=chars_to_recode,
+        code_type="long",
+        as_factor=False,
+        dictionary=ccao.vars_dict,
+    )
 
     # Generate comps summary stats needed for frontmatter
     if "meta_sale_price" in df.columns:
