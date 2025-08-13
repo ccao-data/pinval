@@ -64,13 +64,11 @@
 
       <p>
         Click or tap on
-        <span
-          class="tooltip-underline"
-          tabindex="0"
-          data-bs-toggle="tooltip"
-          data-bs-title="Popups like this one will explain the meaning of the words that you clicked or tapped."
-        >
-          words with dotted underlines</span>
+        ({{ template "tt" (
+          dict
+            "label" "words with dotted underlines"
+            "title" "Popups like this one will explain the meaning of the words that you clicked or tapped."
+          ) }})
         to show a popup explaining what those words mean.
         Then, click or tap anywhere on the page to close the popup.
       </p>
