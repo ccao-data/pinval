@@ -34,6 +34,15 @@ wheels = [
 ]
 
 [[package]]
+name = "ccao"
+version = "1.3.0"
+source = { git = "https://github.com/ccao-data/ccao?subdirectory=python&rev=c74f627d6431203bcf0cc9efa571396e6348eaec#c74f627d6431203bcf0cc9efa571396e6348eaec" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+]
+
+[[package]]
 name = "fsspec"
 version = "2025.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -47,6 +56,7 @@ name = "generate-pinval"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "ccao" },
     { name = "numpy" },
     { name = "orjson" },
     { name = "pandas" },
@@ -56,6 +66,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ccao", git = "https://github.com/ccao-data/ccao?subdirectory=python&rev=c74f627d6431203bcf0cc9efa571396e6348eaec" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "orjson", specifier = ">=3.10.18" },
     { name = "pandas", specifier = ">=2.2.3" },
