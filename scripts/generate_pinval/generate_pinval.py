@@ -410,7 +410,7 @@ def label_dollar(s: pd.Series) -> pd.Series:
     return s.apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
 
 
-def format_df(df: pd.DataFrame) -> pd.DataFrame:
+def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
     """
     Format the DataFrame for frontmatter output.
     """
@@ -476,17 +476,19 @@ def format_df(df: pd.DataFrame) -> pd.DataFrame:
             return txt
         return x
 
-    chars_to_recode = [
-        col for col in df.columns if col.startswith("char_") and col != "char_apts"
-    ]
+    # Recode character columns to human-readable values
+    if chars_recode:
+        chars_to_recode = [
+            col for col in df.columns if col.startswith("char_") and col != "char_apts"
+        ]
 
-    df = ccao.vars_recode(
-        data=df.copy(),
-        cols=chars_to_recode,
-        code_type="long",
-        as_factor=False,
-        dictionary=ccao.vars_dict,
-    )
+        df = ccao.vars_recode(
+            data=df.copy(),
+            cols=chars_to_recode,
+            code_type="long",
+            as_factor=False,
+            dictionary=ccao.vars_dict,
+        )
 
     # Generate comps summary stats needed for frontmatter
     if "meta_sale_price" in df.columns:
@@ -733,7 +735,7 @@ def main() -> None:
     # We don't need to do it if the comps are empty, in which case we're
     # probably working on a township that was not reassessed
     if not df_comps_all.empty:
-        df_comps_all = format_df(convert_dtypes(df_comps_all))
+        df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
 
     # Variables dictionary for labels + tooltips
     vars_dict = load_vars_dict(cursor)
