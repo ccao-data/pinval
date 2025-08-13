@@ -355,15 +355,36 @@
               <td>{{ .card.location.property_address }}</td>
             </tr>
             <tr>
-              <td><strong>Municipality</strong></td>
+              <td>
+                <strong>
+                  {{ template "tt" (dict
+                    "label" "Municipality"
+                    "description" .Params.var_info.loc_tax_municipality_name.description
+                  ) }}
+                </strong>
+              </td>
               <td>{{ .card.location.municipality }}</td>
             </tr>
             <tr>
-              <td><strong>Assessor Township</strong></td>
+              <td>
+                <strong>
+                  {{ template "tt" (dict
+                    "label" "Assessor Township"
+                    "description" .Params.var_info.meta_township_code.description
+                  ) }}
+                </strong>
+              </td>
               <td>{{ .card.location.township }}</td>
             </tr>
             <tr>
-              <td><strong>Assessor Neighborhood Code</strong></td>
+              <td>
+                <strong>
+                  {{ template "tt" (dict
+                    "label" "Assessor Neighborhood Code"
+                    "description" .Params.var_info.meta_nbhd_code.description
+                  ) }}
+                </strong>
+              </td>
               <td>{{ .card.location.meta_nbhd_code }}</td>
             </tr>
             <tr>
@@ -610,10 +631,12 @@
           {{ .Params.meta_pin_num_cards }}
         {{ end }}
         cards, we estimate its value using
-        a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
-        the largest card to estimate the property's value, but we adjust the building square footage of
+        a slightly different method than the one we use for other properties. For properties like this one, we use the
+        {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
+        of the largest card to estimate the property's value, but we adjust the building square footage of
         that card to use the combined building square footage of all cards on the
-        property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
+        property. The {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
+        in the table above reflect this difference. For more information on multi-card value estimation, see our
         <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
       </p>
       {{ end }}
