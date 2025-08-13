@@ -311,7 +311,9 @@
 
       <h3>Final Model Estimate</h3>
       <p>
-        After rounding and other processing, the model's final estimate for the value of your home
+        After rounding and other processing, the
+        {{ template "tt" (dict "label" "model's" "title" .Params.var_info.model.description) }}
+        final estimate for the value of your home
         on
         {{ template "tt" (dict "label" "lien date" "title" .Params.var_info.lien_date.description) }}
         <strong>January 1st, {{ .Params.assessment_year }}</strong> was
