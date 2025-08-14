@@ -630,8 +630,8 @@
         {{ else }}
           {{ .Params.meta_pin_num_cards }}
         {{ end }}
-        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }}
-        , we estimate its value using
+        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }},
+        we estimate its value using
         a slightly different method than the one we use for other properties. For properties like this one, we use the
         {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
         of the largest
