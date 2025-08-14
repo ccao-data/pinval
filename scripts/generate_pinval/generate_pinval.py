@@ -31,10 +31,10 @@ import subprocess as sp
 import gc
 import re
 import time
-import typing
 from pathlib import Path
 
 import ccao
+
 import numpy as np
 import pandas as pd
 import orjson
@@ -155,7 +155,7 @@ def _clean_predictors(raw: np.ndarray | list | str) -> list[str]:
 def build_front_matter(
     df_target_pin: pd.DataFrame,
     df_comps: pd.DataFrame,
-    pretty_fn: typing.Callable[[str], str],
+    vars_dict: dict[str, dict],
     environment: str,
 ) -> dict:
     """
@@ -167,8 +167,8 @@ def build_front_matter(
         All assessment rows for this PIN (one per card).
     df_comps : DataFrame
         All comp rows for this PIN (across cards).
-    pretty_fn : Callable[[str], str]
-        Function that converts a raw model column name → human-readable label.
+    vars_dict : dict
+        Mapping of variable code for labels and tooltips
     """
     special_multi = bool(df_target_pin["is_parcel_small_multicard"].iloc[0])
 
@@ -197,7 +197,7 @@ def build_front_matter(
         "pred_pin_final_fmv_round_per_sqft": tp["pred_pin_final_fmv_round_per_sqft"],
         "meta_pin_num_cards": tp["meta_pin_num_cards"],
         "cards": [],
-        "var_labels": {k: pretty_fn(k) for k in preds_cleaned},
+        "var_info": vars_dict,
         "special_case_multi_card": special_multi,
         "environment": environment,
     }
@@ -624,6 +624,30 @@ def run_athena_query(cursor, sql: str, params: dict = None) -> pd.DataFrame:
     return cursor.as_pandas()
 
 
+def load_vars_dict(cursor) -> dict[str, dict]:
+    """
+    Pull the crosswalk for labels and tooltips into a dict:
+    """
+    sql = f"""SELECT code, display_name, description FROM {constants.PINVAL_DATA_DICT_TABLE}"""
+    df = run_athena_query(cursor, sql)
+    # Return a dict where each key is a column code and the value is a dict with label and description info
+    return {
+        row.code: {
+            "label": (
+                row.display_name
+                if getattr(row, "display_name", None)
+                else str(row.code)
+            ),
+            "description": (
+                row.description
+                if getattr(row, "description", None) not in (None, "", "nan")
+                else ""
+            ),
+        }
+        for row in df.itertuples(index=False)
+    }
+
+
 def main() -> None:
     args = parse_args()
 
@@ -689,7 +713,7 @@ def main() -> None:
     df_assessment_all = compute_shap_weights(df_assessment_all)
 
     print("Formatting assessment dataframe for display")
-    df_assessment_all = format_df(df_assessment_all, chars_recode=False)
+    df_assessment_all = format_df(df_assessment_all)
 
     comps_sql = f"""
         SELECT comp.*
@@ -721,24 +745,8 @@ def main() -> None:
     if not df_comps_all.empty:
         df_comps_all = format_df(convert_dtypes(df_comps_all), chars_recode=True)
 
-    # Crosswalk for making column names human-readable
-    model_vars: list[str] = ccao.vars_dict["var_name_model"].tolist()
-
-    pretty_vars: list[str] = ccao.vars_rename(
-        data=model_vars,
-        names_from="model",
-        names_to="pretty",
-        output_type="vector",
-        dictionary=ccao.vars_dict,
-    )
-
-    key_map: dict[str, str] = dict(zip(model_vars, pretty_vars))
-    # Manually define mapping for the "Combined Bldg. SF" label, which is not
-    # part of `ccao.vars_dict`
-    key_map["combined_bldg_sf"] = "Combined Bldg. Sq. Ft."
-
-    def pretty(k: str) -> str:
-        return key_map.get(k, k)
+    # Variables dictionary for labels + tooltips
+    vars_dict = load_vars_dict(cursor)
 
     # Declare outputs paths
     md_outdir = project_root / "hugo" / "content" / "pinval-reports"
@@ -778,7 +786,7 @@ def main() -> None:
         front = build_front_matter(
             df_target,
             df_comps,
-            pretty_fn=pretty,
+            vars_dict,
             environment=args.environment,
         )
         front["url"] = f"/{assessment_year}/{pin}.html"

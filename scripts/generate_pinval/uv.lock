@@ -66,7 +66,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ccao", git = "https://github.com/ccao-data/ccao?subdirectory=python&rev=c74f627d6431203bcf0cc9efa571396e6348eaec#c74f627d6431203bcf0cc9efa571396e6348eaec" },
+    { name = "ccao", git = "https://github.com/ccao-data/ccao?subdirectory=python&rev=c74f627d6431203bcf0cc9efa571396e6348eaec" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "orjson", specifier = ">=3.10.18" },
     { name = "pandas", specifier = ">=2.2.3" },

@@ -3,3 +3,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>{{ .Title }}</title>
+
+{{ $social_card_url := "/static/images/social-card.jpg" }}
+{{ $social_card_title := "Cook County Assessor's Model Value Report"}}
+{{
+  $social_card_description := (
+    cond (and .Params.pin .Params.assessment_year)
+    (
+      printf
+      "Explore sales and characteristics that the Cook County Assessor's model used to value PIN %s in %s."
+      .Params.pin
+      .Params.assessment_year
+    )
+    "Explore sales and characteristics that the Cook County Assessor's model used to value your home."
+  )
+}}
+
+<!-- General sharing tags -->
+<meta name="description" content="{{ $social_card_description }}" />
+<meta name="author" content="Cook County Assessor's Office" />
+
+<!-- OpenGraph sharing tags -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ $social_card_title }}">
+<meta property="og:description" content="{{ $social_card_description }}">
+<meta property="og:image" content="{{ $social_card_url }}">
+
+<!-- Twitter sharing tags -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ $social_card_title }}">
+<meta name="twitter:description" content="{{ $social_card_description }}">
+<meta name="twitter:image" content="{{ $social_card_url }}">
