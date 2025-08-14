@@ -145,7 +145,7 @@
             </p>
             <p>
               This report compares your home to 5 past sales that the model found to
-              be most important for your estimated home value in {{ .Params.assessment_year }}.
+              be most significant for your estimated home value in {{ .Params.assessment_year }}.
               The top of the report shows the location and characteristics of your home. The
               middle section of the report compares the location and characteristics of the
               top five sales to your home’s location and characteristics. At the end,
@@ -159,7 +159,7 @@
                 Finding comparables with LightGBM
               </a>.
               This article provides technical details about how we used the model to
-              find the top five most important sales for every home.
+              find the top five most significant sales for every home.
             </p>
           </div>
         </div>
@@ -311,7 +311,7 @@
         }}
       {{ end }}
 
-      <h3>Final Model Estimate</h3>
+      <h3>Model Estimate for Your Home</h3>
       <p>
         After rounding and other processing, the
         {{ template "tt" (dict "label" "model's" "description" .Params.var_info.model.description) }}
@@ -367,7 +367,7 @@
                 <strong>
                   {{ template "tt" (dict
                     "label" "Municipality"
-                    "description" .Params.var_info.loc_property_municipality_name.description
+                    "description" .Params.var_info.loc_property_municipality.description
                   ) }}
                 </strong>
               </td>
@@ -449,10 +449,10 @@
   {{ define "card-comps" }}
 
   <!-- Comp map -->
-  <h2 class="mb-3">Top 5 Most Important Sales</h2>
+  <h2 class="mb-3">Top 5 Most Significant Sales</h2>
   <p>
-    This map shows your home alongside the five sales that were most important
-    for the model's estimation of your home value.
+    This map shows your home alongside the five sales that were most significant
+    for the model's estimate of your home value.
   </p>
   <p>
     <i class="bi bi-hand-index-thumb" aria-hidden="true"></i>
@@ -469,7 +469,7 @@
     class="mt-4"
     id="sale-characteristics-{{ .card.card_num }}"
   >
-    Characteristics for Top 5 Most Important Sales
+    Characteristics for Top 5 Most Significant Sales
   </h3>
   <p>
     "Characteristics" are data points about a home that help the model
@@ -585,6 +585,7 @@
           <td>
             {{ if and (ge (int $char_quart) 1) (le (int $char_quart) 4) }}
               <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
+              <span class="d-none keep-on-export" aria-hidden="true">{{ $char_quart }}</span>
               {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
             {{ else }}
               {{
@@ -665,35 +666,31 @@
   </div>
 
   <h3 class="mb-3">
-    Summary of the Top 5 Most Important Sales
+    Summary of the Top 5 Most Significant Sales
   </h3>
   <p>
-    The top five most important sales took place
+    The top five most significant sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
     <strong>{{ .card.comp_summary.sale_year_range }}</strong>.
     The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong>
     at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
   </p>
 
-  <h3 class="mb-3">Initial Model Estimate</h3>
-  <p>
-    Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
-    initially estimated that the value of
-    {{ if and .is_multicard (not .special_case_multi_card) }}
-      this card
-    {{ else }}
-      your home
-    {{ end }}
-    as of
-    {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
-    <strong>January 1, {{ .Params.assessment_year }}</strong> should be
-    {{ if (.card.pred_card_initial_fmv_per_sqft ) }}
-      <strong>{{ .card.pred_card_initial_fmv }}</strong> at
-      <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
-    {{ else }}
-      <strong>{{ .card.pred_card_initial_fmv }}</strong>.
-    {{ end }}
-  </p>
+  {{ if and .is_multicard (not .special_case_multi_card) }}
+    <h3 class="mb-3">Model Estimate for Card {{ .card.card_num }}</h3>
+    <p>
+      Based on these and other sales, the model estimated that the value of this card on
+      {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
+      <strong>January 1, {{ .Params.assessment_year }}</strong> should be
+      {{ if (.card.pred_card_initial_fmv_per_sqft ) }}
+        <strong>{{ .card.pred_card_initial_fmv }}</strong> at
+        <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
+      {{ else }}
+        <strong>{{ .card.pred_card_initial_fmv }}</strong>.
+      {{ end }}
+    </p>
+  {{ end }}
+
   {{ end }}
 
   <!-- Load Bootstrap JS -->
@@ -1008,7 +1005,7 @@
       $('[data-bs-toggle="tooltip"]').each(function () {
         new bootstrap.Tooltip(this);
       });
-  }
+    }
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex, isTabbed) {
@@ -1048,20 +1045,25 @@
             },
             buttons: [
               {
-                extend: "copy",  // Button to copy table to clipboard
-                text: '<i class="bi bi-clipboard"></i> Copy',
-                footer: false  // Exclude table footer from export
-              },
-              {
                 extend: "csv",  // Button to export table as CSV
                 text: '<i class="bi bi-file-earmark-spreadsheet"></i> Excel',
-                footer: false
+                footer: false,
+                exportOptions: {
+                  format: {
+                    body: exportBody
+                  }
+                }
               },
               {
                 extend: "print",  // Button to open a print view for the table
                 text: '<i class="bi bi-printer"></i> Print View',
                 footer: false,
-                autoPrint: false  // Don't open print dialog box automatically
+                autoPrint: false,  // Don't open print dialog box automatically
+                exportOptions: {
+                  format: {
+                    body: exportBody
+                  }
+                }
               }
             ]
           },
@@ -1092,6 +1094,51 @@
           dt.fixedHeader.disable();
         });
       }
+    }
+
+    // Custom DataTables export function to strip out display elements before
+    // exporting data.
+    // See here for docs explaining the arguments to this function, which are
+    // set by DataTables:
+    // https://datatables.net/reference/api/buttons.exportData()
+    function exportBody(data, row, column, node) {
+      // Strip tooltip annotations from Characteristics column
+      if (column == 0) {
+        let cellText = '';
+        if (node && node.querySelector) {
+          const span = node.querySelector('span.tooltip-underline');
+          if (span) {
+            cellText = (span.textContent || '').trim();
+          } else {
+            cellText = (node.textContent || '').trim();
+          }
+        }
+        return cellText;
+      }
+
+      // Strip weights and stars from Score column and convert it to numerical score
+      if (column == 1) {
+        let spanContent = '';
+        if (node && node.querySelector && node.querySelector('span.keep-on-export')) {
+          return node.querySelector('span.keep-on-export').textContent || '';
+        }
+        // Fallback to the original cell contents
+        return data
+      }
+
+      // For all other columns, check if anchor tag exists and extract its
+      // inner text if so; otherwise, just return the data
+      if (node && node.querySelector) {
+        const anchor = node.querySelector('a');
+        if (anchor) {
+          return (anchor.textContent || '').trim();
+        } else {
+          return (node.textContent || '').trim();
+        }
+      }
+
+      // Fallback to the original cell contents
+      return data
     }
   </script>
 </body>
