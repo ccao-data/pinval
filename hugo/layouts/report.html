@@ -19,6 +19,18 @@
   {{ partial "head/styles.html" . }}
 </head>
 <body>
+
+  {{/* Tiny helper to render a tooltip underline span */}}
+  {{ define "tt" -}}
+    <span
+      class="tooltip-underline"
+      tabindex="0"
+      data-bs-toggle="tooltip"
+      data-bs-trigger="focus"
+      data-bs-title="{{ .description }}"
+    >{{ .label }}</span>
+  {{- end }}
+
   {{ partial "banner/banner.html" . }}
 
   <!-- Body of the report -->
@@ -35,14 +47,30 @@
       </p>
 
       <p>
-        The goal of this report is to explain how the Cook County Assessor’s statistical
-        model estimated the value of the home with Parcel Identification Number
-        (PIN) <strong>{{ .Params.pin_pretty }}</strong> in tax year
+        The goal of this report is to explain how the Cook County Assessor’s
+        {{ template "tt" (dict "label" "statistical model" "description" .Params.var_info.model.description) }}
+        estimated the value of the home with
+        {{ template "tt" (dict "label" "Parcel Identification Number (PIN)" "description" .Params.var_info.pin.description) }}
+        <strong>{{ .Params.pin_pretty }}</strong> in
+        {{ template "tt" (dict "label" "tax year" "description" .Params.var_info.tax_year.description) }}
         <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
-        sales and property characteristics to learn about the real estate market
+        sales and
+        {{ template "tt" (dict "label" "property characteristics" "description" .Params.var_info.characteristics.description) }}
+        to learn about the real estate market
         leading up to {{ .Params.assessment_year }}. Then, it used what it learned to
         estimate what this home could have sold for on <strong>January 1,
         {{ .Params.assessment_year }}</strong> if it had sold on that date in a fair, open-market transaction.
+      </p>
+
+      <p>
+        Click or tap on
+        {{ template "tt" (
+          dict
+            "label" "words with dotted underlines"
+            "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
+          ) }}
+        to show a popup explaining what those words mean.
+        Then, click or tap anywhere on the page to close the popup.
       </p>
 
       <div class="alert alert-warning">
@@ -72,7 +100,7 @@
           <div class="p-3 bg-light">
             <h5>What is the Assessor's model?</h5>
             <p>
-              The Assessor’s “statistical model” is a computer program that uses
+              The Assessor’s statistical model is a computer program that uses
               past home sales to estimate current prices. The model combines past
               sales with “characteristics” that the Assessor collects about every
               home in Cook County over time, like square footage and location.
@@ -136,7 +164,9 @@
       <h2 class="mb-3">About Your Home</h2>
       <p>
         The tables below show some basic facts about your home
-        in tax year {{ .Params.assessment_year }}.
+        in
+        {{ template "tt" (dict "label" "tax year" "description" .Params.var_info.tax_year.description) }}
+        {{ .Params.assessment_year }}.
       </p>
 
       {{ $is_multicard := gt .Params.meta_pin_num_cards 1 }}
@@ -279,8 +309,12 @@
 
       <h3>Final Model Estimate</h3>
       <p>
-        After rounding and other processing, the model's final estimate for the value of your home
-        on lien date <strong>January 1st, {{ .Params.assessment_year }}</strong> was
+        After rounding and other processing, the
+        {{ template "tt" (dict "label" "model's" "description" .Params.var_info.model.description) }}
+        final estimate for the value of your home
+        on
+        {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
+        <strong>January 1st, {{ .Params.assessment_year }}</strong> was
         <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
       </p>
       <div class="alert alert-warning">
@@ -321,15 +355,36 @@
               <td>{{ .card.location.property_address }}</td>
             </tr>
             <tr>
-              <td><strong>Municipality</strong></td>
+              <td>
+                <strong>
+                  {{ template "tt" (dict
+                    "label" "Municipality"
+                    "description" .Params.var_info.loc_property_municipality_name.description
+                  ) }}
+                </strong>
+              </td>
               <td>{{ .card.location.municipality }}</td>
             </tr>
             <tr>
-              <td><strong>Assessor Township</strong></td>
+              <td>
+                <strong>
+                  {{ template "tt" (dict
+                    "label" "Assessor Township"
+                    "description" .Params.var_info.meta_township_code.description
+                  ) }}
+                </strong>
+              </td>
               <td>{{ .card.location.township }}</td>
             </tr>
             <tr>
-              <td><strong>Assessor Neighborhood Code</strong></td>
+              <td>
+                <strong>
+                  {{ template "tt" (dict
+                    "label" "Assessor Neighborhood Code"
+                    "description" .Params.var_info.meta_nbhd_code.description
+                  ) }}
+                </strong>
+              </td>
               <td>{{ .card.location.meta_nbhd_code }}</td>
             </tr>
             <tr>
@@ -412,7 +467,8 @@
     "Characteristics" are data points about a home that help the model
     compare it to recent sales. This table shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top five sales. Each characteristic has a score
+    characteristics for the top five sales. Each characteristic has a
+    {{ template "tt" (dict "label" "score" "description" .Params.var_info.score.description) }}
     from one to four stars (<i class="bi bi-star-fill text-muted char-score-star"></i>)
     indicating how important it was for the model's estimate.
   </p>
@@ -503,7 +559,19 @@
         <!-- Predictors -->
         {{ range $char := .card.predictors }}
         <tr>
-          <td class="char-name">{{ index $.Params.var_labels $char }}</td>
+          <td class="char-name">
+            {{- $info := index $.Params.var_info $char -}}
+            {{- $label := cond (and $info (ne $info.label "")) $info.label $char -}}
+            {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
+            {{- if $desc -}}
+              <span class="tooltip-underline" tabindex="0" data-bs-toggle="tooltip" data-bs-trigger="focus" data-bs-title="{{ $desc }}">
+                {{ $label }}
+              </span>
+            {{- else -}}
+              {{ $label }}
+            {{- end -}}
+          </td>
+
           {{ $char_quart := index $.card.char_quartiles $char }}
           {{ $char_wt := index $.card.char_weights $char }}
           <td>
@@ -519,6 +587,7 @@
                 $char_quart
               }}
             {{ end }}
+
           </td>
           <td>{{ index $.card.chars $char }}</td>
 
@@ -561,11 +630,17 @@
         {{ else }}
           {{ .Params.meta_pin_num_cards }}
         {{ end }}
-        cards, we estimate its value using
-        a slightly different method than the one we use for other properties. For properties like this one, we use the characteristics of
-        the largest card to estimate the property's value, but we adjust the building square footage of
-        that card to use the combined building square footage of all cards on the
-        property. The characteristics in the table above reflect this difference. For more information on multi-card value estimation, see our
+        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }},
+        we estimate its value using
+        a slightly different method than the one we use for other properties. For properties like this one, we use the
+        {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
+        of the largest
+        {{ template "tt" (dict "label" "card" "description" .Params.var_info.card.description) }}
+        to estimate the property's value, but we adjust the building square footage of
+        that card to use the combined building square footage of all
+        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }} on the
+        property. The {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
+        in the table above reflect this difference. For more information on multi-card value estimation, see our
         <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
       </p>
       {{ end }}
@@ -573,7 +648,8 @@
       {{ if .card.has_subject_pin_sale }}
       <p>
         <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
-        The model usually considers past sales of a home to be important for its value,
+        The {{ template "tt" (dict "label" "model" "description" .Params.var_info.model.description) }}
+        usually considers past sales of a home to be important for its value,
         even if those sales are older than sales of other homes.
       </p>
       {{ end }}
@@ -600,7 +676,9 @@
     {{ else }}
       your home
     {{ end }}
-    as of lien date <strong>January 1, {{ .Params.assessment_year }}</strong> should be
+    as of
+    {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
+    <strong>January 1, {{ .Params.assessment_year }}</strong> should be
     <strong>{{ .card.pred_card_initial_fmv }}</strong> at
     <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
   </p>
@@ -913,7 +991,12 @@
       // event handler defined in the `renderMapsOnDisplay` function will fit
       // the bounds for all subsequent cards when the user selects their tab
       map.fitBounds(bounds);
-    }
+
+      // Enable Bootstrap tooltips globally
+      $('[data-bs-toggle="tooltip"]').each(function () {
+        new bootstrap.Tooltip(this);
+      });
+  }
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex, isTabbed) {
