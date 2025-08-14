@@ -50,7 +50,7 @@
         The goal of this report is to explain how the Cook County Assessor’s
         {{ template "tt" (dict "label" "statistical model" "description" .Params.var_info.model.description) }}
         estimated the value of the home with
-        ({{ template "tt" (dict "label" "Parcel Identification Number (PIN)" "description" .Params.var_info.pin.description) }})
+        {{ template "tt" (dict "label" "Parcel Identification Number (PIN)" "description" .Params.var_info.pin.description) }}
         <strong>{{ .Params.pin_pretty }}</strong> in
         {{ template "tt" (dict "label" "tax year" "description" .Params.var_info.tax_year.description) }}
         <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
@@ -64,11 +64,11 @@
 
       <p>
         Click or tap on
-        ({{ template "tt" (
+        {{ template "tt" (
           dict
             "label" "words with dotted underlines"
             "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
-          ) }})
+          ) }}
         to show a popup explaining what those words mean.
         Then, click or tap anywhere on the page to close the popup.
       </p>
