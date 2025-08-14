@@ -648,7 +648,7 @@
       {{ if .card.has_subject_pin_sale }}
       <p>
         <strong><span class="asterisk">**</span></strong> This is a past sale of your home.
-        The { template "tt" (dict "label" "model" "description" .Params.var_info.model.description) }}
+        The {{ template "tt" (dict "label" "model" "description" .Params.var_info.model.description) }}
         usually considers past sales of a home to be important for its value,
         even if those sales are older than sales of other homes.
       </p>
