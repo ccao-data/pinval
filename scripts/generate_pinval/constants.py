@@ -4,6 +4,4 @@
 # need to switch to dev tables for testing
 PINVAL_ASSESSMENT_CARD_TABLE = "pinval.vw_assessment_card"
 PINVAL_COMP_TABLE = "pinval.vw_comp"
-PINVAL_DATA_DICT_TABLE = (
-    "z_ci_871_create_tooltip_seed_to_support_modval_tooltips_pinval.vars_dict"
-)
+PINVAL_DATA_DICT_TABLE = "pinval.vars_dict"
