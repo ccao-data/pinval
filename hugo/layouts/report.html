@@ -26,7 +26,7 @@
       class="tooltip-underline"
       tabindex="0"
       data-bs-toggle="tooltip"
-      data-bs-trigger="focus"
+      data-bs-trigger="hover focus"
       data-bs-title="{{ .description }}"
     >{{ .label }}</span>
   {{- end }}
@@ -67,14 +67,14 @@
       </p>
 
       <p>
-        Click or tap on
+        Hover, click, or tap on
         {{ template "tt" (
           dict
             "label" "words with dotted underlines"
             "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
           ) }}
         to show a popup explaining what those words mean.
-        Then, click or tap anywhere on the page to close the popup.
+        Click or tap anywhere on the page to close the popup.
       </p>
 
       <div class="alert alert-warning">
@@ -573,28 +573,26 @@
             {{- $label := cond (and $info (ne $info.label "")) $info.label $char -}}
             {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
             {{- if $desc -}}
-              <span class="tooltip-underline" tabindex="0" data-bs-toggle="tooltip" data-bs-trigger="focus" data-bs-title="{{ $desc }}">
-                {{ $label }}
-              </span>
+              {{ template "tt" (dict "label" $label "description" $desc) }}
             {{- else -}}
               {{ $label }}
             {{- end -}}
           </td>
 
-          {{ $char_quart := index $.card.char_quartiles $char }}
+          {{ $char_score := index $.card.char_scores $char }}
           {{ $char_wt := index $.card.char_weights $char }}
           <td>
-            {{ if and (ge (int $char_quart) 1) (le (int $char_quart) 4) }}
+            {{ if and (ge (int $char_score) 1) (le (int $char_score) 4) }}
               <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
-              <span class="d-none keep-on-export" aria-hidden="true">{{ $char_quart }}</span>
-              {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
+              <span class="d-none keep-on-export" aria-hidden="true">{{ $char_score }}</span>
+              {{ range seq (int $char_score) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
             {{ else }}
               {{
                 errorf
-                "Got unexpected value for characteristic quartile for feature %q in PIN %q: %q"
+                "Got unexpected value for characteristic score for feature %q in PIN %q: %q"
                 $char
                 $.Params.pin
-                $char_quart
+                $char_score
               }}
             {{ end }}
 
