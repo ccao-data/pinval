@@ -30,6 +30,7 @@ import os
 import subprocess as sp
 import gc
 import re
+import shutil
 import time
 from pathlib import Path
 
@@ -822,8 +823,7 @@ def main() -> None:
             raise RuntimeError("Hugo build failed.")
 
         # Remove markdown files now that HTML is baked.
-        for md_file in md_outdir.glob("*.md"):
-            md_file.unlink(missing_ok=True)
+        shutil.rmtree(md_outdir)
         print("✓ Hugo build complete — markdown cleaned up.")
 
 
