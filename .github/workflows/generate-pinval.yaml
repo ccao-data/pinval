@@ -54,6 +54,13 @@ on:
         required: false
         default: false
 
+      use-larger-runner:
+        type: boolean
+        description: >
+          Run build on a larger runner (costs extra but recommended for full town deploys)
+        required: false
+        default: false
+
 env:
   PYTHONUNBUFFERED: "1"
   UV_SYSTEM_PYTHON: 1
@@ -151,7 +158,7 @@ jobs:
 ###############################################################################
   generate-pinval:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.use-large-runner == 'true' && 'ubuntu-latest-8-cores' || 'ubuntu-latest' }}
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
       max-parallel: ${{ fromJson(needs.setup.outputs.count) }}
