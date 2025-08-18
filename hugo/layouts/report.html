@@ -42,7 +42,7 @@
         {{- /* Determine the search‑page URL based on environment */ -}}
         {{
           $search_href := cond (eq .Params.environment "prod")
-            "https://cookcountyassessoril.gov/model-value-report"
+            "https://www.cookcountyassessoril.gov/model-value-report"
             "https://stage.cookcountyassessoril.gov/model-value-report"
         }}
         <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
