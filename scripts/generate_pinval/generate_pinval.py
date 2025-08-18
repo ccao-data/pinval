@@ -776,7 +776,13 @@ def main() -> None:
         # Use get_group to lower memory use when iterating grouped DF
         df_target = df_assessments_by_pin.get_group(pin)
 
-        md_path = md_outdir / f"{pin}.md"
+        # Get nbhd code so we can chunk up the Hugo generation task
+        nbhd_code = df_target.iloc[0]["meta_nbhd_code"]
+
+        md_dirpath = md_outdir / nbhd_code
+        md_dirpath.mkdir(exist_ok=True)
+
+        md_path = md_dirpath / f"{pin}.md"
 
         df_comps = df_comps_by_pin.get(pin)
 

@@ -46,21 +46,18 @@ on:
         default: Development bucket
         required: true
 
-      runner:
-        type: choice
-        description: >
-          GitHub runner: Non-default runner costs extra, but recommended for full town deploys
-        options:
-          - ubuntu-latest
-          - ubuntu-latest-8-cores
-        required: true
-        default: ubuntu-latest
-
       deploy-assets:
         type: boolean
         description: >
           Deploy static assets like favicons and error pages in addition
           to reports
+        required: false
+        default: false
+
+      hugo-build-by-nbhd:
+        type: boolean
+        description: >
+          Build reports by neighborhood: Slower, but uses less memory
         required: false
         default: false
 
@@ -161,7 +158,7 @@ jobs:
 ###############################################################################
   generate-pinval:
     needs: setup
-    runs-on: ${{ inputs.runner}}
+    runs-on: ubuntu-latest
     strategy:
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
       max-parallel: ${{ fromJson(needs.setup.outputs.count) }}
@@ -221,7 +218,7 @@ jobs:
       - name: Install Hugo
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      - name: Generate PINVAL reports
+      - name: Generate Markdown frontmatter files
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
           ENV_CODE: ${{ inputs.environment == 'Production bucket' && 'prod' || 'dev' }}
@@ -231,7 +228,35 @@ jobs:
             --run-id "$RUN_ID" \
             --township "$TOWNSHIP" \
             --pin "${PINS[@]}" \
-            --environment "$ENV_CODE"
+            --environment "$ENV_CODE" \
+            --skip-html
+
+      - name: Build Hugo pages
+        working-directory: hugo
+        run: |
+          # If the caller has instructed us to run Hugo by neighborhood in
+          # order to save memory, then move all of the reports out of the
+          # Hugo content directory and move them back into the directory
+          # neighborhood by neighborhood, building reports and then
+          # deleting source files as we go
+          if [[ "${{ inputs.hugo-build-by-nbhd }}" == 'true' ]]; then
+            echo "Building reports by neighborhood"
+            CONTENT_ROOT="content"
+            REPORTS_DIR="pinval-reports"
+            mv "$CONTENT_ROOT/$REPORTS_DIR/" .
+            for nbhd_dir in "$REPORTS_DIR"/*/; do
+              subdir_name=$(basename "$nbhd_dir")
+              target_dir="$CONTENT_ROOT/$subdir_name"
+              echo "Moving ${nbhd_dir} to ${target_dir}/ and building reports"
+              mv "$nbhd_dir" "$target_dir"
+              hugo --minify
+              echo "Deleting ${target_dir}/"
+              rm -rf "${target_dir}/"
+            done
+          else
+            "Building all reports"
+            hugo --minify
+          fi
 
       - name: Sync reports to S3
         env:
