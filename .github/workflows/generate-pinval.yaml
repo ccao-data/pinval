@@ -219,7 +219,7 @@ jobs:
       - name: Install Hugo
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      - name: Generate Markdown frontmatter files
+      - name: Generate Hugo content files and build reports
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
           ENV_CODE: ${{ inputs.environment == 'Production bucket' && 'prod' || 'dev' }}
