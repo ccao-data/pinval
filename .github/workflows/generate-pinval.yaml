@@ -174,13 +174,6 @@ jobs:
       - name: Mask sensitive information
         run: echo "::add-mask::${{ secrets.AWS_ACCOUNT_ID }}"
 
-      - name: Log system information
-        run: |
-          echo "CPU info:"
-          lscpu
-          echo "Memory info:"
-          free -h
-
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
