@@ -225,39 +225,19 @@ jobs:
           ENV_CODE: ${{ inputs.environment == 'Production bucket' && 'prod' || 'dev' }}
         run: |
           read -ra PINS <<< "${{ inputs.pins }}"
+          NBHD_FLAG=""
+          if [ "${{ inputs.hugo-build-by-nbhd }}" = "true" ]; then
+            NBHD_FLAG="--build-by-neighborhood"
+          fi
+          # Unquoted neighborhood flag is intentional in this call, since we
+          # want this to expand to nothing (rather than an empty string) if
+          # the variable is empty
           python3 scripts/generate_pinval/generate_pinval.py \
             --run-id "$RUN_ID" \
             --township "$TOWNSHIP" \
             --pin "${PINS[@]}" \
             --environment "$ENV_CODE" \
-            --skip-html
-
-      - name: Build Hugo pages
-        working-directory: hugo
-        run: |
-          # If the caller has instructed us to run Hugo by neighborhood in
-          # order to save memory, then move all of the reports out of the
-          # Hugo content directory and move them back into the directory
-          # neighborhood by neighborhood, building reports and then
-          # deleting source files as we go
-          if [[ "${{ inputs.hugo-build-by-nbhd }}" == 'true' ]]; then
-            echo "Building reports by neighborhood"
-            CONTENT_ROOT="content"
-            REPORTS_DIR="pinval-reports"
-            mv "$CONTENT_ROOT/$REPORTS_DIR/" .
-            for nbhd_dir in "$REPORTS_DIR"/*/; do
-              subdir_name=$(basename "$nbhd_dir")
-              target_dir="$CONTENT_ROOT/$subdir_name"
-              echo "Moving ${nbhd_dir} to ${target_dir}/ and building reports"
-              mv "$nbhd_dir" "$target_dir"
-              hugo --minify
-              echo "Deleting ${target_dir}/"
-              rm -rf "${target_dir}/"
-            done
-          else
-            "Building all reports"
-            hugo --minify
-          fi
+            $NBHD_FLAG
 
       - name: Sync reports to S3
         env:

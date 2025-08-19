@@ -93,6 +93,18 @@ def parse_args() -> argparse.Namespace:
         help="Deployment target",
     )
 
+    parser.add_argument(
+        "--build-by-neighborhood",
+        action="store_true",
+        help=(
+            "When present, writes Markdown content files in neighborhood "
+            "subdirectories and instructs Hugo to build reports by "
+            "neighborhood. This makes the build slower, but allows Hugo to use "
+            "less memory, which can be useful for larger towns or in "
+            "memory-constrained build environments."
+        ),
+    )
+
     args = parser.parse_args()
 
     if args.pin == [""]:
@@ -747,7 +759,9 @@ def main() -> None:
     vars_dict = load_vars_dict(cursor)
 
     # Declare outputs paths
-    md_outdir = project_root / "hugo" / "content" / "pinval-reports"
+    hugo_root = project_root / "hugo"
+    content_root = hugo_root / "content"
+    md_outdir = content_root / "pinval-reports"
     md_outdir.mkdir(parents=True, exist_ok=True)
 
     start_time_dict_groupby = time.time()
@@ -777,11 +791,14 @@ def main() -> None:
         # Use get_group to lower memory use when iterating grouped DF
         df_target = df_assessments_by_pin.get_group(pin)
 
-        # Get nbhd code so we can chunk up the Hugo generation task
-        nbhd_code = df_target.iloc[0]["meta_nbhd_code"]
-
-        md_dirpath = md_outdir / nbhd_code
-        md_dirpath.mkdir(exist_ok=True)
+        # Determine where to write content files. If the user has specified
+        # that we should write content files in neighborhood subdirectories,
+        # adjust the output path based on the PIN's neighborhood
+        md_dirpath = md_outdir
+        if args.build_by_neighborhood:
+            nbhd_code = df_target.iloc[0]["meta_nbhd_code"]
+            md_dirpath = md_outdir / nbhd_code
+            md_dirpath.mkdir(exist_ok=True)
 
         md_path = md_dirpath / f"{pin}.md"
 
@@ -817,14 +834,41 @@ def main() -> None:
         gc.collect()
 
         # Generate the HTML files using Hugo
-        print("Running Hugo …")
-        proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
-        if proc.returncode != 0:
-            raise RuntimeError("Hugo build failed.")
+        if args.build_by_neighborhood:
+            print("Building Hugo reports by neighborhood …")
 
-        # Remove markdown files now that HTML is baked.
-        shutil.rmtree(md_outdir)
-        print("✓ Hugo build complete — markdown cleaned up.")
+            # Move reports directory out of the Hugo content root so that we
+            # can move reports back in neighborhood-by-neighborhood
+            temp_reports_dir = hugo_root / "temp-pinval-reports"
+            if temp_reports_dir.exists():
+                shutil.rmtree(temp_reports_dir)
+            shutil.move(str(md_outdir), str(temp_reports_dir))
+
+            # Move neighborhoods into the Hugo content root one by one and
+            # generate reports
+            for nbhd_dir in temp_reports_dir.iterdir():
+                if nbhd_dir.is_dir():
+                    target_dir = content_root / nbhd_dir.name
+                    print(f"Moving {nbhd_dir} to {target_dir} and building reports")
+                    shutil.move(str(nbhd_dir), str(target_dir))
+                    proc = sp.run(["hugo", "--minify"], cwd=hugo_root, text=True)
+                    if proc.returncode != 0:
+                        raise RuntimeError("Hugo build failed.")
+                    print(f"Deleting {target_dir}")
+                    shutil.rmtree(str(target_dir))
+
+            # Remove temporary reports dir that should now be empty
+            temp_reports_dir.rmdir()
+        else:
+            print("Building Hugo reports …")
+            proc = sp.run(["hugo", "--minify"], cwd=hugo_root, text=True)
+            if proc.returncode != 0:
+                raise RuntimeError("Hugo build failed.")
+
+            # Remove markdown files now that HTML is baked.
+            shutil.rmtree(md_outdir)
+
+        print("✓ Hugo build complete")
 
 
 if __name__ == "__main__":
