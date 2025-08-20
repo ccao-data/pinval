@@ -26,7 +26,7 @@
       class="tooltip-underline"
       tabindex="0"
       data-bs-toggle="tooltip"
-      data-bs-trigger="focus"
+      data-bs-trigger="hover focus"
       data-bs-title="{{ .description }}"
     >{{ .label }}</span>
   {{- end }}
@@ -40,7 +40,11 @@
       <!-- Search again button that returns user to homepage -->
       <p>
         {{- /* Determine the search‑page URL based on environment */ -}}
-        {{ $search_href := cond (eq .Params.environment "prod") "." "https://stage-drupal.ccaotest.com/model-valuation" }}
+        {{
+          $search_href := cond (eq .Params.environment "prod")
+            "https://www.cookcountyassessoril.gov/model-value-report"
+            "https://stage.cookcountyassessoril.gov/model-value-report"
+        }}
         <a href="{{ $search_href }}" class="text-decoration-none fw-semibold">
           <i class="bi bi-arrow-left"></i> Back to Search
         </a>
@@ -49,8 +53,8 @@
       <p>
         The goal of this report is to explain how the Cook County Assessor’s
         {{ template "tt" (dict "label" "statistical model" "description" .Params.var_info.model.description) }}
-        estimated the value of the home with
-        {{ template "tt" (dict "label" "Parcel Identification Number (PIN)" "description" .Params.var_info.pin.description) }}
+        estimated the value of the home with Property Index Number
+        ({{ template "tt" (dict "label" "PIN" "description" .Params.var_info.pin.description) }})
         <strong>{{ .Params.pin_pretty }}</strong> in
         {{ template "tt" (dict "label" "tax year" "description" .Params.var_info.tax_year.description) }}
         <strong>{{ .Params.assessment_year }}</strong>. The Assessor’s model used past home
@@ -63,14 +67,14 @@
       </p>
 
       <p>
-        Click or tap on
+        Hover, click, or tap on
         {{ template "tt" (
           dict
             "label" "words with dotted underlines"
             "description" "Popups like this one will explain the meaning of the words that you clicked or tapped."
           ) }}
         to show a popup explaining what those words mean.
-        Then, click or tap anywhere on the page to close the popup.
+        Click or tap anywhere on the page to close the popup.
       </p>
 
       <div class="alert alert-warning">
@@ -92,7 +96,7 @@
         >
           <h5 class="mb-0">
             <i id="info-caret" class="bi bi-caret-down-fill"></i>
-            Click to read more about this report
+            Click or tap to read more about this report
           </h5>
         </div>
 
@@ -141,7 +145,7 @@
             </p>
             <p>
               This report compares your home to 5 past sales that the model found to
-              be most important for your estimated home value in {{ .Params.assessment_year }}.
+              be most significant for your estimated home value in {{ .Params.assessment_year }}.
               The top of the report shows the location and characteristics of your home. The
               middle section of the report compares the location and characteristics of the
               top five sales to your home’s location and characteristics. At the end,
@@ -149,13 +153,9 @@
               to your home’s estimated value.
             </p>
             <p>
-              If you have a background in statistics or computer science, you might be
-              interested in our article
-              <a href="https://ccao-data.github.io/lightsnip/articles/finding-comps.html" target="_blank">
-                Finding comparables with LightGBM
-              </a>.
-              This article provides technical details about how we used the model to
-              find the top five most important sales for every home.
+              If you have a background in statistics or computer science, you might be interested in our article
+              <a href="https://ccao-data.github.io/lightsnip/articles/finding-comps.html" target="_blank">Finding comparables with LightGBM</a>.
+              This article provides technical details about how we found the top five most significant sales for each home.
             </p>
           </div>
         </div>
@@ -307,23 +307,28 @@
         }}
       {{ end }}
 
-      <h3>Final Model Estimate</h3>
+      <h3>Model Estimate for Your Home</h3>
       <p>
         After rounding and other processing, the
         {{ template "tt" (dict "label" "model's" "description" .Params.var_info.model.description) }}
-        final estimate for the value of your home
-        on
+        estimate for the value of your home on
         {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
         <strong>January 1st, {{ .Params.assessment_year }}</strong> was
-        <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
+        {{ if .Params.pred_pin_final_fmv_round_per_sqft }}
+          <strong>{{ .Params.pred_pin_final_fmv_round }}</strong> at
+          <span class="text-nowrap"><strong>{{ .Params.pred_pin_final_fmv_round_per_sqft }}/sq.ft.</strong></span>
+        {{ else }}
+          <strong>{{ .Params.pred_pin_final_fmv_round }}</strong>.
+        {{ end }}
       </p>
       <div class="alert alert-warning">
         <p>
           <i class="bi bi-exclamation-triangle-fill"></i>
-          <b>Note</b>: The model's estimated value for your home may not be the same value that you receive
-          in the mail. This is because analysts at the Assessor's Office carefully review the model's estimates,
-          and they may adjust those estimates before the Assessor mails your assessment notice.
-          To see your home's most recent assessment, visit the
+          <b>Note</b>: The estimated value and characteristics in this report may not be identical to
+          what you receive on your Notice of Reassessment. This is because human residential analysts at the
+          Assessor’s Office thoroughly review the model's estimates, neighborhood by neighborhood, and may
+          change the property's estimated value and characteristics. To see your home's current assessment
+          and characteristics, visit the
           <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" class="alert-link" target="_blank">Assessor's website</a>.
         </p>
       </div>
@@ -359,7 +364,7 @@
                 <strong>
                   {{ template "tt" (dict
                     "label" "Municipality"
-                    "description" .Params.var_info.loc_property_municipality_name.description
+                    "description" .Params.var_info.loc_property_municipality.description
                   ) }}
                 </strong>
               </td>
@@ -401,7 +406,7 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <h3 class="mb-3">Top Characteristics</h3>
+      <h3 class="mb-3">Size and Age</h3>
       <div class="table-responsive">
         <table class="table table-bordered characteristic-table">
           <tbody>
@@ -441,10 +446,10 @@
   {{ define "card-comps" }}
 
   <!-- Comp map -->
-  <h2 class="mb-3">Top 5 Most Important Sales</h2>
+  <h2 class="mb-3">Top 5 Most Significant Sales</h2>
   <p>
-    This map shows your home alongside the five sales that were most important
-    for the model's estimation of your home value.
+    This map shows your home alongside the five sales that were most significant
+    for the model's estimate of your home value.
   </p>
   <p>
     <i class="bi bi-hand-index-thumb" aria-hidden="true"></i>
@@ -461,16 +466,25 @@
     class="mt-4"
     id="sale-characteristics-{{ .card.card_num }}"
   >
-    Characteristics for Top 5 Most Important Sales
+    Characteristics for Top 5 Most Significant Sales
   </h3>
   <p>
-    "Characteristics" are data points about a home that help the model
-    compare it to recent sales. This table shows all of the characteristics
+    "Characteristics" are data points about a home that help the
+    {{ template "tt" (dict "label" "model" "description" .Params.var_info.model.description) }}
+    compare it to recent sales. The table below shows all of the characteristics
     that the model used to estimate your home value alongside the
-    characteristics for the top five sales. Each characteristic has a
+    characteristics for the top five sales.
+  </p>
+  <p>
+    Each characteristic has a
     {{ template "tt" (dict "label" "score" "description" .Params.var_info.score.description) }}
-    from one to four stars (<i class="bi bi-star-fill text-muted char-score-star"></i>)
     indicating how important it was for the model's estimate.
+    One star (<i class="bi bi-star-fill text-muted char-score-star"></i>) indicates that a
+    characteristic was not important, while four stars
+    <span class="text-nowrap">
+      ({{ range seq (int 4) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }})
+    </span>
+    indicates that a characteristic was very important.
   </p>
   <div class='d-lg-none'>
     <p>
@@ -564,27 +578,28 @@
             {{- $label := cond (and $info (ne $info.label "")) $info.label $char -}}
             {{- $desc  := cond (and $info (ne $info.description "")) $info.description "" -}}
             {{- if $desc -}}
-              <span class="tooltip-underline" tabindex="0" data-bs-toggle="tooltip" data-bs-trigger="focus" data-bs-title="{{ $desc }}">
-                {{ $label }}
-              </span>
+              {{ template "tt" (dict "label" $label "description" $desc) }}
             {{- else -}}
               {{ $label }}
             {{- end -}}
           </td>
 
-          {{ $char_quart := index $.card.char_quartiles $char }}
+          {{ $char_score := index $.card.char_scores $char }}
           {{ $char_wt := index $.card.char_weights $char }}
           <td>
-            {{ if and (ge (int $char_quart) 1) (le (int $char_quart) 4) }}
+            {{ if and (ge (int $char_score) 1) (le (int $char_score) 4) }}
               <span class="d-none" aria-hidden="true">{{ $char_wt }}</span>
-              {{ range seq (int $char_quart) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
+              <span class="d-none keep-on-export" aria-hidden="true">{{ $char_score }}</span>
+              <span class="text-nowrap">
+                {{ range seq (int $char_score) }}<i class="bi bi-star-fill text-muted char-score-star"></i>{{ end }}
+              </span>
             {{ else }}
               {{
                 errorf
-                "Got unexpected value for characteristic quartile for feature %q in PIN %q: %q"
+                "Got unexpected value for characteristic score for feature %q in PIN %q: %q"
                 $char
                 $.Params.pin
-                $char_quart
+                $char_score
               }}
             {{ end }}
 
@@ -634,13 +649,9 @@
         we estimate its value using
         a slightly different method than the one we use for other properties. For properties like this one, we use the
         {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
-        of the largest
-        {{ template "tt" (dict "label" "card" "description" .Params.var_info.card.description) }}
-        to estimate the property's value, but we adjust the building square footage of
-        that card to use the combined building square footage of all
-        {{ template "tt" (dict "label" "cards" "description" .Params.var_info.card.description) }} on the
-        property. The {{ template "tt" (dict "label" "characteristics" "description" .Params.var_info.characteristics.description) }}
-        in the table above reflect this difference. For more information on multi-card value estimation, see our
+        of the largest card to estimate the property's value, but we adjust the building square footage of
+        that card to use the combined building square footage of all cards on the property. The characteristics in the
+        table above reflect this difference. For more information on multi-card value estimation, see our
         <a href="https://github.com/ccao-data/wiki/blob/master/Residential/Multi-Card%20PINs/multi_card_explainer.md" target="_blank">multi-card explainer</a>.
       </p>
       {{ end }}
@@ -657,31 +668,31 @@
   </div>
 
   <h3 class="mb-3">
-    Summary of the Top 5 Most Important Sales
+    Summary of the Top 5 Most Significant Sales
   </h3>
   <p>
-    The top five most important sales took place
+    The top five most significant sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
     <strong>{{ .card.comp_summary.sale_year_range }}</strong>.
     The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong>
-    at <strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong>
+    at <span class="text-nowrap"><strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong></span>
   </p>
 
-  <h3 class="mb-3">Initial Model Estimate</h3>
-  <p>
-    Based on these and other sales, the model that ran on {{ .Params.final_model_run_date }}
-    initially estimated that the value of
-    {{ if and .is_multicard (not .special_case_multi_card) }}
-      this card
-    {{ else }}
-      your home
-    {{ end }}
-    as of
-    {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
-    <strong>January 1, {{ .Params.assessment_year }}</strong> should be
-    <strong>{{ .card.pred_card_initial_fmv }}</strong> at
-    <strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong>
-  </p>
+  {{ if and .is_multicard (not .special_case_multi_card) }}
+    <h3 class="mb-3">Model Estimate for Card {{ .card.card_num }}</h3>
+    <p>
+      Based on these and other sales, the model estimated that the value of this card on
+      {{ template "tt" (dict "label" "lien date" "description" .Params.var_info.lien_date.description) }}
+      <strong>January 1, {{ .Params.assessment_year }}</strong> should be
+      {{ if (.card.pred_card_initial_fmv_per_sqft ) }}
+        <strong>{{ .card.pred_card_initial_fmv }}</strong> at
+        <span class="text-nowrap"><strong>{{ .card.pred_card_initial_fmv_per_sqft }}/sq.ft.</strong></span>
+      {{ else }}
+        <strong>{{ .card.pred_card_initial_fmv }}</strong>.
+      {{ end }}
+    </p>
+  {{ end }}
+
   {{ end }}
 
   <!-- Load Bootstrap JS -->
@@ -973,7 +984,7 @@
       });
 
       // Fit bounds with a small buffer
-      const boundsPadding = 0.001;
+      const boundsPadding = 0.005;
       bounds._southWest.lat -= boundsPadding;
       bounds._southWest.lng -= boundsPadding;
       bounds._northEast.lat += boundsPadding;
@@ -996,7 +1007,7 @@
       $('[data-bs-toggle="tooltip"]').each(function () {
         new bootstrap.Tooltip(this);
       });
-  }
+    }
 
     // Initialize the characteristic comparison table
     function initializeTable(cardNum, cardIndex, isTabbed) {
@@ -1036,20 +1047,25 @@
             },
             buttons: [
               {
-                extend: "copy",  // Button to copy table to clipboard
-                text: '<i class="bi bi-clipboard"></i> Copy',
-                footer: false  // Exclude table footer from export
-              },
-              {
                 extend: "csv",  // Button to export table as CSV
                 text: '<i class="bi bi-file-earmark-spreadsheet"></i> Excel',
-                footer: false
+                footer: false,
+                exportOptions: {
+                  format: {
+                    body: exportBody
+                  }
+                }
               },
               {
                 extend: "print",  // Button to open a print view for the table
                 text: '<i class="bi bi-printer"></i> Print View',
                 footer: false,
-                autoPrint: false  // Don't open print dialog box automatically
+                autoPrint: false,  // Don't open print dialog box automatically
+                exportOptions: {
+                  format: {
+                    body: exportBody
+                  }
+                }
               }
             ]
           },
@@ -1080,6 +1096,51 @@
           dt.fixedHeader.disable();
         });
       }
+    }
+
+    // Custom DataTables export function to strip out display elements before
+    // exporting data.
+    // See here for docs explaining the arguments to this function, which are
+    // set by DataTables:
+    // https://datatables.net/reference/api/buttons.exportData()
+    function exportBody(data, row, column, node) {
+      // Strip tooltip annotations from Characteristics column
+      if (column == 0) {
+        let cellText = '';
+        if (node && node.querySelector) {
+          const span = node.querySelector('span.tooltip-underline');
+          if (span) {
+            cellText = (span.textContent || '').trim();
+          } else {
+            cellText = (node.textContent || '').trim();
+          }
+        }
+        return cellText;
+      }
+
+      // Strip weights and stars from Score column and convert it to numerical score
+      if (column == 1) {
+        let spanContent = '';
+        if (node && node.querySelector && node.querySelector('span.keep-on-export')) {
+          return node.querySelector('span.keep-on-export').textContent || '';
+        }
+        // Fallback to the original cell contents
+        return data
+      }
+
+      // For all other columns, check if anchor tag exists and extract its
+      // inner text if so; otherwise, just return the data
+      if (node && node.querySelector) {
+        const anchor = node.querySelector('a');
+        if (anchor) {
+          return (anchor.textContent || '').trim();
+        } else {
+          return (node.textContent || '').trim();
+        }
+      }
+
+      // Fallback to the original cell contents
+      return data
     }
   </script>
 </body>

@@ -54,6 +54,13 @@ on:
         required: false
         default: false
 
+      hugo-build-by-nbhd:
+        type: boolean
+        description: >
+          Build reports by neighborhood: Slower, but uses less memory
+        required: false
+        default: false
+
 env:
   PYTHONUNBUFFERED: "1"
   UV_SYSTEM_PYTHON: 1
@@ -187,6 +194,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_IAM_ROLE_TO_ASSUME_ARN }}
           aws-region: us-east-1
+          role-duration-seconds: 7200
 
       - name: Cache Hugo package
         id: cache-hugo
@@ -204,17 +212,25 @@ jobs:
       - name: Install Hugo
         run: sudo dpkg -i ${{ runner.temp }}/hugo.deb
 
-      - name: Generate PINVAL reports
+      - name: Generate Hugo content files and build reports
         env:
           RUN_ID: ${{ needs.setup.outputs.run-id }}
           ENV_CODE: ${{ inputs.environment == 'Production bucket' && 'prod' || 'dev' }}
         run: |
           read -ra PINS <<< "${{ inputs.pins }}"
+          NBHD_FLAG=""
+          if [ "${{ inputs.hugo-build-by-nbhd }}" = "true" ]; then
+            NBHD_FLAG="--build-by-neighborhood"
+          fi
+          # Unquoted neighborhood flag is intentional in this call, since we
+          # want this to expand to nothing (rather than an empty string) if
+          # the variable is empty
           python3 scripts/generate_pinval/generate_pinval.py \
             --run-id "$RUN_ID" \
             --township "$TOWNSHIP" \
             --pin "${PINS[@]}" \
-            --environment "$ENV_CODE"
+            --environment "$ENV_CODE" \
+            $NBHD_FLAG
 
       - name: Sync reports to S3
         env:

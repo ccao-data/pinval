@@ -5,7 +5,7 @@ url: "/static/404.html"
 ---
 
 This page does not exist. Usually this means you requested a report for
-an invalid parcel identification number (PIN), or you requested a report for
+an invalid Property Index Number (PIN), or you requested a report for
 a year that we don't support.
 
 Please navigate back to the web form, double-check the form information, and try

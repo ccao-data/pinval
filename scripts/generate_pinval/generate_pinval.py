@@ -30,6 +30,7 @@ import os
 import subprocess as sp
 import gc
 import re
+import shutil
 import time
 from pathlib import Path
 
@@ -90,6 +91,18 @@ def parse_args() -> argparse.Namespace:
         choices=["dev", "prod"],
         default="dev",
         help="Deployment target",
+    )
+
+    parser.add_argument(
+        "--build-by-neighborhood",
+        action="store_true",
+        help=(
+            "When present, writes Markdown content files in neighborhood "
+            "subdirectories and instructs Hugo to build reports by "
+            "neighborhood. This makes the build slower, but allows Hugo to use "
+            "less memory, which can be useful for larger towns or in "
+            "memory-constrained build environments."
+        ),
     )
 
     args = parser.parse_args()
@@ -194,6 +207,7 @@ def build_front_matter(
         "pin": tp["meta_pin"],
         "pin_pretty": pin_pretty(tp["meta_pin"]),
         "pred_pin_final_fmv_round": tp["pred_pin_final_fmv_round"],
+        "pred_pin_final_fmv_round_per_sqft": tp["pred_pin_final_fmv_round_per_sqft"],
         "meta_pin_num_cards": tp["meta_pin_num_cards"],
         "cards": [],
         "var_info": vars_dict,
@@ -234,22 +248,22 @@ def build_front_matter(
         if special_multi and "char_bldg_sf" in card_df:
             subject_chars["char_bldg_sf"] = card_df["char_bldg_sf"]
 
-        # Extract weights and quartiles for all features
-        subject_char_quartiles = {
-            pred: card_df[f"quart_{pred}"]
+        # Extract weights and scores for all features
+        subject_char_scores = {
+            pred: card_df[f"score_{pred}"]
             for pred in preds_cleaned
-            if f"quart_{pred}" in card_df
+            if f"score_{pred}" in card_df
         }
         subject_char_weights = {
             pred: card_df[f"wt_{pred}"]
             for pred in preds_cleaned
             if f"wt_{pred}" in card_df
         }
-        if special_multi and "quart_char_bldg_sf" in card_df:
+        if special_multi and "score_char_bldg_sf" in card_df:
             # Combined value doesn't exist in the view, so construct it artificially
-            subject_char_quartiles["char_bldg_sf"] = subject_char_quartiles[
+            subject_char_scores["char_bldg_sf"] = subject_char_scores[
                 "combined_bldg_sf"
-            ] = card_df["quart_char_bldg_sf"]
+            ] = card_df["score_char_bldg_sf"]
             subject_char_weights["char_bldg_sf"] = subject_char_weights[
                 "combined_bldg_sf"
             ] = card_df["wt_char_bldg_sf"]
@@ -314,7 +328,7 @@ def build_front_matter(
                     }.items()
                 },
                 "chars": subject_chars,
-                "char_quartiles": subject_char_quartiles,
+                "char_scores": subject_char_scores,
                 "char_weights": subject_char_weights,
                 "has_subject_pin_sale": bool(comps_df["is_subject_pin_sale"].any()),
                 "pred_card_initial_fmv": card_df["pred_card_initial_fmv"],
@@ -439,6 +453,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             "sale_price_per_sq_ft",
             "acs5_median_household_renter_occupied_gross_rent",
             "pred_pin_final_fmv_round",
+            "pred_pin_final_fmv_round_per_sqft",
             "pred_card_initial_fmv",
             "pred_card_initial_fmv_per_sqft",
         }
@@ -446,7 +461,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         # Columns that should be rounded to 5 significant digits
         ROUND_TO_5_COLS = {"loc_latitude", "loc_longitude"}
 
-        if col in INT_COLS or col.startswith("quart_"):
+        if col in INT_COLS or col.startswith("score_"):
             return "int"
 
         if col in DOLLAR_COLS or col.startswith("acs5_median_income"):
@@ -456,7 +471,7 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             return "round_to_5"
 
         if col.startswith("wt_"):
-            return "round_to_10"
+            return "16digit_float"
 
         if col.startswith("acs5_percent"):
             return "percent"
@@ -523,9 +538,9 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
         .pipe(
             lambda d: d.assign(
                 **{
-                    col: d[col].apply(round, ndigits=10)
+                    col: d[col].apply(lambda x: f"{x:.16f}")
                     for col in d.columns
-                    if _get_display_dtype(col) == "round_to_10"
+                    if _get_display_dtype(col) == "16digit_float"
                 }
             )
         )
@@ -577,20 +592,23 @@ def compute_shap_weights(df: pd.DataFrame) -> pd.DataFrame:
     this naming convention:
 
     - wt_<predictor>: The weight of the predictor, on the range [0, 1]
-    - quart_<predictor> The quartile of the weight, on the range [1, 4]
+    - score_<predictor> The score of the weight, on the range [1, 4]
 
-    We use quartiles to display a "score" for each predictor in the report
+    We use integer bins to compute a score for each predictor in the report
     that is easier for readers to interpret than the raw weight.
     """
 
     shap_cols = [col for col in df.columns if col.startswith("shap_")]
-    sum_df = df[shap_cols].abs().sum(axis=1)
+    # Sum the absolute values of every SHAP in each row, setting sums of zero
+    # to null to be safe (avoids division by zero)
+    sum_df = df[shap_cols].abs().sum(axis=1).replace(0, np.nan)
     weights_df = df[shap_cols].abs().div(sum_df, axis=0)
 
-    # Cut the weights into quartiles so that we can display them using a
+    # Cut the weights into predefined bins so that we can display them using a
     # simplified "score" on the range [1, 4]
-    quartile_df = weights_df.apply(
-        lambda row: pd.qcut(row.rank(method="first"), 4, labels=list(range(1, 5))),
+    bins = [-np.inf, 0.0005, 0.005, 0.025, np.inf]
+    scores_df = weights_df.apply(
+        lambda row: pd.cut(row, bins=bins, labels=list(range(1, 5))),
         axis=1,
     )
 
@@ -598,12 +616,12 @@ def compute_shap_weights(df: pd.DataFrame) -> pd.DataFrame:
     # take up space on disk
     df = df.drop(shap_cols, axis=1)
 
-    # Add weights and quartiles to the output dataframe
+    # Add weights and scores to the output dataframe
     df = pd.concat(
         [
             df,
             weights_df.rename(columns=lambda col: re.sub("^shap_", "wt_", col)),
-            quartile_df.rename(columns=lambda col: re.sub("^shap_", "quart_", col)),
+            scores_df.rename(columns=lambda col: re.sub("^shap_", "score_", col)),
         ],
         axis=1,
     )
@@ -740,8 +758,13 @@ def main() -> None:
     # Variables dictionary for labels + tooltips
     vars_dict = load_vars_dict(cursor)
 
+    # Close the database cursor since we're done with queries
+    cursor.close()
+
     # Declare outputs paths
-    md_outdir = project_root / "hugo" / "content" / "pinval-reports"
+    hugo_root = project_root / "hugo"
+    content_root = hugo_root / "content"
+    md_outdir = content_root / "pinval-reports"
     md_outdir.mkdir(parents=True, exist_ok=True)
 
     start_time_dict_groupby = time.time()
@@ -771,7 +794,16 @@ def main() -> None:
         # Use get_group to lower memory use when iterating grouped DF
         df_target = df_assessments_by_pin.get_group(pin)
 
-        md_path = md_outdir / f"{pin}.md"
+        # Determine where to write content files. If the user has specified
+        # that we should write content files in neighborhood subdirectories,
+        # adjust the output path based on the PIN's neighborhood
+        md_dirpath = md_outdir
+        if args.build_by_neighborhood:
+            nbhd_code = df_target.iloc[0]["meta_nbhd_code"]
+            md_dirpath = md_outdir / nbhd_code
+            md_dirpath.mkdir(exist_ok=True)
+
+        md_path = md_dirpath / f"{pin}.md"
 
         df_comps = df_comps_by_pin.get(pin)
 
@@ -797,23 +829,50 @@ def main() -> None:
     if not args.skip_html:
         # Clean up memory before running Hugo, this prevents github runners
         # from running out of memory
-        for _v in (
-            df_assessments_by_pin,
-            df_comps_by_pin,
-        ):
-            del _v
+        del df_assessments_by_pin
+        del df_comps_by_pin
+        del df_target
+        del df_comps
+        del pin_groups
+
         gc.collect()
 
         # Generate the HTML files using Hugo
-        print("Running Hugo …")
-        proc = sp.run(["hugo", "--minify"], cwd=project_root / "hugo", text=True)
-        if proc.returncode != 0:
-            raise RuntimeError("Hugo build failed.")
+        if args.build_by_neighborhood:
+            print("Building Hugo reports by neighborhood …")
 
-        # Remove markdown files now that HTML is baked.
-        for md_file in md_outdir.glob("*.md"):
-            md_file.unlink(missing_ok=True)
-        print("✓ Hugo build complete — markdown cleaned up.")
+            # Move reports directory out of the Hugo content root so that we
+            # can move reports back in neighborhood-by-neighborhood
+            temp_reports_dir = hugo_root / "temp-pinval-reports"
+            if temp_reports_dir.exists():
+                shutil.rmtree(temp_reports_dir)
+            shutil.move(str(md_outdir), str(temp_reports_dir))
+
+            # Move neighborhoods into the Hugo content root one by one and
+            # generate reports
+            for nbhd_dir in temp_reports_dir.iterdir():
+                if nbhd_dir.is_dir():
+                    target_dir = content_root / nbhd_dir.name
+                    print(f"Moving {nbhd_dir} to {target_dir} and building reports")
+                    shutil.move(str(nbhd_dir), str(target_dir))
+                    proc = sp.run(["hugo", "--minify"], cwd=hugo_root, text=True)
+                    if proc.returncode != 0:
+                        raise RuntimeError("Hugo build failed.")
+                    print(f"Deleting {target_dir}")
+                    shutil.rmtree(str(target_dir))
+
+            # Remove temporary reports dir that should now be empty
+            temp_reports_dir.rmdir()
+        else:
+            print("Building Hugo reports …")
+            proc = sp.run(["hugo", "--minify"], cwd=hugo_root, text=True)
+            if proc.returncode != 0:
+                raise RuntimeError("Hugo build failed.")
+
+            # Remove markdown files now that HTML is baked.
+            shutil.rmtree(md_outdir)
+
+        print("✓ Hugo build complete")
 
 
 if __name__ == "__main__":

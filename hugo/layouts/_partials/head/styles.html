@@ -80,6 +80,8 @@
 
   .tooltip-underline {
     text-decoration: underline dotted #294298 1px;
+    /* Safari requires a separate attribute and doesn't support thickness in shorthand */
+    -webkit-text-decoration: underline dotted #294298;
     cursor: pointer;
   }
 </style>
