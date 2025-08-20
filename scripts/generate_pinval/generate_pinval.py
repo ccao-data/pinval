@@ -758,6 +758,9 @@ def main() -> None:
     # Variables dictionary for labels + tooltips
     vars_dict = load_vars_dict(cursor)
 
+    # Close the database cursor since we're done with queries
+    cursor.close()
+
     # Declare outputs paths
     hugo_root = project_root / "hugo"
     content_root = hugo_root / "content"
@@ -826,11 +829,12 @@ def main() -> None:
     if not args.skip_html:
         # Clean up memory before running Hugo, this prevents github runners
         # from running out of memory
-        for _v in (
-            df_assessments_by_pin,
-            df_comps_by_pin,
-        ):
-            del _v
+        del df_assessments_by_pin
+        del df_comps_by_pin
+        del df_target
+        del df_comps
+        del pin_groups
+
         gc.collect()
 
         # Generate the HTML files using Hugo
