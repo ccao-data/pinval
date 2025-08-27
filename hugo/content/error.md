@@ -2,8 +2,14 @@
 layout: single
 title: "Page not found"
 url: "/static/404.html"
-# We don't currently have a way of passing the environment along to this error
-# page, so just hardcode it to point to the prod form for simplicity
+# We don't have a way of setting this `environment` attribute in the
+# report generation script, which is how we set it for the reports. That
+# means we can't dynamically adjust this attribute depending on the deploy
+# environment. While in the future we might want to implement the ability to
+# do that, for now the only consequence of this attribute being hardcoded to
+# prod is that the link ref for the "back to search" button always points to
+# the prod web form. That's not a huge deal, so for the sake of simplicity, we
+# use a hardcoded `environment` for now
 environment: prod
 ---
 
