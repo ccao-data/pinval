@@ -316,7 +316,7 @@
           Assessor’s Office thoroughly review the model's estimates, neighborhood by neighborhood, and may
           change the property's estimated value and characteristics. To see your home's current assessment
           and characteristics, visit the
-          <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" class="alert-link" target="_blank">Assessor's website</a>.
+          <a href="https://www.cookcountyassessoril.gov/pin/{{ .Params.pin }}" class="alert-link" target="_blank">Assessor's website</a>.
         </p>
       </div>
       <p>
@@ -545,13 +545,13 @@
           <td class="char-name">PIN</td>
           <td></td>
           <td>
-            <a href="https://www.cookcountyassessor.com/pin/{{ .Params.pin }}" target="_blank">
+            <a href="https://www.cookcountyassessoril.gov/pin/{{ .Params.pin }}" target="_blank">
               {{ .card.pin_pretty }}
             </a>
           </td>
           {{ range $comp := $.card.comps }}
             <td>
-              <a href="https://www.cookcountyassessor.com/pin/{{ $comp.pin }}" target="_blank">
+              <a href="https://www.cookcountyassessoril.gov/pin/{{ $comp.pin }}" target="_blank">
                 {{ $comp.pin_pretty }}
               </a>
             </td>
@@ -858,7 +858,7 @@
         const subjectPopupContent = `
           <h5>${propertyLabel}</h5>
           <b>Address</b>: ${cardData.location.property_address}
-          <br><b>PIN</b>: <a href="https:\/\/www.cookcountyassessor.com/pin/${pin}" target="_blank">${pinPretty}</a>
+          <br><b>PIN</b>: <a href="https:\/\/www.cookcountyassessoril.gov/pin/${pin}" target="_blank">${pinPretty}</a>
           <br><b>Property class</b>: ${cardData.chars.char_class}
           <br><b>Assessor neighborhood</b>: ${cardData.location.meta_nbhd_code}
           <br><b>Year built</b>: ${cardData.chars.char_yrblt}
@@ -906,7 +906,7 @@
         const compPopupContent = `
           <h5>${comp.is_subject_pin_sale ? (cardData.is_multicard ? "Subject card" : "Subject property") : "Sale " + comp.comp_num}</h5>
           <b>Address</b>: ${comp.property_address}
-          <br><b>PIN</b>: <a href="https:\/\/www.cookcountyassessor.com/pin/${comp.pin}" target="_blank">${comp.pin_pretty}</a>
+          <br><b>PIN</b>: <a href="https:\/\/www.cookcountyassessoril.gov/pin/${comp.pin}" target="_blank">${comp.pin_pretty}</a>
           <br><b>Property class</b>: ${comp.char_class}
           <br><b>Assessor neighborhood</b>: ${comp.meta_nbhd_code}
           <br><b>Sale price</b>: ${comp.sale_price}

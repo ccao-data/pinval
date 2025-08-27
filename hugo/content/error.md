@@ -13,5 +13,5 @@ form](https://www.cookcountyassessoril.gov/model-value-report), double-check
 the form information, and try again. We apologize for the inconvenience!
 
 If you believe this page should exist, please [contact
-us](https://www.cookcountyassessor.com/contact)
+us](https://www.cookcountyassessoril.gov/contact)
 and we will do our best to correct the mistake.
