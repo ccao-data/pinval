@@ -61,6 +61,13 @@ on:
         required: false
         default: false
 
+      eligible-only:
+        type: boolean
+        description: >
+          Only generate reports for PINs where is_report_eligible = true
+        required: false
+        default: true
+
 env:
   PYTHONUNBUFFERED: "1"
   UV_SYSTEM_PYTHON: 1
@@ -222,6 +229,10 @@ jobs:
           if [ "${{ inputs.hugo-build-by-nbhd }}" = "true" ]; then
             NBHD_FLAG="--build-by-neighborhood"
           fi
+          ELIG_FLAG=""
+          if [ "${{ inputs.eligible-only }}" = "true" ]; then
+            ELIG_FLAG="--eligible-only"
+          fi
           # Unquoted neighborhood flag is intentional in this call, since we
           # want this to expand to nothing (rather than an empty string) if
           # the variable is empty
@@ -230,7 +241,8 @@ jobs:
             --township "$TOWNSHIP" \
             --pin "${PINS[@]}" \
             --environment "$ENV_CODE" \
-            $NBHD_FLAG
+            $NBHD_FLAG \
+            $ELIG_FLAG
 
       - name: Sync reports to S3
         env:
