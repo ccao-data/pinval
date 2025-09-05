@@ -94,6 +94,16 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--eligible-only",
+        action="store_true",
+        help=(
+            "When present, restricts the assessment query to PINs where "
+            "is_report_eligible = true to avoid generating static pages for "
+            "ineligible parcels."
+        ),
+    )
+
+    parser.add_argument(
         "--build-by-neighborhood",
         action="store_true",
         help=(
@@ -712,6 +722,9 @@ def main() -> None:
 
         assessment_clauses.append(f"meta_pin IN ({placeholders})")
         params_assessment = {**params_assessment, **pin_params}
+
+    if args.eligible_only:
+        assessment_clauses.append("is_report_eligible = TRUE")
 
     where_assessment = " AND ".join(assessment_clauses)
 
