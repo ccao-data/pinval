@@ -300,8 +300,10 @@ def build_front_matter(
             "sale_year_range": comps_df["sale_year_range"].iloc[0]
             if not comps_df.empty
             else "",
-            "avg_sale_price": comps_df["comps_avg_sale_price"].iloc[0],
-            "avg_price_per_sqft": comps_df["comps_avg_price_per_sqft"].iloc[0],
+            "min_sale_price": comps_df["comps_min_sale_price"].iloc[0],
+            "max_sale_price": comps_df["comps_max_sale_price"].iloc[0],
+            "min_price_per_sqft": comps_df["comps_min_price_per_sqft"].iloc[0],
+            "max_price_per_sqft": comps_df["comps_max_price_per_sqft"].iloc[0],
         }
         # Complete the card
         front["cards"].append(
@@ -447,8 +449,10 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
 
         # Columns that should be formatted as dollar amounts
         DOLLAR_COLS = {
-            "comps_avg_sale_price",
-            "comps_avg_price_per_sqft",
+            "comps_min_sale_price",
+            "comps_max_sale_price",
+            "comps_min_price_per_sqft",
+            "comps_max_price_per_sqft",
             "meta_sale_price",
             "sale_price_per_sq_ft",
             "acs5_median_household_renter_occupied_gross_rent",
@@ -505,15 +509,22 @@ def format_df(df: pd.DataFrame, chars_recode=False) -> pd.DataFrame:
             dictionary=ccao.vars_dict,
         )
 
-    # Generate comps summary stats needed for frontmatter
+    # Generate comps summary stats needed for frontmatter, these conditionals
+    # are our way of checking whether we're working with the comps table
     if "meta_sale_price" in df.columns:
-        df["comps_avg_sale_price"] = df.groupby(["pin", "card"])[
+        df["comps_min_sale_price"] = df.groupby(["pin", "card"])[
             "meta_sale_price"
-        ].transform("mean")
+        ].transform("min")
+        df["comps_max_sale_price"] = df.groupby(["pin", "card"])[
+            "meta_sale_price"
+        ].transform("max")
     if "sale_price_per_sq_ft" in df.columns:
-        df["comps_avg_price_per_sqft"] = df.groupby(["pin", "card"])[
+        df["comps_min_price_per_sqft"] = df.groupby(["pin", "card"])[
             "sale_price_per_sq_ft"
-        ].transform("mean")
+        ].transform("min")
+        df["comps_max_price_per_sqft"] = df.groupby(["pin", "card"])[
+            "sale_price_per_sq_ft"
+        ].transform("max")
 
     formatted_df = (
         # Convert columns based on their configured data type
