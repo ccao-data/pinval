@@ -661,8 +661,12 @@
     The top five most significant sales took place
     {{ .card.comp_summary.sale_year_range_prefix }}
     <strong>{{ .card.comp_summary.sale_year_range }}</strong>.
-    The average price of these sales was <strong>{{ .card.comp_summary.avg_sale_price }}</strong>
-    at <span class="text-nowrap"><strong>{{ .card.comp_summary.avg_price_per_sqft }}/sq.ft.</strong></span>
+    These sale prices ranged from
+    <strong>{{ .card.comp_summary.min_sale_price }}</strong>
+    to <strong>{{ .card.comp_summary.max_sale_price }}</strong>, and from
+    <span class="text-nowrap"><strong>{{ .card.comp_summary.min_price_per_sqft }}/sq.ft.</strong></span>
+    to
+    <span class="text-nowrap"><strong>{{ .card.comp_summary.max_price_per_sqft }}/sq.ft.</strong></span>.
   </p>
 
   {{ if and .is_multicard (not .special_case_multi_card) }}
