@@ -64,7 +64,7 @@ on:
       eligible-only:
         type: boolean
         description: >
-          Only generate reports for PINs where is_report_eligible = true
+          Only generate reports for PINs that are eligible for reports (i.e. no error pages)
         required: false
         default: true
 
