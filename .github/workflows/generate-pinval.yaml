@@ -134,12 +134,17 @@ jobs:
           # both arguments
           read -ra PINS <<< "${{ inputs.pins }}"
           read -ra TOWNSHIPS <<< "${{ inputs.townships }}"
+          ELIG_FLAG=""
+          if [ "${{ inputs.eligible-only }}" = "true" ]; then
+            ELIG_FLAG="--eligible-only"
+          fi
           python3 scripts/generate_pinval/resolve_model_metadata.py \
             --year "${{ inputs.year }}" \
             --run-id "${{ inputs.run_id }}" \
             --pin "${PINS[@]}" \
             --township "${TOWNSHIPS[@]}" \
-            --write-github-output
+            --write-github-output \
+            $ELIG_FLAG
 
       - name: Resolve AWS resources
         id: resolve-aws
