@@ -223,6 +223,7 @@ def build_front_matter(
         "var_info": vars_dict,
         "special_case_multi_card": special_multi,
         "environment": environment,
+        "is_prorated": tp["is_prorated"],
     }
 
     # Exit early if this PIN is ineligible for a report, in which case we
