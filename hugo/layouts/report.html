@@ -311,25 +311,25 @@
           <div class="alert alert-info">
             <p class="mb-0">
               <i class="bi bi-info-circle-fill"></i>
-              <strong>Heads up for prorated properties:</strong>
               Your property is prorated over two or more parcels. This does not mean you are paying more in taxes. Instead, it means that your home connects to other parcels, and a portion of the assessed value is spread over those other parcels.
               To learn more, you can see your property alongside its connected parcels on a
-              <a class="alert-link" target="_blank"
+              <a target="_blank" class="text-decoration-underline"
                 href="https://maps.cookcountyil.gov/cookviewer/?pin={{ .Params.pin }}&year={{ .Params.assessment_year }}">
                 map
               </a>,
               see
-              <a class="alert-link" target="_blank"
+              <a target="_blank" class="text-decoration-underline"
                 href="https://assessorpropertydetails.cookcountyil.gov/Datalets/Datalet.aspx?UseSearch=no&pin={{ .Params.pin }}">
                 your property's proration percentage
               </a>
               (displayed as the “Common Interest Bldg %” at that link), or read about
-              <a class="alert-link" target="_blank"
+              <a target="_blank" class="text-decoration-underline"
                 href="https://www.cookcountyassessoril.gov/divisions-consolidations">
                 how parcel divisions and consolidations work
               </a>.
             </p>
           </div>
+        {{ end }}
         {{ end }}
       </p>
       <div class="alert alert-warning">
