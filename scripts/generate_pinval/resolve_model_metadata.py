@@ -69,6 +69,16 @@ def parse_args() -> argparse.Namespace:
         help="Write output to the GITHUB_OUTPUT env var, for use in workflows",
     )
 
+    parser.add_argument(
+        "--eligible-only",
+        action="store_true",
+        help=(
+            "When present, restricts the assessment query to PINs where "
+            "is_report_eligible = true to avoid generating static pages for "
+            "ineligible parcels."
+        ),
+    )
+
     args = parser.parse_args()
 
     # Remove empty strings from list args
@@ -82,7 +92,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_township_codes(
-    year: str, townships: list[str], pins: list[str], write_github_output: bool
+    year: str,
+    townships: list[str],
+    pins: list[str],
+    write_github_output: bool,
+    eligible_only: bool,
 ) -> list[str]:
     """
     Given an assessment year, return all the township codes for that year.
@@ -98,6 +112,9 @@ def get_township_codes(
             - This is useful for generating a workflow job matrix with one
               consolidated job
         - If `False`, returns an empty list
+
+    If `eligible_only` is True, will only query for towns that have PINs
+    that are eligible for reports.
     """
     codes = [""] if write_github_output else []
 
@@ -114,6 +131,7 @@ def get_township_codes(
                     SELECT DISTINCT meta_township_code
                     FROM {constants.PINVAL_ASSESSMENT_CARD_TABLE}
                     WHERE assessment_year = %(year)s
+                    {"AND is_report_eligible" if eligible_only else ""}
                     ORDER BY meta_township_code
                 """,
                 {"year": year},
@@ -212,7 +230,11 @@ def main() -> None:
     run_id = get_run_id(args.run_id, args.year)
     metadata = get_model_metadata(run_id)
     township_codes = get_township_codes(
-        metadata["assessment_year"], args.township, args.pin, args.write_github_output
+        metadata["assessment_year"],
+        args.township,
+        args.pin,
+        args.write_github_output,
+        args.eligible_only,
     )
 
     matrix = json.dumps({"township": township_codes})
